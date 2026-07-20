@@ -69,7 +69,7 @@ export function SetPassword() {
             <Icon name="logo" size={20} />
           </span>
           <span className="brand-name">
-            Inventive <span>Care</span>
+            Inventive <span>Helpdesk</span>
           </span>
         </div>
         <div className="auth-hero">
@@ -89,7 +89,7 @@ export function SetPassword() {
               <Icon name="logo" size={20} />
             </span>
             <span className="brand-name">
-              Inventive <span>Care</span>
+              Inventive <span>Helpdesk</span>
             </span>
           </div>
           <h2>Set your password</h2>

@@ -76,7 +76,7 @@ export function SignIn() {
             <Icon name="logo" size={20} />
           </span>
           <span className="brand-name">
-            Inventive <span>Care</span>
+            Inventive <span>Helpdesk</span>
           </span>
         </div>
         <div className="auth-hero">
@@ -107,7 +107,7 @@ export function SignIn() {
               <Icon name="logo" size={20} />
             </span>
             <span className="brand-name">
-              Inventive <span>Care</span>
+              Inventive <span>Helpdesk</span>
             </span>
           </div>
           <h2>{mode === "signin" ? "Sign in" : "Reset your password"}</h2>
