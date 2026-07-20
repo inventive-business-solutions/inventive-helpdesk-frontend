@@ -1,0 +1,4241 @@
+:root {
+  --bg: #ecedf4;
+  --surface: #ffffff;
+  --surface-2: #f3f4fb;
+  --ink: #14161f;
+  --ink-2: #4c5162;
+  --muted: #7e8497;
+  --line: #e3e4ee;
+  --line-2: #eceef6;
+  --accent: #4b53d6;
+  --accent-ink: #ffffff;
+  --accent-sf: #ecebfb;
+
+  --good: #0ca30c;
+  --warning: #d98a00;
+  --serious: #d16a3a;
+  --critical: #cf3838;
+  --good-sf: #e4f3e4;
+  --warning-sf: #f8eed6;
+  --serious-sf: #f6e6dd;
+  --critical-sf: #f6dede;
+  --info: #2f6fed;
+  --info-sf: #e6effe;
+
+  --cat-1: #2a78d6;
+  --cat-2: #1baf7a;
+  --cat-3: #eda100;
+  --cat-4: #6f5ad6;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  /* Chip system — every chip/badge/pill in the app draws from these four tokens.
+     Two shapes only: chip (squared label) and pill (fully round). */
+  --radius-chip: 7px;
+  --radius-pill: 999px;
+  --chip-h: 24px;
+  --chip-font: 11.5px;
+  --shadow: 0 1px 2px rgba(30, 32, 64, 0.05), 0 6px 20px rgba(30, 32, 64, 0.07);
+  --mono: var(--font-mono), ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  --sans: var(--font-sans), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Light-only tool — dark mode intentionally not supported. `color-scheme: light`
+     also keeps native controls (scrollbars, date/select pickers) light on OS-dark. */
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.45;
+  font-feature-settings: "cv11", "ss01";
+}
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+h1,
+h2,
+h3 {
+  margin: 0;
+  text-wrap: balance;
+}
+a {
+  color: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Title Case for UI chrome — headings, labels, nav, buttons, chips.
+   Deliberately excludes data (emails, IDs, codes) and sentence content
+   (ticket titles, messages, descriptions), where per-word caps read wrong. */
+.page-head h1,
+.card-head h3,
+.card-head .link,
+.modal-head h3,
+.auth-card h2,
+.kpi .label,
+.nav a,
+.btn,
+.chip-filter,
+.segmented button,
+.vis-opt,
+.field label,
+.meta-row .mk,
+.dm-item .dn,
+.tp-opt .tt,
+.leg,
+.kpi .foot {
+  text-transform: capitalize;
+}
+/* .kpi .sub is authored in sentence case (captions) — do NOT title-case it. */
+
+/* ---------- SIGN IN ---------- */
+.login {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+}
+@media (max-width: 860px) {
+  .login {
+    grid-template-columns: 1fr;
+  }
+  .auth-brand {
+    display: none;
+  }
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+.brand-glyph {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+  box-shadow: var(--shadow);
+  flex: none;
+}
+.brand-glyph svg {
+  width: 20px;
+  height: 20px;
+}
+.brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.brand-name span {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.auth-brand {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  padding: 54px 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 40px;
+  background: linear-gradient(150deg, #5257de 0%, #3a3f9e 52%, #232659 100%);
+}
+.auth-brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 43px, rgba(255, 255, 255, 0.06) 43px 44px),
+    repeating-linear-gradient(90deg, transparent 0 43px, rgba(255, 255, 255, 0.06) 43px 44px);
+}
+.auth-brand > * {
+  position: relative;
+}
+.auth-brand .brand-glyph {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  box-shadow: none;
+}
+.auth-brand .brand-name {
+  color: #fff;
+}
+.auth-brand .brand-name span {
+  color: rgba(255, 255, 255, 0.72);
+}
+.auth-hero h1 {
+  font-size: clamp(28px, 3.2vw, 40px);
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  margin-bottom: 16px;
+  max-width: 15ch;
+}
+.auth-hero p {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 15px;
+  max-width: 42ch;
+  line-height: 1.55;
+  margin-bottom: 28px;
+}
+.brand-points {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.brand-point {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.92);
+}
+.brand-point svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  opacity: 0.95;
+}
+.auth-brand .foot {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.auth-panel {
+  display: grid;
+  place-items: center;
+  padding: 40px 24px;
+  background: var(--bg);
+}
+.auth-card {
+  width: 100%;
+  max-width: 392px;
+}
+.auth-card > .brand-mark {
+  display: none;
+  margin-bottom: 28px;
+}
+@media (max-width: 860px) {
+  .auth-card > .brand-mark {
+    display: inline-flex;
+  }
+}
+.auth-card h2 {
+  font-size: 23px;
+  letter-spacing: -0.02em;
+  margin-bottom: 5px;
+}
+.auth-card .sub {
+  color: var(--ink-2);
+  font-size: 14px;
+  margin-bottom: 22px;
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.auth-field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.auth-field input,
+.auth-field select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  transition:
+    border-color 0.14s,
+    box-shadow 0.14s;
+}
+.auth-field input::placeholder {
+  color: var(--muted);
+}
+.auth-field input:focus,
+.auth-field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+/* Forgot-password / back toggle: a clean right-aligned text link (a <button>,
+   so it needs its own reset — the shared .link styles only apply inside cards). */
+.auth-forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -3px;
+}
+.auth-forgot {
+  background: none;
+  border: none;
+  padding: 2px 2px;
+  margin-right: -2px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  border-radius: 5px;
+  transition: color 0.12s;
+}
+.auth-forgot:hover {
+  text-decoration: underline;
+  color: color-mix(in srgb, var(--accent) 80%, var(--ink));
+}
+.auth-submit {
+  width: 100%;
+  justify-content: center;
+  padding: 12px;
+  font-size: 14.5px;
+  margin-top: 4px;
+}
+.auth-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 12px;
+  margin-top: 4px;
+  line-height: 1.7;
+}
+.auth-note svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--accent);
+  margin-top: 2px;
+}
+.auth-note b {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.auth-note code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+/* ---------- APP SHELL ---------- */
+.app-shell {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  min-height: 100vh;
+}
+/* Tablet: keep the sidebar (nav must stay reachable) but slim it down. */
+@media (max-width: 1024px) {
+  .app-shell {
+    grid-template-columns: 200px 1fr;
+  }
+}
+/* Desktop/tablet: the hamburger collapses the sidebar to reclaim its width — the
+   sidebar is removed from the grid so the content spans full width. */
+@media (min-width: 641px) {
+  .app-shell:not(.nav-open) {
+    grid-template-columns: 1fr;
+  }
+  .app-shell:not(.nav-open) .sidebar {
+    display: none;
+  }
+}
+/* Phone only: no room for a rail — hide it. */
+@media (max-width: 640px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  /* Sidebar becomes an off-canvas drawer, toggled by the topbar menu button.
+     Scoped to .app-shell so these win over the base `.sidebar` rule that comes
+     later in the file (equal specificity would otherwise let source order win). */
+  .app-shell .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: auto;
+    z-index: 40;
+    width: 264px;
+    max-width: 82vw;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: var(--shadow);
+  }
+  .app-shell.nav-open .sidebar {
+    transform: translateX(0);
+  }
+  .app-shell .nav-scrim {
+    display: block;
+  }
+}
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid var(--line-2);
+}
+.sidebar-brand .brand-glyph {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.sidebar-brand .brand-glyph svg {
+  width: 18px;
+  height: 18px;
+}
+.sidebar-brand .t {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.sidebar-brand .t span {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* flex:1 + min-height:0 + overflow-y lets the nav scroll on its own when there are many
+   items (e.g. a member on many teams → one queue row each), keeping brand + foot fixed. */
+.nav {
+  padding: 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.nav-label {
+  padding: 12px 10px 6px;
+}
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  min-width: 0;
+  text-decoration: none;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.nav a svg {
+  width: 18px;
+  height: 18px;
+  opacity: 0.85;
+  flex: none;
+}
+/* Label takes the free width and ellipsises a long team name instead of overflowing;
+   the icon and count badge never shrink, so the row stays aligned at any name length. */
+.nav a .nav-txt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav a:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.nav a.active {
+  background: var(--accent-sf);
+  color: var(--accent);
+  font-weight: 600;
+}
+.nav a .count {
+  margin-left: 6px;
+  flex: none;
+} /* visual comes from .badge.num */
+.nav a.active .count {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sidebar-foot {
+  padding: 12px;
+  border-top: 1px solid var(--line-2);
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  transition: border-color 0.12s;
+}
+.who:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.who-av {
+  position: relative;
+  flex: none;
+  display: grid;
+}
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--accent-sf);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.avatar.client {
+  background: var(--good-sf);
+  color: var(--good);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--good) 22%, transparent);
+}
+.who-dot {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--good);
+  border: 2.5px solid var(--surface-2);
+}
+.who .m {
+  min-width: 0;
+  line-height: 1.3;
+}
+.who-name {
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.who .m span {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
+.signout {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 6px;
+  border-radius: 6px;
+}
+.signout:hover {
+  color: var(--critical);
+  background: var(--critical-sf);
+}
+
+/* ---------- MAIN ---------- */
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 26px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.topbar .crumb {
+  font-size: 13px;
+  color: var(--muted);
+}
+.topbar .crumb b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.topbar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 9px 14px;
+  color: var(--muted);
+  font-size: 13.5px;
+  width: 420px;
+  max-width: 100%;
+  transition:
+    border-color 0.14s,
+    box-shadow 0.14s;
+}
+.search:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+}
+.search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.search:focus-within svg {
+  color: var(--accent);
+}
+.search svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.search input {
+  border: none;
+  background: none;
+  outline: none;
+  font: inherit;
+  color: var(--ink);
+  width: 100%;
+}
+.search input::placeholder {
+  color: var(--muted);
+}
+@media (max-width: 1024px) {
+  .topbar {
+    padding: 12px 20px;
+    gap: 12px;
+  }
+  .search {
+    width: 320px;
+  }
+}
+@media (max-width: 720px) {
+  .topbar-center {
+    display: none;
+  }
+}
+@media (max-width: 560px) {
+  .topbar .crumb {
+    display: none;
+  }
+}
+
+/* The hamburger toggles the sidebar at every screen size. Rendered as a plain,
+   borderless icon (not a boxed button) so it sits cleanly in the topbar — with just a
+   subtle hover. Negative right margin tightens the gap to the breadcrumb. */
+.topbar .nav-toggle {
+  background: none;
+  border-color: transparent;
+  color: var(--ink-2);
+  margin-left: -4px;
+  margin-right: -6px;
+}
+.topbar .nav-toggle:hover {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--ink);
+}
+.nav-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- PORTAL (client POC) — single-page slim chrome, no sidebar ---------- */
+.portal-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.portal-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 32px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.portal-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  color: inherit;
+  flex: none;
+}
+.portal-brand .brand-glyph {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+.portal-brand .brand-glyph svg {
+  width: 18px;
+  height: 18px;
+}
+.portal-brand .pb-t {
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.portal-brand .pb-t span {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* The identity block holds arbitrary client/division/POC names — clamp them with an
+   ellipsis so no client's data can bend the top bar out of shape. */
+.portal-user {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+/* One chip holding the Client · Division pill, the name, and the abbreviation avatar. */
+.pu-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 6px 5px 8px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(20, 22, 31, 0.05);
+}
+.portal-user .pu-tag {
+  max-width: 220px;
+} /* visual comes from .badge.round */
+.portal-user .pu-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.portal-user .avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex: none;
+}
+.portal-user .btn {
+  flex: none;
+}
+.portal-main {
+  flex: 1;
+  min-width: 0;
+}
+.portal-content {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+@media (max-width: 640px) {
+  .portal-bar {
+    padding: 12px 18px;
+  }
+  .portal-content {
+    padding: 20px 18px 36px;
+  }
+  .portal-user {
+    gap: 10px;
+  }
+  /* drop the scope pill and name on small screens → just the avatar */
+  .portal-user .pu-tag {
+    display: none;
+  }
+  .pu-chip {
+    border: none;
+    background: none;
+    box-shadow: none;
+    padding: 0;
+  }
+  .pu-chip .pu-name {
+    display: none;
+  }
+}
+
+/* Ticket table pagination footer. */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-2);
+}
+.pagination.no-divider {
+  border-top: none;
+}
+.pagination .rows-per-page {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.pagination .pager {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+.pagination .page-info {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.pagination .btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* The one inline icon button (see components/ui/IconButton.tsx). md (34) = bordered
+   surface control (toolbars, modals, ticket header); sm (26) = borderless row action
+   (inline edit/delete). Icon glyph size is fixed here, not at the call site. */
+.iconbtn {
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  color: var(--ink-2);
+  cursor: pointer;
+  flex: none;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+}
+.iconbtn svg {
+  width: 17px;
+  height: 17px;
+}
+.iconbtn:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.iconbtn.sm {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: none;
+  border: none;
+  color: var(--muted);
+}
+.iconbtn.sm svg {
+  width: 15px;
+  height: 15px;
+}
+.iconbtn.sm:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.iconbtn.danger:hover {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+.iconbtn.sm.danger:hover {
+  background: var(--critical-sf);
+  color: var(--critical);
+}
+.poc-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.content {
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 1600px;
+  width: 100%;
+  margin-inline: auto;
+}
+@media (max-width: 1024px) {
+  .content {
+    padding: 20px;
+    gap: 18px;
+  }
+}
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-head h1 {
+  font-size: 23px;
+  letter-spacing: -0.02em;
+}
+.page-head p {
+  color: var(--ink-2);
+  font-size: 14px;
+  margin: 4px 0 0;
+}
+
+/* Agent dashboard welcome header — initials avatar + the first name as the hero. */
+.hi {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+}
+.hi-av {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 50%, var(--cat-2)));
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.hi-text {
+  min-width: 0;
+}
+.hi-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1px;
+}
+.hi-text h1 {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+.hi-name {
+  background: linear-gradient(92deg, var(--accent), color-mix(in srgb, var(--cat-2) 80%, var(--accent)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+}
+.btn svg {
+  width: 16px;
+  height: 16px;
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.btn.primary:hover {
+  filter: brightness(1.06);
+}
+.btn.ghost {
+  background: transparent;
+}
+/* Destructive tone — pairs with any variant. */
+.btn.danger {
+  color: var(--critical);
+}
+.btn.danger:hover {
+  border-color: var(--critical);
+}
+.btn.danger.ghost:hover {
+  background: var(--critical-sf);
+}
+.btn.primary.danger {
+  background: var(--critical);
+  border-color: var(--critical);
+  color: #fff;
+}
+.btn.primary.danger:hover {
+  filter: brightness(1.06);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* KPI cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.kpi-grid.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 860px) {
+  .kpi-grid,
+  .kpi-grid.three {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .kpi-grid,
+  .kpi-grid.three {
+    grid-template-columns: 1fr;
+  }
+}
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.kpi.clickable {
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    transform 0.12s,
+    box-shadow 0.12s;
+}
+.kpi.clickable:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.kpi.active {
+  border-color: var(--kc, var(--accent));
+  background: color-mix(in srgb, var(--kc, var(--accent)) 7%, var(--surface));
+  box-shadow: 0 0 0 1px var(--kc, var(--accent));
+}
+.kpi.active .stripe {
+  width: 4px;
+}
+
+/* breakdown blocks (aligned horizontal bars) */
+/* Dashboard: Needs-assignment paired beside Ticket-breakdown — equal width, and equal
+   height (both cards stretch to the taller one). */
+.dash-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+}
+@media (max-width: 1024px) {
+  .dash-split {
+    grid-template-columns: 1fr;
+  }
+}
+.dash-split > .card {
+  display: flex;
+  flex-direction: column;
+}
+.dash-split .card-body {
+  flex: 1;
+}
+/* Needs-assignment shows a donut of the two pending states, centred in the shared card
+   height, with a clickable legend. Amber = To System, indigo = To Member; full green
+   ring when nothing is waiting. */
+.na-card .card-body {
+  display: flex;
+}
+.na-pie-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+.na-pie-wrap {
+  position: relative;
+  width: 152px;
+  height: 152px;
+  flex: none;
+}
+.na-pie {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(circle, transparent 53%, #000 54%);
+  mask: radial-gradient(circle, transparent 53%, #000 54%);
+}
+.na-pie-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.na-pie-total {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.na-pie-cap {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.na-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.na-leg {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 12px;
+  align-items: center;
+  min-width: 190px;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 9px;
+  transition: background 0.12s;
+}
+.na-leg:hover {
+  background: var(--surface-2);
+}
+.na-dot {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  align-self: center;
+}
+.na-leg-label {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.na-leg-sub {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 11px;
+  color: var(--muted);
+}
+.na-leg-val {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+
+/* Agent dashboard "Ready to pick up" — claimable ticket rows with an inline Claim button. */
+.claim-list {
+  display: flex;
+  flex-direction: column;
+}
+.claim-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.claim-row:last-child {
+  border-bottom: none;
+}
+.claim-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 5px 6px;
+  border-radius: 7px;
+  transition: background 0.12s;
+}
+.claim-main:hover {
+  background: var(--surface-2);
+}
+.claim-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.claim-team {
+  font-size: 12px;
+  color: var(--muted);
+  flex: none;
+}
+.claim-prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-2);
+  flex: none;
+}
+.claim-prio .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.claim-age {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+  flex: none;
+  min-width: 30px;
+  text-align: right;
+}
+.claim-row .btn {
+  flex: none;
+}
+@media (max-width: 680px) {
+  .claim-team,
+  .claim-age {
+    display: none;
+  }
+}
+
+.dist-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px 32px;
+}
+@media (max-width: 1040px) {
+  .dist-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .dist-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.dist-block {
+  min-width: 0;
+}
+.dist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.dist-h {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+.dist-head .link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Breakdown dimension tabs (a full-width <Segmented>); layout-only spacing here. */
+.bd-tabs {
+  margin-bottom: 16px;
+}
+.bd-cap {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+.bd-empty {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 18px 2px;
+}
+
+/* active-filter summary on the tickets list */
+.filter-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  box-shadow: var(--shadow);
+}
+.filter-summary .fs-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.filter-summary .fs-count b {
+  font-size: 14.5px;
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.filter-summary .fs-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 3px 1px;
+}
+.fs-tokens {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.fs-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 5px 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-sf);
+  color: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.fs-token .fk {
+  font-weight: 600;
+  opacity: 0.62;
+  text-transform: capitalize;
+  line-height: 1.5;
+}
+.fs-token .fv {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.fs-token-x {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  flex: none;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.fs-token-x:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.filter-summary .fs-clear {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 5px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.filter-summary .fs-clear:hover {
+  background: var(--accent-sf);
+}
+
+/* ---------- faceted filter bar (ui/FacetBar + ui/Menu) ---------- */
+.facet-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* Menu options render as <button> — reset native chrome so they match Select's <li>. */
+button.ui-select-opt {
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+}
+/* Locked scope / view chip — neutral, not an editable filter. */
+.facet-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.facet-context .fk {
+  opacity: 0.6;
+  text-transform: capitalize;
+}
+.facet-context .fv {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Active filter pill — the .fs-token look, but clickable (its label opens a value menu). */
+.facet-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 0 0;
+  border-radius: 8px;
+  background: var(--accent-sf);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.facet-pill.open,
+.facet-pill:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.facet-pill-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  cursor: pointer;
+  border-radius: 6px;
+}
+.facet-pill-ic {
+  color: color-mix(in srgb, var(--accent) 60%, var(--ink));
+  flex: none;
+  margin-right: -1px;
+}
+.facet-pill-main .fk {
+  opacity: 0.58;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.facet-pill-main .fv {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.facet-pill-caret {
+  color: color-mix(in srgb, var(--accent) 55%, var(--ink));
+  flex: none;
+  transition: transform 0.15s ease;
+}
+.facet-pill.open .facet-pill-caret {
+  transform: rotate(180deg);
+}
+.facet-pill .fs-token-x {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.facet-pill .fs-token-x:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+/* "+ Add filter" — dashed accent affordance. */
+.facet-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+}
+.facet-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-sf);
+}
+.facet-add svg {
+  color: var(--accent);
+}
+/* Menu header naming the dimension being chosen. */
+.facet-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -5px -5px 4px;
+  padding: 9px 12px 8px;
+  border-bottom: 1px solid var(--line-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.facet-menu-head svg {
+  color: var(--accent);
+}
+/* Add-filter dimension row (tiled icon + label) — a picker of dimensions, so each gets a
+   small tile that lights up on hover, Linear/Notion-style. */
+.facet-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+.facet-opt-ic {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  flex: none;
+  border-radius: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+.facet-opt-ic svg {
+  flex: none;
+}
+.facet-opt-tx {
+  font-weight: 600;
+  color: var(--ink-2);
+  transition: color 0.12s;
+}
+.ui-select-opt:hover .facet-opt-ic,
+.ui-select-opt.active .facet-opt-ic {
+  background: var(--accent-sf);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent);
+}
+.ui-select-opt:hover .facet-opt-tx,
+.ui-select-opt.active .facet-opt-tx {
+  color: var(--ink);
+}
+/* Back row in the two-step Add menu. */
+.facet-menu-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: -5px -5px 4px;
+  padding: 9px 12px 8px;
+  border: none;
+  border-bottom: 1px solid var(--line-2);
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: capitalize;
+  cursor: pointer;
+}
+.facet-menu-back svg {
+  color: var(--muted);
+  flex: none;
+}
+.facet-menu-back svg:nth-child(2) {
+  color: var(--accent);
+}
+.facet-menu-back:hover > svg:first-child {
+  color: var(--accent);
+}
+/* Count + Clear-all trailing cluster. */
+.facet-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.facet-summary .fs-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.facet-summary .fs-count b {
+  font-size: 14.5px;
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.facet-summary .fs-clear {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.facet-summary .fs-clear:hover {
+  background: var(--accent-sf);
+}
+
+/* custom dropdown (ui/Select) — the single dropdown used everywhere: filter bars,
+   modal forms (.block), and the ticket-detail rail. The menu is portalled to
+   <body> with fixed positioning (set inline from the trigger rect) so it is never
+   clipped by a scrolling ancestor. */
+.ui-select {
+  position: relative;
+  display: inline-flex;
+}
+/* line-height matches .chip-filter / native inputs so every control in a filter row
+   or form renders at the same height — do not set a bespoke line-height here. */
+.ui-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 10px 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  transition:
+    border-color 0.13s,
+    color 0.13s,
+    background 0.13s,
+    box-shadow 0.13s;
+}
+.ui-select-trigger:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--ink);
+}
+.ui-select.open .ui-select-trigger,
+.ui-select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  color: var(--ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 17%, transparent);
+}
+/* engaged (accent) look only for compact filter selects — not form controls */
+.ui-select.has-value:not(.block) .ui-select-trigger {
+  background: var(--accent-sf);
+  color: color-mix(in srgb, var(--accent) 80%, var(--ink));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+}
+.ui-select.has-value:not(.block) .ui-select-caret {
+  color: color-mix(in srgb, var(--accent) 68%, var(--ink));
+}
+/* plain = neutral look regardless of value (e.g. the rows-per-page control — not a filter) */
+.ui-select.plain.has-value .ui-select-trigger {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.ui-select.plain.has-value .ui-select-caret {
+  color: var(--muted);
+}
+.ui-select.plain.open .ui-select-trigger,
+.ui-select.plain .ui-select-trigger:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 17%, transparent);
+}
+.ui-select-value {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.45;
+}
+.ui-select-caret {
+  color: var(--muted);
+  flex: none;
+  transition:
+    transform 0.16s ease,
+    color 0.13s;
+}
+.ui-select.open .ui-select-caret {
+  transform: rotate(180deg);
+}
+
+/* block = full-width form/rail control: reads like a text input, not a filter chip */
+.ui-select.block {
+  display: flex;
+  width: 100%;
+}
+.ui-select.block .ui-select-trigger {
+  width: 100%;
+  justify-content: space-between;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.ui-select.block .ui-select-value {
+  max-width: none;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.ui-select.block:not(.has-value) .ui-select-value {
+  color: var(--muted);
+} /* placeholder tone */
+
+/* invalid / disabled states */
+.ui-select.invalid .ui-select-trigger {
+  border-color: var(--critical);
+}
+.ui-select.invalid.open .ui-select-trigger,
+.ui-select.invalid .ui-select-trigger:focus-visible {
+  border-color: var(--critical);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 15%, transparent);
+}
+.ui-select.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.ui-select-menu {
+  z-index: 60;
+  max-height: 288px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  box-shadow:
+    0 4px 12px rgba(30, 32, 64, 0.1),
+    0 16px 40px rgba(30, 32, 64, 0.14);
+  animation: ui-select-in 0.13s ease;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink) 20%, transparent) transparent;
+}
+.ui-select-menu.up {
+  animation-name: ui-select-in-up;
+}
+/* Thin, rounded, inset scrollbar — a floating pill thumb over a transparent track so it
+   never squares off the menu's rounded corners (WebKit; Firefox uses scrollbar-* above). */
+.ui-select-menu::-webkit-scrollbar {
+  width: 11px;
+}
+.ui-select-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ui-select-menu::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.ui-select-menu:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--ink) 28%, transparent);
+}
+.ui-select-menu::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+@keyframes ui-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ui-select-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ui-select-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.ui-select-opt-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.ui-select-opt.active {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.ui-select-opt.sel {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ui-select-opt.sel.active {
+  background: var(--accent-sf);
+}
+.ui-select-tick {
+  color: var(--accent);
+  flex: none;
+}
+
+/* generic card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--line-2);
+}
+.card-head h3 {
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+}
+.card-head .link {
+  font-size: 12.5px;
+  color: var(--accent);
+  font-weight: 600;
+  background: none;
+  border: none;
+  text-decoration: none;
+}
+.card-body {
+  padding: 16px 18px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* bar chart */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: 132px 1fr 28px;
+  align-items: center;
+  gap: 12px;
+}
+button.bar-row {
+  background: none;
+  border: none;
+  font: inherit;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 7px;
+}
+button.bar-row:hover {
+  background: var(--surface-2);
+}
+.bar-row .k {
+  font-size: 13px;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.bar-row .k .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+.k-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-track {
+  display: block;
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  min-width: 6px;
+}
+.bar-row .v {
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  font-family: var(--mono);
+}
+/* Highlighted row (the "Unassigned" triage queue, pinned on top of Member workload). */
+.bar-row.flag {
+  background: var(--warning-sf);
+  border-radius: 7px;
+  padding: 3px 5px;
+}
+button.bar-row.flag:hover {
+  background: color-mix(in srgb, var(--warning) 18%, var(--warning-sf));
+}
+.bar-row.flag .k-label,
+.bar-row.flag .v {
+  color: var(--warning);
+  font-weight: 700;
+}
+/* "+N more" cue shown when a breakdown is capped (see BarList `limit`). */
+.bar-more {
+  align-self: flex-start;
+  margin-top: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  border-radius: 20px;
+  background: var(--accent-sf);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+button.bar-more {
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    transform 0.1s;
+}
+button.bar-more:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+button.bar-more:active {
+  transform: translateY(1px);
+}
+/* Dashboard breakdown "View all" popup: the full list scrolls when long (min-height:0
+   lets the flex child's max-height + scroll engage), with the hint pinned above it.
+   The modal's own 90vh cap + scrolling body is a further backstop. */
+.breakdown-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+  flex: none;
+}
+.breakdown-list {
+  max-height: 58vh;
+  overflow-y: auto;
+  min-height: 0;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+
+/* team-card logo square (Groups page header) */
+.cb-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-2);
+}
+
+/* ---------- chips ---------- */
+.type-tag,
+.pill,
+.prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--chip-h);
+  padding: 0 10px;
+  border-radius: var(--radius-chip);
+  border: 1px solid transparent;
+  font-size: var(--chip-font);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.id-chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--chip-h);
+  padding: 0 10px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* `lg` — the one sanctioned size-up, used only in the ticket-detail header. */
+.id-chip.lg {
+  height: 30px;
+  font-size: 13.5px;
+  padding: 0 13px;
+}
+.pill.lg {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+.type-tag.lg {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+.type-Bug {
+  background: var(--critical-sf);
+  color: var(--critical);
+  border-color: color-mix(in srgb, var(--critical) 24%, transparent);
+}
+.type-Query {
+  background: var(--info-sf);
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 24%, transparent);
+}
+.type-Improvement {
+  background: var(--good-sf);
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 24%, transparent);
+}
+.type-Feature {
+  background: color-mix(in srgb, var(--cat-4) 14%, transparent);
+  color: var(--cat-4);
+  border-color: color-mix(in srgb, var(--cat-4) 28%, transparent);
+}
+/* priority → solid fill so it reads at a glance */
+.prio {
+  font-weight: 700;
+}
+.prio.Critical {
+  background: var(--critical);
+  color: #fff;
+  border-color: var(--critical);
+}
+.prio.High {
+  background: var(--serious);
+  color: #fff;
+  border-color: var(--serious);
+}
+.prio.Medium {
+  background: var(--warning);
+  color: #fff;
+  border-color: var(--warning);
+}
+.prio.Low {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border-color: var(--line);
+}
+.pill.s-new {
+  background: var(--info-sf);
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 24%, transparent);
+}
+.pill.s-ack {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border-color: var(--line);
+}
+.pill.s-prog {
+  background: var(--accent-sf);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.pill.s-pending {
+  background: var(--warning-sf);
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 24%, transparent);
+}
+.pill.s-resolved {
+  background: var(--good-sf);
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 24%, transparent);
+}
+.pill.s-closed {
+  background: var(--surface-2);
+  color: var(--muted);
+  border-color: var(--line);
+}
+.pill.s-reopened {
+  background: var(--critical-sf);
+  color: var(--critical);
+  border-color: color-mix(in srgb, var(--critical) 24%, transparent);
+}
+
+/* Unified badge family (ui/Chips <Badge>) — every chip that isn't a ticket chip
+   renders through this one spec: shapes chip|round, `sm` micro-marker, numeric
+   `num` count, six tones. No ad-hoc chip CSS may exist outside this block;
+   contextual classes on a badge may only add layout (margins, max-widths). */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--chip-h);
+  padding: 0 10px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--chip-font);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.badge.round {
+  border-radius: var(--radius-pill);
+}
+.badge.sm {
+  height: 18px;
+  padding: 0 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge.num {
+  height: 18px;
+  min-width: 20px;
+  justify-content: center;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.badge.t-accent {
+  background: var(--accent-sf);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.badge.t-good {
+  background: var(--good-sf);
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 24%, transparent);
+}
+.badge.t-warning {
+  background: var(--warning-sf);
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 24%, transparent);
+}
+.badge.t-critical {
+  background: var(--critical-sf);
+  color: var(--critical);
+  border-color: color-mix(in srgb, var(--critical) 24%, transparent);
+}
+.badge.t-info {
+  background: var(--info-sf);
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 24%, transparent);
+}
+.badge b {
+  color: var(--ink);
+  font-family: var(--mono);
+}
+.badge .clip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.badge svg {
+  flex: none;
+}
+
+/* tickets table */
+.table-wrap {
+  overflow-x: auto;
+}
+table.tk {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  min-width: 720px;
+}
+/* Table cells center by default; text-heavy columns opt out to left (below). */
+table.tk th {
+  text-align: center;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+table.tk td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: middle;
+  text-align: center;
+}
+table.tk tbody tr:last-child td {
+  border-bottom: none;
+}
+table.tk tr.trow {
+  cursor: pointer;
+}
+table.tk tr.trow:hover td {
+  background: var(--surface-2);
+}
+table.tk .t-id {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+/* Long ticket titles truncate within their column (with an ellipsis) instead of
+   stretching the table out of alignment. Applies to every .tk table; the fixed-layout
+   member/team tables set their own widths so max-width is a no-op there. */
+table.tk td.t-title {
+  max-width: 460px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Left-align the text-heavy columns: ticket titles, names, and any `left` opt-out. */
+table.tk .t-title,
+table.tk th.left,
+table.tk td.left {
+  text-align: left;
+}
+table.tk .t-title {
+  font-weight: 600;
+}
+table.tk .t-cd {
+  color: var(--ink-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+table.tk .t-age {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.muted {
+  color: var(--muted);
+}
+/* icon-only source badge — a fixed square so the column stays aligned row-to-row */
+.src-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border-radius: 7px;
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.src-tag svg {
+  width: 14px;
+  height: 14px;
+}
+.src-tag.email {
+  background: var(--info-sf);
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 24%, transparent);
+}
+
+/* created column: short date over its time, mono so every row is the same width
+   and the column stays aligned. */
+.meta-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1.3;
+}
+.meta-date {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.meta-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* stacked two-line cells (Client/Div, Group/Member): top line primary, bottom muted,
+   both left-aligned and truncated so the columns stay aligned row-to-row. */
+.stack-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1.3;
+  max-width: 200px;
+}
+.stack-top {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.stack-bottom {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.stack-top.muted {
+  color: var(--muted);
+}
+
+/* uniform, centered chips in the tickets table columns — header + cell aligned.
+   Type/Priority are sized to just fit their longest label (narrower than the
+   status pill) so each column stays tight while every chip within it matches. */
+table.tk .type-tag {
+  min-width: 100px;
+  justify-content: center;
+}
+table.tk .prio {
+  min-width: 84px;
+  justify-content: center;
+}
+table.tk .pill {
+  min-width: 116px;
+  justify-content: center;
+}
+/* Type over Priority, stacked in one column — both chips forced to the same width so
+   the pair reads as a neat block, left-aligned with the column edges kept constant. */
+.chip-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+table.tk .chip-stack .type-tag,
+table.tk .chip-stack .prio {
+  min-width: 104px;
+  width: 104px;
+  justify-content: center;
+}
+table.tk th.center,
+table.tk td.center {
+  text-align: center;
+}
+table.tk th.right,
+table.tk td.right {
+  text-align: right;
+}
+/* The one ticket table (ui/TicketTable): fixed layout + <colgroup> so every surface
+   (Tickets, both Dashboard queues, the portal) renders identical column widths.
+   Title takes the remaining space and truncates. */
+table.tk-tickets {
+  table-layout: fixed;
+}
+table.tk-tickets.staff {
+  min-width: 1060px;
+}
+table.tk-tickets.client {
+  min-width: 760px;
+}
+table.tk-tickets col.c-id {
+  width: 122px;
+}
+table.tk-tickets col.c-created {
+  width: 108px;
+}
+table.tk-tickets col.c-typeprio {
+  width: 136px;
+}
+table.tk-tickets col.c-type {
+  width: 124px;
+}
+table.tk-tickets col.c-client {
+  width: 168px;
+}
+table.tk-tickets col.c-team {
+  width: 168px;
+}
+table.tk-tickets col.c-source {
+  width: 72px;
+}
+table.tk-tickets col.c-status {
+  width: 148px;
+}
+table.tk-tickets td.t-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A display:grid icon button (e.g. the Groups "Remove" ✕) is block-level, so the
+   cell's text-align:center can't reach it — auto margins center it instead. */
+table.tk td.center > .iconbtn {
+  margin-inline: auto;
+}
+/* Teams-page member tables: fixed columns (widths via <colgroup>); alignment comes
+   from the same .left/.center classes as every other table. */
+table.tk-fixed {
+  table-layout: fixed;
+}
+table.tk.tk-fixed th,
+table.tk.tk-fixed td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Members table: fixed column widths (set via <colgroup>) + tighter padding so a
+   long email / title / name or many team chips truncate or wrap within their column
+   instead of shoving the whole table out of alignment. */
+table.tk.tk-members {
+  table-layout: fixed;
+  min-width: 960px;
+}
+table.tk-members th,
+table.tk-members td {
+  padding: 10px 10px;
+}
+table.tk-members td.t-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+table.tk-members td.t-cd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+table.tk-members .chip-wrap {
+  display: flex;
+} /* fill the cell + wrap chips to the next line */
+table.tk-members .row-actions {
+  gap: 6px;
+}
+/* Status chips share one width so Active / Invited / Not Invited read as a constant,
+   centered column (same idea as the tickets-table chips). */
+table.tk-members td.center .badge {
+  min-width: 90px;
+  justify-content: center;
+}
+/* Fixed-width invite button so "Send Invite" / "Resend Invite" render on one line at
+   the same size — which also keeps the following edit/remove icons aligned row-to-row. */
+.invite-btn {
+  min-width: 128px;
+  white-space: nowrap;
+  justify-content: center;
+  text-align: center;
+}
+
+/* ---------- contacts directory (ui: pages/Contacts) ---------- */
+/* Same fixed-layout table discipline as tk-members: ellipsis on overflow, centered
+   equal-width status chips, so columns stay aligned row-to-row. */
+table.tk.tk-contacts {
+  table-layout: fixed;
+  min-width: 920px;
+}
+table.tk-contacts th,
+table.tk-contacts td {
+  padding: 10px 10px;
+}
+table.tk-contacts td.t-cd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+table.tk-contacts td.center .badge {
+  min-width: 96px;
+  justify-content: center;
+}
+table.tk-contacts .row-actions {
+  gap: 6px;
+}
+/* Reserve the invite/resend column even when a POC is already active (no button), and give
+   the button one width so "Invite"/"Resend" match — keeps the edit/remove icons aligned. */
+.tk-contacts .ca-invite {
+  width: 68px;
+  flex: none;
+  display: inline-flex;
+}
+.tk-contacts .ca-invite .poc-invite {
+  flex: 1;
+  padding: 4px 0;
+  text-align: center;
+}
+.contact-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.contact-cell .contact-tx {
+  min-width: 0;
+} /* lets .poc-email ellipsis inside the fixed cell */
+/* Filter toolbar: search + selects on the left, count/clear pushed to the right. */
+.contacts-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.contacts-toolbar .search {
+  width: auto;
+  flex: 1 1 220px;
+  min-width: 200px;
+  max-width: 380px;
+}
+.cf-summary {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.cf-count {
+  font-size: 13px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.cf-count b {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cf-clear {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px 9px;
+  border-radius: 7px;
+  transition: background 0.12s;
+}
+.cf-clear:hover {
+  background: var(--accent-sf);
+}
+
+/* global "Show Members per Team" control at the bottom of the Teams page */
+.per-team-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.filter-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.chip-filter {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  text-decoration: none;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+}
+.chip-filter:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.chip-filter.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.chip-filter.on:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ticket detail */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* Ticket header card: title on the left; a right column holding the ticket ID with the
+   Type/Priority/Status chips in a row beneath it; description below a hairline. */
+.card-body.d-head {
+  padding: 22px 24px 20px;
+}
+.d-head-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+/* Back control sits inline to the left of the title — an <IconButton> (.iconbtn). */
+.d-title {
+  flex: 1;
+  min-width: 200px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  margin: 3px 0 0;
+}
+/* Ticket ID with the current Status pill beside it, top-right; both use the chips'
+   `lg` size so their heights match. */
+.d-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.d-badges .id-chip {
+  flex: none;
+}
+.d-from {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 12px;
+}
+/* A hairline splits the header from the description body. */
+.d-desc {
+  font-size: 15px;
+  color: var(--ink-2);
+  line-height: 1.7;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-2);
+}
+.d-attach {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.attach svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.attach.staged {
+  background: var(--accent-sf);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  color: var(--accent);
+}
+.rm-attach {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 2px;
+  display: grid;
+  place-items: center;
+  color: currentColor;
+  opacity: 0.7;
+}
+.rm-attach:hover {
+  opacity: 1;
+}
+.rm-attach svg {
+  width: 12px;
+  height: 12px;
+}
+/* In a field (New Ticket / Simulate Email) the chips align flush-left with the full-width
+   attach button and the label above. The composer keeps a 12px inset to match its padding. */
+.staged-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+.composer .staged-attachments {
+  margin-top: 0;
+  padding: 10px 12px 2px;
+}
+.attach-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-sf);
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
+  border-radius: 9px;
+  padding: 11px 12px;
+}
+.attach-drop:hover {
+  border-style: solid;
+}
+.attach-drop svg {
+  width: 16px;
+  height: 16px;
+}
+
+.msg {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.msg:last-child {
+  border-bottom: none;
+}
+.msg .av {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+}
+.msg .av.client {
+  background: var(--good-sf);
+  color: var(--good);
+}
+.msg .av.team {
+  background: var(--accent-sf);
+  color: var(--accent);
+}
+.msg .body {
+  flex: 1;
+  min-width: 0;
+}
+.msg .mh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.msg .mh .nm {
+  font-weight: 600;
+  font-size: 13px;
+}
+.msg .mh .tm {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.msg .tx {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.notes-panel.internal {
+  border: 1px dashed color-mix(in srgb, var(--warning) 45%, var(--line));
+  background: color-mix(in srgb, var(--warning-sf) 30%, var(--surface));
+  border-radius: 10px;
+  padding: 4px 14px;
+}
+.internal-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warning);
+  padding: 10px 0 6px;
+}
+.internal-banner svg {
+  width: 14px;
+  height: 14px;
+}
+
+.composer {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.composer textarea {
+  width: 100%;
+  border: none;
+  resize: vertical;
+  min-height: 74px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 13.5px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.composer textarea:focus {
+  outline: none;
+}
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.vis-toggle {
+  display: flex;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px;
+}
+.vis-opt {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vis-opt svg {
+  width: 13px;
+  height: 13px;
+}
+.vis-opt.on-internal {
+  background: var(--warning-sf);
+  color: var(--warning);
+}
+.vis-opt.on-client {
+  background: var(--good-sf);
+  color: var(--good);
+}
+.send-btn {
+  margin-left: auto;
+}
+
+/* meta rail */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rail .card-body {
+  padding: 6px 18px 14px;
+}
+/* Rail fields are chunked into logical groups (context · timeline · assignment); a
+   hairline separates groups, not every row — so it reads as a panel, not a spec sheet. */
+.meta-group {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.meta-group:first-child {
+  padding-top: 2px;
+}
+.meta-group:last-child {
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+}
+.meta-row .mk {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.meta-row .mv {
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: right;
+  color: var(--ink);
+}
+.meta-row .mv.muted {
+  color: var(--muted);
+  font-weight: 500;
+}
+/* Timestamps: mono so the two dates line up crisply under each other. */
+.meta-row .mv-time {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  letter-spacing: -0.02em;
+}
+
+/* uniform full-width assignment controls in the details rail (each wraps a ui/Select) */
+.rail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  min-width: 0;
+}
+.rail-field > label {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+/* ServiceNow-style compact form: pair fields (Team|Assignee, Priority|Status) into two
+   columns so the rail doesn't stack deep. */
+.rail-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.rail-2col .rail-field {
+  padding: 6px 0;
+}
+.rail-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+/* Staged-edit action bar in the details rail (Discard + Update). */
+.rail-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+}
+.rail-actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* Claim call-to-action — an agent picking a ticket up from their team's queue. */
+.claim-cta {
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line-2);
+}
+.claim-cta .rail-hint {
+  text-align: center;
+}
+
+/* Collaborators ("loop in") — removable chips + an add picker in the rail. */
+.collab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 10px 0;
+}
+.collab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 9px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.collab-chip > svg {
+  color: var(--accent);
+  flex: none;
+}
+.collab-name {
+  line-height: 1;
+}
+.collab-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.collab-x:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--ink);
+}
+.collab-x:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.collab-empty {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 8px 0 10px;
+}
+.collab-add {
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* work-notes / conversation area — modest height, scrolls if long */
+.stream-scroll {
+  min-height: 200px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+.sla {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sla.risk {
+  background: var(--critical-sf);
+  color: var(--critical);
+}
+.sla.ok {
+  background: var(--good-sf);
+  color: var(--good);
+}
+.sla svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* clients admin page */
+.client-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+}
+.client-card::before,
+.product-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--cc, var(--accent));
+  opacity: 0.9;
+}
+.cc-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 16px;
+}
+.cc-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  flex: none;
+}
+.cc-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.cc-sub {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-weight: 500;
+  margin-top: 5px;
+}
+.cc-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+/* interactive product chip (opens the product editor) — a button, so not a <Badge>,
+   but it draws its shape/type from the same chip tokens */
+.prod-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.prod-chip .pk-ic {
+  color: var(--accent);
+}
+.prod-chip:hover {
+  border-color: var(--accent);
+}
+
+.cc-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line-2);
+  border-top: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+}
+/* Compact metric cell (components/ui/StatTile.tsx): value over label on a surface bg,
+   sitting inside a hairline-divided strip (.cc-metrics, .product-stats). The strip owns
+   the columns, dividers and click target; this owns the cell. */
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 0;
+  text-align: left;
+  width: 100%;
+}
+.stat.center {
+  align-items: center;
+  text-align: center;
+}
+button.stat:not(:disabled) {
+  cursor: pointer;
+}
+button.stat:not(:disabled):hover {
+  background: var(--surface-2);
+}
+.stat-v {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.stat-l {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.cc-body {
+  padding: 16px 20px 18px;
+}
+.div-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 720px) {
+  .div-grid {
+    grid-template-columns: 1fr;
+  }
+  .cc-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.div-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--surface);
+}
+.div-card:hover {
+  border-color: color-mix(in srgb, var(--cc, var(--accent)) 40%, var(--line));
+}
+.dv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-2);
+}
+.dv-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+.poc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+}
+.poc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px;
+  border-radius: 8px;
+}
+.poc-row:hover {
+  background: var(--surface-2);
+}
+.poc-av {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent-sf);
+  color: var(--accent);
+}
+.poc-id {
+  min-width: 0;
+}
+.poc-name {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.poc-email {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.poc-empty {
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 12px 4px;
+}
+.add-poc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  width: 100%;
+  cursor: pointer;
+}
+.add-poc:hover {
+  border-color: var(--accent);
+  background: var(--accent-sf);
+}
+.div-empty {
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 14px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+
+/* team + groups */
+.row-av {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent-sf);
+  color: var(--accent);
+  margin-right: 9px;
+  vertical-align: middle;
+}
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+.chip-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* products page */
+/* Colored top bar in the product's own palette colour — mirrors .client-card (both set --cc). */
+.product-card {
+  position: relative;
+  overflow: hidden;
+}
+.product-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line-2);
+}
+.product-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.product-name {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.product-sub {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-weight: 500;
+  margin-top: 5px;
+}
+
+/* entity-card header text column (Product / Client cards): a distinct 3-level
+   hierarchy — kicker (eyebrow) · title · meta — with deliberate breathing room. */
+.head-text {
+  min-width: 0;
+}
+.head-text .eyebrow {
+  display: block;
+  margin-bottom: 4px;
+} /* type from the shared .eyebrow spec */
+.product-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+/* "Used by <clients>" indicator that replaces the assign button on an in-use product.
+   Visual comes from .badge.round; this only clamps the width. */
+.used-by {
+  max-width: 280px;
+}
+.used-by svg {
+  color: var(--muted);
+}
+.product-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+  cursor: pointer;
+}
+.product-stats .stat {
+  transition: background 0.12s;
+}
+.product-stats:hover .stat {
+  background: var(--surface-2);
+}
+@media (max-width: 520px) {
+  .product-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.product-divs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 18px 20px;
+}
+.pdiv {
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.pdiv-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pdiv-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.pdiv-code {
+  font-size: 11px;
+  color: var(--muted);
+}
+/* per-division active-ticket breakdown (replaces the old summary bar) */
+.pdiv-divs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 8px;
+}
+/* column captions above the division rows — type from the shared .eyebrow spec */
+.pdd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px 1px;
+}
+.pdd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+.pdd:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.pdd-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* active-ticket count badge — visual comes from .badge.num (accent tone when non-zero) */
+.pdd-count {
+  min-width: 26px;
+  flex: none;
+}
+.pdd:hover .pdd-count.t-accent {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.pdiv-empty {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 10px 0 8px;
+}
+
+/* products: assigned/unassigned tabs + unassigned list */
+.products-tabs {
+  margin-bottom: 18px;
+}
+/* tab count — visual comes from .badge.num; the active tab tints it accent */
+/* Unassigned product card — same head as an assigned product, with an honest
+   "nothing to show yet" strip in place of the stats/divisions body. */
+.uprod-empty {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 16px 20px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.uprod-empty svg {
+  flex: none;
+  color: var(--accent);
+  margin-top: 1px;
+}
+
+/* POC portal invite */
+.poc-invite {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-sf);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 7px;
+  padding: 4px 9px;
+  white-space: nowrap;
+}
+.poc-invite:hover {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+/* small helper text under a form field */
+.field-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* empty */
+.empty-state {
+  text-align: center;
+  padding: 44px 20px;
+  color: var(--muted);
+}
+.empty-state svg {
+  width: 40px;
+  height: 40px;
+  opacity: 0.5;
+  margin-bottom: 12px;
+}
+.empty-state.compact {
+  padding: 24px 16px;
+}
+
+/* modal */
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 20, 0.55);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 20px;
+}
+/* The "discard changes?" confirm sits above its own modal. */
+.modal-bg.nested {
+  z-index: 60;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal.wide {
+  max-width: 640px;
+}
+/* Modals that wrap content in a <form> (onSubmit) must keep the flex column
+   intact, or .modal-body loses its flex:1 + overflow scroll and content clips. */
+.modal > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.modal-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line-2);
+}
+.modal-head h3 {
+  font-size: 16px;
+}
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.modal.wide .modal-head {
+  padding: 20px 26px;
+}
+.modal.wide .modal-body {
+  padding: 24px 26px;
+  gap: 18px;
+}
+.modal.wide .modal-foot {
+  padding: 18px 26px;
+}
+.field label,
+.field .field-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  transition:
+    border-color 0.14s,
+    box-shadow 0.14s;
+}
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--muted);
+}
+.field textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+.field input:hover,
+.field select:hover,
+.field textarea:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+/* Read-only inputs read as inert: muted fill, no hover/focus highlight. */
+.field input[readonly],
+.field textarea[readonly] {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.field input[readonly]:hover,
+.field input[readonly]:focus,
+.field textarea[readonly]:hover,
+.field textarea[readonly]:focus {
+  border-color: var(--line);
+  box-shadow: none;
+}
+.field.invalid input,
+.field.invalid select {
+  border-color: var(--critical);
+}
+.field.invalid input:focus,
+.field.invalid select:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 15%, transparent);
+}
+.field-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 480px) {
+  .field-2 {
+    grid-template-columns: 1fr;
+  }
+}
+.field label .opt {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 11px;
+}
+.field label .req {
+  font-weight: 600;
+  color: var(--critical);
+  font-size: 11px;
+  margin-left: 4px;
+}
+/* checkbox row (input nested in its label — already associated) */
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.check-row input[type="checkbox"] {
+  width: auto;
+}
+/* modal-body uses flex `gap` for spacing, so the note's own top margin is redundant */
+.modal-body .auth-note {
+  margin-top: 0;
+}
+.nt-intro {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.type-picker {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.tp-opt {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 12px;
+  text-align: left;
+  background: var(--surface);
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+.tp-opt:hover {
+  border-color: color-mix(in srgb, var(--tc) 45%, var(--line));
+}
+.tp-opt.on {
+  border-color: var(--tc);
+  background: color-mix(in srgb, var(--tc) 8%, var(--surface));
+}
+.tp-ic {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--tc) 15%, transparent);
+  color: var(--tc);
+}
+.tp-txt {
+  min-width: 0;
+}
+.tp-opt .tt {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+}
+.tp-opt .td {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.tp-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--tc);
+  display: grid;
+  place-items: center;
+}
+
+.nt-ctx {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.nt-ctx-av {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  background: var(--accent-sf);
+  color: var(--accent);
+}
+.nt-ctx-c {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.nt-ctx-d {
+  font-size: 12px;
+  color: var(--muted);
+}
+/* The product the ticket is reported against — derived from the POC's division/client.
+   Visual comes from .badge.round.t-accent; this only positions it. */
+.nt-ctx-prod {
+  margin-left: auto;
+  flex: none;
+}
+
+.prio-seg {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.prio-opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 9px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-2);
+  transition:
+    border-color 0.12s,
+    background 0.12s,
+    color 0.12s;
+}
+.prio-opt .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pc);
+  flex: none;
+}
+.prio-opt:hover {
+  border-color: color-mix(in srgb, var(--pc) 45%, var(--line));
+}
+.prio-opt.on {
+  border-color: var(--pc);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--pc) 10%, var(--surface));
+}
+@media (max-width: 480px) {
+  .prio-seg {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.modal-foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--line-2);
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.banner svg {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+  flex: none;
+}
+.banner b {
+  color: var(--ink);
+}
+
+/* dashboard: header controls + segmented range */
+.head-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* The one segmented control (components/ui/Segmented.tsx): a pill container whose active
+   segment lifts onto a surface chip. `.full` stretches segments to fill the row. */
+.segmented {
+  display: inline-flex;
+  gap: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 3px;
+}
+.segmented.full {
+  display: flex;
+  width: 100%;
+}
+.segmented button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.segmented.full button {
+  flex: 1;
+}
+.segmented button svg {
+  width: 15px;
+  height: 15px;
+}
+.segmented button.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.segmented .seg-count {
+  background: var(--surface);
+}
+.segmented button.on .seg-count {
+  background: var(--accent-sf);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+
+/* kpi tiles — colored left stripe + label + big value + sub */
+.kpi .stripe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+.kpi .label {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.kpi .val {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 8px;
+  line-height: 1;
+}
+.kpi .sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 7px;
+}
+
+/* trend chart */
+.chart {
+  position: relative;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.chart .grid-line {
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+.chart .base-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart .axis-label {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.chart .y-label {
+  fill: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.chart .guide {
+  stroke: color-mix(in srgb, var(--accent) 45%, var(--line));
+  stroke-width: 1;
+}
+.chart-legend {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+.leg {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.leg .sw {
+  width: 13px;
+  height: 3px;
+  border-radius: 2px;
+}
+.chart-tooltip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 10px));
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  z-index: 2;
+}
+.chart-tooltip .tt-wk {
+  font-weight: 700;
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+.chart-tooltip .tt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.5;
+}
+.chart-tooltip .tt-row .sw {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+.chart-tooltip .tt-row b {
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  padding-left: 10px;
+}
+
+/* toast */
+.toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--surface);
+  padding: 11px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 99;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
