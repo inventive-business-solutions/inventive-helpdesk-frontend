@@ -66,10 +66,14 @@ function TeamCard({
       <div className="table-wrap">
         <table className="tk tk-fixed">
           <colgroup>
-            <col style={{ width: "33%" }} /> {/* Name */}
-            <col style={{ width: "24%" }} /> {/* Title */}
-            <col style={{ width: "31%" }} /> {/* Email — the longest data, keep ≥20% */}
-            <col style={{ width: "12%" }} /> {/* Actions */}
+            <col style={{ width: "33%" }} />
+            {/* Name */}
+            <col style={{ width: "24%" }} />
+            {/* Title */}
+            <col style={{ width: "31%" }} />
+            {/* Email — the longest data, keep ≥20% */}
+            <col style={{ width: "12%" }} />
+            {/* Actions */}
           </colgroup>
           <thead>
             <tr>

@@ -69,12 +69,18 @@ export function Team() {
         <div className="table-wrap">
           <table className="tk tk-members">
             <colgroup>
-              <col style={{ width: "20%" }} /> {/* Name */}
-              <col style={{ width: "14%" }} /> {/* Title */}
-              <col style={{ width: "20%" }} /> {/* Email — the longest data, keep ≥20% */}
-              <col style={{ width: "12%" }} /> {/* Status — fits the "Not Invited" chip */}
-              <col style={{ width: "12%" }} /> {/* Teams */}
-              <col style={{ width: "22%" }} /> {/* Actions */}
+              <col style={{ width: "20%" }} />
+              {/* Name */}
+              <col style={{ width: "14%" }} />
+              {/* Title */}
+              <col style={{ width: "20%" }} />
+              {/* Email — the longest data, keep ≥20% */}
+              <col style={{ width: "12%" }} />
+              {/* Status — fits the "Not Invited" chip */}
+              <col style={{ width: "12%" }} />
+              {/* Teams */}
+              <col style={{ width: "22%" }} />
+              {/* Actions */}
             </colgroup>
             <thead>
               <tr>

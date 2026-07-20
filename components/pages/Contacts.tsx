@@ -190,12 +190,18 @@ export function Contacts() {
         <div className="table-wrap">
           <table className="tk tk-contacts">
             <colgroup>
-              <col style={{ width: "26%" }} /> {/* Contact */}
-              <col style={{ width: "16%" }} /> {/* Client */}
-              <col style={{ width: "16%" }} /> {/* Division */}
-              <col style={{ width: "10%" }} /> {/* Primary */}
-              <col style={{ width: "14%" }} /> {/* Portal */}
-              <col style={{ width: "18%" }} /> {/* Actions */}
+              <col style={{ width: "26%" }} />
+              {/* Contact */}
+              <col style={{ width: "16%" }} />
+              {/* Client */}
+              <col style={{ width: "16%" }} />
+              {/* Division */}
+              <col style={{ width: "10%" }} />
+              {/* Primary */}
+              <col style={{ width: "14%" }} />
+              {/* Portal */}
+              <col style={{ width: "18%" }} />
+              {/* Actions */}
             </colgroup>
             <thead>
               <tr>
