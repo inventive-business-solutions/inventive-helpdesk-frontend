@@ -115,8 +115,12 @@ a {
 /* .kpi .sub is authored in sentence case (captions) — do NOT title-case it. */
 
 /* ---------- SIGN IN ---------- */
+/* `svh` rather than `vh`: on mobile browsers `vh` measures the viewport with the URL
+   bar *hidden*, so a 100vh layout is always slightly taller than what is actually
+   visible and the page picks up a scrollbar it doesn't need. */
 .login {
-  min-height: 100vh;
+  min-height: 100vh; /* fallback for browsers without svh */
+  min-height: 100svh;
   display: grid;
   grid-template-columns: 1.05fr 1fr;
 }
@@ -294,6 +298,51 @@ a {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
+/* Password fields carry a reveal toggle. The wrapper exists only to position it —
+   the input keeps the shared `.auth-field input` styling above, so a password field
+   is identical to every other field apart from the trailing icon. */
+.auth-input {
+  position: relative;
+  display: block;
+}
+.auth-input input {
+  /* Room for the toggle, so a long password never runs underneath it. */
+  padding-right: 40px;
+}
+.auth-reveal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  border-radius: 0 9px 9px 0;
+  transition: color 0.12s;
+}
+.auth-reveal:hover {
+  color: var(--ink-2);
+}
+/* Caps Lock warning under the password field. Warning-coloured, not critical —
+   nothing has gone wrong yet, it is a heads-up before the user submits. */
+.auth-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--warning);
+}
+.auth-hint svg {
+  flex: none;
+}
+
 /* Forgot-password / back toggle: a clean right-aligned text link (a <button>,
    so it needs its own reset — the shared .link styles only apply inside cards). */
 .auth-forgot-row {
@@ -324,6 +373,29 @@ a {
   padding: 12px;
   font-size: 14.5px;
   margin-top: 4px;
+}
+/* Spinner inside the submit button while the request is in flight. `.btn` already
+   supplies the 8px gap, so this needs no layout of its own. */
+.auth-spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: auth-spin 0.6s linear infinite;
+}
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Slowed rather than stopped: the spinner is the only signal that the request is
+   still running, so removing the motion entirely would leave a dead button. */
+@media (prefers-reduced-motion: reduce) {
+  .auth-spinner {
+    animation-duration: 2.4s;
+  }
 }
 .auth-note {
   display: flex;

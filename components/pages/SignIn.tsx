@@ -16,9 +16,17 @@ export function SignIn() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Caps Lock is the single most common cause of "my password stopped working". The
+  // browser only reports modifier state on a key event, so read it from the event
+  // rather than tracking keydown/keyup ourselves.
+  const readCapsLock = (e: React.KeyboardEvent<HTMLInputElement>) =>
+    setCapsLock(e.getModifierState?.("CapsLock") ?? false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +52,7 @@ export function SignIn() {
       setError(
         isAccountDisabledError(err)
           ? "This account no longer has access to the system. Please reach out to your administrator."
-          : "Sign-in failed — check your email and password, and that the backend is reachable.",
+          : "We couldn't sign you in. Check your email and password, then try again.",
       );
       setSubmitting(false);
     }
@@ -128,6 +136,8 @@ export function SignIn() {
                 required
                 value={email}
                 placeholder="you@company.com"
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "auth-error" : undefined}
                 onChange={(e) => {
                   setEmail(e.target.value);
                   setError(null);
@@ -139,18 +149,44 @@ export function SignIn() {
             {mode === "signin" && (
               <div className="auth-field">
                 <label htmlFor="password">Password</label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  placeholder="Your password"
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError(null);
-                  }}
-                />
+                <div className="auth-input">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    placeholder="Your password"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? "auth-error" : undefined}
+                    onKeyUp={readCapsLock}
+                    onKeyDown={readCapsLock}
+                    onBlur={() => setCapsLock(false)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError(null);
+                    }}
+                  />
+                  {/* tabIndex -1: tabbing should run label → field → submit. The toggle
+                      is a mouse convenience, and keyboard users are not helped by an
+                      extra stop between the password and the button. */}
+                  <button
+                    type="button"
+                    className="auth-reveal"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    tabIndex={-1}
+                  >
+                    <Icon name={showPassword ? "eyeOff" : "eye"} size={16} />
+                  </button>
+                </div>
+                {capsLock && (
+                  <p className="auth-hint">
+                    <Icon name="alert" size={13} />
+                    Caps Lock is on
+                  </p>
+                )}
               </div>
             )}
 
@@ -169,6 +205,7 @@ export function SignIn() {
             </div>
 
             <button type="submit" className="btn primary auth-submit" disabled={submitting}>
+              {submitting && <span className="auth-spinner" aria-hidden="true" />}
               {submitting
                 ? mode === "signin"
                   ? "Signing in…"
@@ -178,14 +215,17 @@ export function SignIn() {
                   : "Send reset link"}
             </button>
 
+            {/* role="alert" / "status": announced the moment they appear. A purely
+                visual message leaves a non-sighted user with a form that silently
+                did nothing. */}
             {error && (
-              <div className="auth-note" style={{ color: "var(--critical)" }}>
+              <div id="auth-error" className="auth-note" style={{ color: "var(--critical)" }} role="alert">
                 <Icon name="alert" size={14} />
                 <div>{error}</div>
               </div>
             )}
             {notice && (
-              <div className="auth-note">
+              <div className="auth-note" role="status">
                 <Icon name="check" size={14} />
                 <div>{notice}</div>
               </div>

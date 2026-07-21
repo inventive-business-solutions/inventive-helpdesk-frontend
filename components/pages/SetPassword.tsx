@@ -19,6 +19,9 @@ export function SetPassword() {
   }, []);
   const [pwd, setPwd] = useState("");
   const [confirm, setConfirm] = useState("");
+  // One toggle drives both fields — revealing only one of a password/confirm pair is
+  // the kind of half-state that makes people think the two don't match.
+  const [reveal, setReveal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A used/expired/missing link can't set a password — offer sign-in instead.
@@ -97,7 +100,7 @@ export function SetPassword() {
 
           {ready && (deadLink || !key) ? (
             <div className="auth-form">
-              <div className="auth-note" style={{ color: "var(--critical)" }}>
+              <div className="auth-note" style={{ color: "var(--critical)" }} role="alert">
                 <Icon name="alert" size={14} />
                 <div>
                   {error ||
@@ -116,42 +119,61 @@ export function SetPassword() {
             <div className="auth-form">
               <div className="auth-field">
                 <label htmlFor="pwd">New password</label>
-                <input
-                  id="pwd"
-                  type="password"
-                  autoComplete="new-password"
-                  autoFocus
-                  required
-                  value={pwd}
-                  placeholder="At least 8 characters"
-                  onChange={(e) => {
-                    setPwd(e.target.value);
-                    setError(null);
-                  }}
-                />
+                <div className="auth-input">
+                  <input
+                    id="pwd"
+                    type={reveal ? "text" : "password"}
+                    autoComplete="new-password"
+                    autoFocus
+                    required
+                    value={pwd}
+                    placeholder="At least 8 characters"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? "setpw-error" : undefined}
+                    onChange={(e) => {
+                      setPwd(e.target.value);
+                      setError(null);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="auth-reveal"
+                    onClick={() => setReveal((v) => !v)}
+                    aria-label={reveal ? "Hide password" : "Show password"}
+                    aria-pressed={reveal}
+                    tabIndex={-1}
+                  >
+                    <Icon name={reveal ? "eyeOff" : "eye"} size={16} />
+                  </button>
+                </div>
               </div>
               <div className="auth-field">
                 <label htmlFor="confirm">Confirm password</label>
-                <input
-                  id="confirm"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={confirm}
-                  placeholder="Re-enter your password"
-                  onChange={(e) => {
-                    setConfirm(e.target.value);
-                    setError(null);
-                  }}
-                />
+                <div className="auth-input">
+                  <input
+                    id="confirm"
+                    type={reveal ? "text" : "password"}
+                    autoComplete="new-password"
+                    required
+                    value={confirm}
+                    placeholder="Re-enter your password"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? "setpw-error" : undefined}
+                    onChange={(e) => {
+                      setConfirm(e.target.value);
+                      setError(null);
+                    }}
+                  />
+                </div>
               </div>
 
               <button type="submit" className="btn primary auth-submit" disabled={submitting}>
+                {submitting && <span className="auth-spinner" aria-hidden="true" />}
                 {submitting ? "Setting up…" : "Set password & sign in"}
               </button>
 
               {error && (
-                <div className="auth-note" style={{ color: "var(--critical)" }}>
+                <div id="setpw-error" className="auth-note" style={{ color: "var(--critical)" }} role="alert">
                   <Icon name="alert" size={14} />
                   <div>{error}</div>
                 </div>
