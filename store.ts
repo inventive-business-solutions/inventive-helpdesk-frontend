@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import type {
   Client,
-  Division,
   Group,
   Message,
   Poc,
@@ -218,7 +217,6 @@ interface Store {
 
   setStatus: (id: string, status: Status) => Promise<void>;
   setPriority: (id: string, priority: Priority) => Promise<void>;
-  setAssignee: (id: string, assignee: string) => Promise<void>;
   setGroup: (id: string, group: string) => Promise<void>;
   setAssignment: (id: string, group: string, assignee: string) => Promise<void>;
   /** Agent self-assigns a ticket from their team's queue (team-first, server-enforced). */
@@ -466,10 +464,6 @@ export const useStore = create<Store>()((set, get) => {
     },
     setPriority: async (id, priority) => {
       upsertTicket(await api.updateDoc<api.RawTicket>("Support Ticket", id, { priority }));
-    },
-    setAssignee: async (id, assignee) => {
-      const val = assignee === "Unassigned" ? null : assignee;
-      upsertTicket(await api.updateDoc<api.RawTicket>("Support Ticket", id, { assignee: val }));
     },
     setGroup: async (id, group) => {
       upsertTicket(

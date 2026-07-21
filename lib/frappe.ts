@@ -14,7 +14,6 @@ import type {
   Poc,
   PortalStatus,
   Priority,
-  Session,
   Status,
   TeamMember,
   Ticket,
