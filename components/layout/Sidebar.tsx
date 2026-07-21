@@ -70,8 +70,8 @@ export function Sidebar() {
       count: clients.filter((c) => c.product).length,
       manage: true,
     },
-    { to: "/team", label: "Members", icon: "user", end: false, count: members.length, manage: true },
-    { to: "/groups", label: "Teams", icon: "grid", end: false, count: groups.length, manage: true },
+    { to: "/members", label: "Members", icon: "user", end: false, count: members.length, manage: true },
+    { to: "/teams", label: "Teams", icon: "grid", end: false, count: groups.length, manage: true },
   ];
   // Agents get their personal "my work" queues as primary nav instead of the org sections.
   const agentItems: NavItem[] = [

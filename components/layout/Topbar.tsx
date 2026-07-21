@@ -11,8 +11,8 @@ function crumbFor(pathname: string): { section: string; leaf?: string } {
   if (pathname.startsWith("/tickets")) return { section: "Tickets" };
   if (pathname.startsWith("/clients")) return { section: "Clients & POCs" };
   if (pathname.startsWith("/products")) return { section: "Products" };
-  if (pathname.startsWith("/team")) return { section: "Members" };
-  if (pathname.startsWith("/groups")) return { section: "Teams" };
+  if (pathname.startsWith("/members")) return { section: "Members" };
+  if (pathname.startsWith("/teams")) return { section: "Teams" };
   if (pathname.startsWith("/portal/tickets/"))
     return { section: "My Tickets", leaf: pathname.split("/").pop() };
   if (pathname.startsWith("/portal")) return { section: "My Tickets" };
