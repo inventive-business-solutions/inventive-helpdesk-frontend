@@ -50,6 +50,12 @@ Open **http://localhost:5175**.
 | `SOCKETIO_URL`                | Base URL of Frappe's Socket.IO server (realtime). Server-side only. Defaults to `http://127.0.0.1:9000` (Frappe's dev socketio port). In production, point at the host nginx serves `/socket.io` from. |
 | `NEXT_PUBLIC_ENABLE_SIMULATE` | Set to `1` to show the admin "Simulate inbound email" dev tool. Hidden in production by default.                                                                                                       |
 
+> **`FRAPPE_URL` and `SOCKETIO_URL` take effect at _build_ time.** They are interpolated
+> into the proxy rewrites, which `next build` freezes into the routes manifest; the
+> production server reads that manifest and never re-evaluates `next.config.mjs`. Changing
+> them for a built app — including on a running container — does nothing. Rebuild instead.
+> See [CICD.md](CICD.md).
+
 ### Scripts
 
 | Script                 | Does                                       |
@@ -118,23 +124,36 @@ app/                      App Router
    ├─ clients/  contacts/ clients, divisions & POC directory
    ├─ team/  groups/      team & assignment
    ├─ products/           products
+   ├─ api/health/          liveness + build SHA, used to verify deploys
    └─ portal/             client portal + tickets/[id] detail
 components/               ui · layout · modals · dashboard · pages
 lib/                      frappe client, auth, realtime, helpers
 tests/                    vitest suite
+deploy/                   Portainer/Swarm stack file + env template
 proxy.ts                 route guard (Next 16 proxy convention, formerly middleware.ts)
 store.ts                 Zustand store
 types.ts                 domain model
 next.config.mjs          same-origin Frappe proxy + security headers
+Dockerfile               production image (Next standalone)
 app/globals.css          design system
 docs/BACKEND-NOTES.md    frontend↔backend API contract
+CICD.md                  build pipeline, Portainer/Swarm deployment, rollback
 ```
+
+---
+
+## Deployment
+
+Hosted at **https://helpdesk.inventivebizsol.co.in**, talking to the Frappe backend at
+`helpdeskfrappe.inventivebizsol.co.in`. Merging `development` → `master` builds an image,
+pushes it to GHCR, triggers the Portainer webhook, and verifies the running container
+reports the expected commit SHA. See [CICD.md](CICD.md).
 
 ---
 
 ## Branching
 
-- **`master`** — production, release-ready (default branch)
+- **`master`** — production, release-ready (default branch); this is the deployed branch
 - **`development`** — integration branch; features merge here first, then into `master`
 
 ---

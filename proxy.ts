@@ -26,5 +26,9 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   // App pages only — skip the proxied API, files, Next internals and the favicon.
-  matcher: ["/((?!api|frappe-files|_next/static|_next/image|favicon.ico).*)"],
+  // `socket.io` belongs in this list for the same reason as `api`: it is a proxied
+  // backend path, not a page. Left in, this gate ran on every long-poll request, and an
+  // expired session answered the transport with a redirect to the /login *page* instead
+  // of letting Frappe reject the handshake on its own terms.
+  matcher: ["/((?!api|socket.io|frappe-files|_next/static|_next/image|favicon.ico).*)"],
 };

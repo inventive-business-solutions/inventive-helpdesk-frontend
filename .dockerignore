@@ -1,0 +1,45 @@
+# Build context exclusions. Anything listed here is invisible to `docker build`, so it
+# neither bloats the context nor busts the layer cache when it changes.
+
+# Reinstalled inside the image from package-lock.json; a host copy would also carry
+# linux-x64 vs. host-arch native binaries.
+node_modules
+.next
+out
+dist
+
+# Local environment and credentials — must never reach an image layer.
+# This is load-bearing, not hygiene: `next build` COPIES any .env it loads into
+# .next/standalone/, which the runtime stage then ships. A developer's .env reaching
+# the build context therefore ends up verbatim inside the published image.
+# Nothing in the build needs .env.example either, so there is no negation here.
+.env
+.env.*
+*.local.md
+
+# VCS and CI
+.git
+.gitignore
+.github
+
+# Tooling and tests — not needed to build or run the server.
+# eslint.config.mjs is deliberately NOT excluded: `next build` resolves it if linting is
+# enabled, and a missing config there fails the build for a non-obvious reason.
+tests
+vitest.config.ts
+.prettierrc.json
+.prettierignore
+*.tsbuildinfo
+
+# Docs and deployment descriptors
+docs
+deploy
+CICD.md
+Dockerfile
+.dockerignore
+
+# Editor / OS noise
+.vscode
+.idea
+.DS_Store
+*.log

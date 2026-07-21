@@ -1,0 +1,96 @@
+# Inventive Helpdesk — frontend stack (Docker Swarm, deployed via Portainer).
+#
+# Traefik settings here match THIS server's Traefik v3 install, which is also what the
+# backend stack uses. They intentionally differ from the samanvay-setu frontend, which
+# runs behind a different, older Traefik:
+#   * label is `traefik.swarm.network`, not `traefik.docker.network` (renamed in v3)
+#   * entrypoints are `web` / `websecure`, not `http` / `https`
+# Copying those two from the other repo yields a 404 served with Traefik's default
+# self-signed certificate — the failure looks like DNS or TLS, not a label typo.
+
+services:
+  frontend:
+    image: ${IMAGE_NAME:?No image set}:${VERSION:?No version set}
+    networks:
+      - traefik-public
+
+    # This build of the app writes nothing to disk at runtime (verified: no page uses ISR,
+    # `revalidate`, or next/image), so the filesystem is read-only and, with cap_drop,
+    # leaves no writable path an RCE could persist to. The two tmpfs mounts keep that true
+    # as the app grows: .next/cache is where Next would put ISR and optimised-image output,
+    # and without it the first page to add `revalidate` would crash the container on EROFS
+    # rather than degrade.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      # Read at runtime only by /api/health. The proxy destinations the app actually uses
+      # are frozen into the image at build time (see Dockerfile), so changing this alone
+      # does NOT repoint the app — it must match the FRAPPE_URL the image was built with,
+      # and /api/health reports `status: degraded` if it does not.
+      FRAPPE_URL: ${FRAPPE_URL:?No frappe url set}
+
+    # Server-rendered pages are cheap here; the ceiling exists to stop a runaway process
+    # starving the backend stack sharing this node.
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: start-first
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=traefik-public
+        - traefik.constraint-label=traefik-public
+        - traefik.http.middlewares.${STACK_NAME:-inventive-helpdesk-frontend}-redirect.redirectscheme.scheme=https
+        - traefik.http.routers.${STACK_NAME:-inventive-helpdesk-frontend}-http.rule=Host(`${FRONTEND_DOMAIN:?No frontend domain set}`)
+        - traefik.http.routers.${STACK_NAME:-inventive-helpdesk-frontend}-http.entrypoints=web
+        - traefik.http.routers.${STACK_NAME:-inventive-helpdesk-frontend}-http.middlewares=${STACK_NAME:-inventive-helpdesk-frontend}-redirect
+        - traefik.http.routers.${STACK_NAME:-inventive-helpdesk-frontend}-https.rule=Host(`${FRONTEND_DOMAIN}`)
+        - traefik.http.routers.${STACK_NAME:-inventive-helpdesk-frontend}-https.entrypoints=websecure
+        - traefik.http.routers.${STACK_NAME:-inventive-helpdesk-frontend}-https.tls=true
+        - traefik.http.routers.${STACK_NAME:-inventive-helpdesk-frontend}-https.tls.certresolver=le
+        - traefik.http.services.${STACK_NAME:-inventive-helpdesk-frontend}.loadbalancer.server.port=3000
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Duplicates the image's HEALTHCHECK so the setting is visible and tunable from the
+    # stack file. Stays 200 while this process is alive even if Frappe is down — a 503 on
+    # backend trouble would make Swarm restart the frontend during a backend redeploy.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  # Created once, shared with Traefik and the backend stack. Not declared here as
+  # `name:`-less, or Swarm would look for `<stack>_traefik-public`.
+  traefik-public:
+    name: traefik-public
+    external: true

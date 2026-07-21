@@ -1,0 +1,203 @@
+name: INVENTIVE HELPDESK FRONTEND CI/CD PIPELINE
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ============================================================
+  # Quality, Build & Deploy — Production
+  #
+  # Deliberately one job. The runner is single-executor, so splitting quality
+  # checks into their own job buys no parallelism and costs a second checkout
+  # plus `npm ci`; it also opens a window for another run to take the runner
+  # between the gate and the build it was meant to gate.
+  # ============================================================
+  BUILD_AND_DEPLOY_PROD:
+    name: Quality, Build & Deploy (Production)
+    if: github.ref == 'refs/heads/master'
+    runs-on: [self-hosted, inventive-microscan]
+    environment: Production
+    timeout-minutes: 45
+
+    env:
+      # Matches the Dockerfile base image, so a type or lint error cannot pass here
+      # and then fail inside the image build on a different Node.
+      NODE_VERSION: "24.18.0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # Fail fast with a readable message. Without this an unset IMAGE_NAME surfaces
+      # several steps later as `invalid tag ":<sha>": invalid reference format`, and an
+      # unset FRAPPE_URL produces a perfectly green pipeline shipping an image whose
+      # proxy targets point at localhost.
+      - name: Validate required configuration
+        env:
+          IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+          FRONTEND_DOMAIN: ${{ vars.FRONTEND_DOMAIN }}
+          FRAPPE_URL: ${{ vars.FRAPPE_URL }}
+          SOCKETIO_URL: ${{ vars.SOCKETIO_URL }}
+        run: |
+          missing=""
+          [ -z "$IMAGE_NAME" ]       && missing="$missing IMAGE_NAME(variable)"
+          [ -z "$FRONTEND_DOMAIN" ]  && missing="$missing FRONTEND_DOMAIN(variable)"
+          [ -z "$FRAPPE_URL" ]       && missing="$missing FRAPPE_URL(variable)"
+          [ -z "$SOCKETIO_URL" ]     && missing="$missing SOCKETIO_URL(variable)"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required config on the Production environment:$missing"
+            exit 1
+          fi
+          case "$FRAPPE_URL" in
+            https://*) ;;
+            *) echo "::error::FRAPPE_URL must be https in production. Got: $FRAPPE_URL"; exit 1 ;;
+          esac
+          echo "Configuration present."
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          # No `cache: 'npm'`. Measured on this runner class, restoring the Actions npm
+          # cache is far slower than a cold `npm ci`. Re-measure before re-adding.
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push AMD64 image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ vars.IMAGE_NAME }}:${{ github.sha }}
+            ${{ vars.IMAGE_NAME }}:latest
+          # Must match the Swarm node's architecture (linux/x86_64). A mismatch shows up
+          # as "no suitable node (unsupported platform)" with tasks stuck pending.
+          platforms: linux/amd64
+          # Keeps the manifest single-platform; provenance attestations add an
+          # "unknown/unknown" entry that confuses some registry/pull paths.
+          provenance: false
+          build-args: |
+            FRAPPE_URL=${{ vars.FRAPPE_URL }}
+            SOCKETIO_URL=${{ vars.SOCKETIO_URL }}
+            BUILD_SHA=${{ github.sha }}
+
+      # The stack's VERSION must be "latest" (not a pinned SHA). This webhook only
+      # redeploys the stack — it does not set environment variables, and a ?VERSION=
+      # query parameter is silently ignored on Portainer Community Edition. Because
+      # `docker stack deploy` re-resolves a tag to its current registry digest,
+      # redeploying :latest picks up the image this run just pushed.
+      - name: Deploy to server
+        id: deploy
+        if: success()
+        env:
+          WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::notice::PORTAINER_WEBHOOK_URL not set — skipping deploy. Release manually in Portainer."
+            exit 0
+          fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$WEBHOOK_URL")
+          echo "status_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP_CODE" -ne 204 ] && [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Deployment webhook failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Deployment triggered (HTTP $HTTP_CODE)"
+
+      # Compares the running container's baked BUILD_SHA against this commit. A plain
+      # HTTP 200 check would pass against the previous container still serving traffic.
+      - name: Verify deployment
+        id: verify
+        if: steps.deploy.outcome == 'success'
+        run: |
+          EXPECTED_SHA="${{ github.sha }}"
+          HEALTH_URL="https://${{ vars.FRONTEND_DOMAIN }}/api/health"
+          echo "Waiting for container restart..."
+          sleep 45
+
+          MAX_ATTEMPTS=12
+          WAIT_SECONDS=15
+
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            RESPONSE=$(curl -s --max-time 10 "$HEALTH_URL" || true)
+            DEPLOYED_SHA=$(echo "$RESPONSE" | jq -r '.version // empty' 2>/dev/null || true)
+
+            if [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ]; then
+              echo "Deployment verified — running build $DEPLOYED_SHA"
+              # Surface a backend that is unreachable from inside the container. Not fatal:
+              # the frontend is genuinely deployed, and failing here would blame the wrong
+              # stack for a backend outage.
+              STATUS=$(echo "$RESPONSE" | jq -r '.status // empty' 2>/dev/null || true)
+              if [ "$STATUS" != "ok" ]; then
+                echo "::warning::Frontend is live but reports status=${STATUS}. Detail: $(echo "$RESPONSE" | jq -c '.checks' 2>/dev/null || echo "$RESPONSE")"
+              fi
+              echo "status=healthy" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Attempt $i/$MAX_ATTEMPTS — deployed: ${DEPLOYED_SHA:-unavailable}, expected: $EXPECTED_SHA. Retrying in ${WAIT_SECONDS}s..."
+            sleep $WAIT_SECONDS
+          done
+
+          echo "::error::Verification failed — $EXPECTED_SHA not live after $MAX_ATTEMPTS attempts"
+          echo "status=unhealthy" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "## Build Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Environment** | Production |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Image** | \`${{ vars.IMAGE_NAME }}:${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Platform** | \`linux/amd64\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Frontend** | https://${{ vars.FRONTEND_DOMAIN }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Backend (baked)** | ${{ vars.FRAPPE_URL }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Branch** | \`${{ github.ref_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Commit** | [\`${GITHUB_SHA::7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Triggered by** | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.deploy.outcome }}" == "success" ]; then
+            echo "| **Webhook** | Triggered |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| **Webhook** | Failed |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ steps.verify.outcome }}" == "success" ]; then
+            echo "| **Health Check** | Healthy |" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.verify.outcome }}" == "skipped" ]; then
+            echo "| **Health Check** | Skipped |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| **Health Check** | Unhealthy |" >> "$GITHUB_STEP_SUMMARY"
+          fi

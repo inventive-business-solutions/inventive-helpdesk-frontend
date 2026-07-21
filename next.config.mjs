@@ -3,6 +3,13 @@
 // The frontend never talks to Frappe cross-origin. It calls same-origin
 // `/api/frappe/*` on the Next server, which proxies to the Frappe backend
 // (below), so session cookies "just work" in dev and prod, with no CORS dance.
+//
+// BUILD-TIME, NOT RUNTIME. `rewrites()` is evaluated by `next build` and frozen into
+// .next/routes-manifest.json; the production server reads that manifest and never
+// re-runs this file. So FRAPPE_URL/SOCKETIO_URL must be set when the image is BUILT —
+// setting them only in the container is silently ignored, and every proxied call fails
+// with EAI_AGAIN against whatever was baked in. The Dockerfile takes both as required
+// build args for exactly this reason; see CICD.md.
 const FRAPPE_URL = process.env.FRAPPE_URL || "http://127.0.0.1:8000";
 // Frappe's Socket.IO runs on its own port (socketio_port, 9000 in dev). Proxying it
 // same-origin lets the session cookie authenticate the realtime handshake. In prod this
@@ -124,9 +131,20 @@ const proxyRewrites = [
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.invite_member`,
   },
   { source: "/api/frappe/resource/:path*", destination: `${FRAPPE_URL}/api/resource/:path*` },
-  // Realtime (Socket.IO) — same-origin so the session cookie rides the handshake. The
-  // polling transport works through this HTTP rewrite; a WebSocket upgrade works where the
-  // serving layer supports it (nginx in prod), otherwise it stays on polling.
+  // Realtime (Socket.IO) — same-origin so the session cookie rides the handshake. A Next
+  // rewrite does not proxy the HTTP Upgrade handshake, so the transport stays on polling;
+  // the server advertises a websocket upgrade, the client tries it, and it quietly fails
+  // back. Fine in practice — updates still land in about a second.
+  //
+  // The exact-match rule must come first and is not redundant. Every Engine.IO request is
+  // `/socket.io/?EIO=4&...` — trailing slash, no path segments — but Next normalises the
+  // pathname to `/socket.io` before matching, and the `:path*` pattern below then renders
+  // an empty segment as nothing, proxying to `/socket.io?EIO=4&...`. Frappe's socket.io
+  // server does not answer that path: it resets the connection, so every handshake fails
+  // while the app quietly falls back to the 30s poller — slow updates, never an error.
+  // Since the slash cannot survive into the matcher, the destination restores it. This
+  // source matches `/socket.io` and `/socket.io/` alike, so it wins either way.
+  { source: "/socket.io", destination: `${SOCKETIO_URL}/socket.io/` },
   { source: "/socket.io/:path*", destination: `${SOCKETIO_URL}/socket.io/:path*` },
   { source: "/frappe-files/:path*", destination: `${FRAPPE_URL}/files/:path*` },
   // Private ticket attachments. Frappe permission-gates /private/files/* by the file's
@@ -137,6 +155,17 @@ const proxyRewrites = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // socket.io-client requests `/socket.io/?EIO=4...` with a trailing slash, which Next
+  // otherwise answers with a 308 to the slashless form. Long-polling would still work —
+  // XHR follows the redirect — but at two requests per poll, forever. This drops the
+  // redirect so each poll is one request. It does NOT preserve the slash for rewrite
+  // matching (Next normalises the pathname regardless); the socket.io rewrite below
+  // restores it in the destination. Pages are unaffected: Next still serves `/tickets`
+  // and `/tickets/` identically, it just no longer canonicalises between them.
+  skipTrailingSlashRedirect: true,
+  // Emit .next/standalone — a self-contained server bundling only the traced
+  // dependencies, so the runtime image needs no node_modules. See Dockerfile.
+  output: "standalone",
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
@@ -146,11 +175,17 @@ const nextConfig = {
 };
 
 export default (phase) => {
-  // Fail fast at runtime (`next start`) if the backend URL is missing — never
-  // silently proxy to localhost in production. Not enforced during build/lint,
-  // which don't touch the backend.
-  if (phase === "phase-production-server" && !process.env.FRAPPE_URL) {
-    throw new Error("FRAPPE_URL must be set in production — see .env.example.");
+  // Warn loudly when a production build bakes in the localhost defaults. Such a build
+  // starts fine and serves pages, then fails on every backend call — so surface it here,
+  // at the only point where it is still fixable. This is a warning rather than a throw
+  // because a local `npm run build` smoke test legitimately has no backend configured;
+  // the hard failure lives in the Dockerfile, where a defaulted URL is always a bug.
+  if (phase === "phase-production-build" && !process.env.FRAPPE_URL) {
+    console.warn(
+      "\n[next.config] FRAPPE_URL is not set — baking the localhost default into this build." +
+        "\n[next.config] Proxy destinations are frozen at build time, so this build cannot" +
+        "\n[next.config] talk to a real backend. Fine locally; broken if deployed.\n",
+    );
   }
   return nextConfig;
 };
