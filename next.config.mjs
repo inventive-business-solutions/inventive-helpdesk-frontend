@@ -155,6 +155,9 @@ const proxyRewrites = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // Drop `X-Powered-By: Next.js`. Only fingerprinting value — it tells a scanner which
+  // framework (and so which CVE set) to try, and buys nothing in return.
+  poweredByHeader: false,
   // socket.io-client requests `/socket.io/?EIO=4...` with a trailing slash, which Next
   // otherwise answers with a 308 to the slashless form. Long-polling would still work —
   // XHR follows the redirect — but at two requests per poll, forever. This drops the
