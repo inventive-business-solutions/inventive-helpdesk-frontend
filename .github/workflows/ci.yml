@@ -125,6 +125,11 @@ jobs:
         run: |
           if [ -z "$WEBHOOK_URL" ]; then
             echo "::notice::PORTAINER_WEBHOOK_URL not set — skipping deploy. Release manually in Portainer."
+            # Exiting 0 here makes this step's *outcome* "success", so the flag is what
+            # tells the verify step apart from a real deploy. Without it, verification
+            # runs against a stack that was never asked to update and fails the run —
+            # which is exactly what happened on the first push, before the stack existed.
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$WEBHOOK_URL")
@@ -139,7 +144,7 @@ jobs:
       # HTTP 200 check would pass against the previous container still serving traffic.
       - name: Verify deployment
         id: verify
-        if: steps.deploy.outcome == 'success'
+        if: steps.deploy.outcome == 'success' && steps.deploy.outputs.skipped != 'true'
         run: |
           EXPECTED_SHA="${{ github.sha }}"
           HEALTH_URL="https://${{ vars.FRONTEND_DOMAIN }}/api/health"
@@ -189,7 +194,9 @@ jobs:
           echo "| **Branch** | \`${{ github.ref_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **Commit** | [\`${GITHUB_SHA::7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **Triggered by** | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.deploy.outcome }}" == "success" ]; then
+          if [ "${{ steps.deploy.outputs.skipped }}" == "true" ]; then
+            echo "| **Webhook** | Not configured — deploy skipped |" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.deploy.outcome }}" == "success" ]; then
             echo "| **Webhook** | Triggered |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| **Webhook** | Failed |" >> "$GITHUB_STEP_SUMMARY"
