@@ -230,13 +230,6 @@ export function SignIn() {
                 <div>{notice}</div>
               </div>
             )}
-            <div className="auth-note">
-              <Icon name="info" size={14} />
-              <div>
-                Authenticated against the Frappe backend. Your access is scoped to your account — enforced
-                server-side.
-              </div>
-            </div>
           </div>
         </form>
       </section>
