@@ -33,6 +33,14 @@ export function Sidebar() {
   if (!session) return null;
   const admin = session.role === "admin";
   const isAgent = admin && !session.manage;
+  // Footer line under the signed-in user's name: a member's own job title (falling back
+  // to the generic team label when they have none), a fixed "Administrator" for managers
+  // regardless of any title on their Team Member record, and client · division for POCs.
+  const subtitle = !admin
+    ? `${session.client} · ${session.div}`
+    : isAgent
+      ? session.title || "Inventive Support"
+      : "Administrator";
 
   const activeCount = tickets.filter((t) => isActive(t.status)).length;
   const mine = tickets.filter((t) => t.client === session.client && t.div === session.div);
@@ -157,7 +165,7 @@ export function Sidebar() {
           <Icon name="logo" size={18} />
         </span>
         <div className="t">
-          Inventive Helpdesk<span>{admin ? "Admin" : "Portal"}</span>
+          Inventive Helpdesk<span>{admin ? (isAgent ? "Member" : "Admin") : "Portal"}</span>
         </div>
       </div>
 
@@ -180,7 +188,10 @@ export function Sidebar() {
           </span>
           <div className="m">
             <div className="who-name">{session.name}</div>
-            <span>{admin ? "Inventive Support" : `${session.client} · ${session.div}`}</span>
+            {/* A member's job title identifies them better than the org name; it's free
+                text and often blank, so fall back to the generic label. Wraps at word
+                boundaries (see .who .m span) rather than truncating. */}
+            <span title={subtitle}>{subtitle}</span>
           </div>
         </div>
       </div>

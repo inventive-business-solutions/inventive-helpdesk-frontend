@@ -437,12 +437,10 @@ a {
   grid-template-columns: 232px 1fr;
   min-height: 100vh;
 }
-/* Tablet: keep the sidebar (nav must stay reachable) but slim it down. */
-@media (max-width: 1024px) {
-  .app-shell {
-    grid-template-columns: 200px 1fr;
-  }
-}
+/* The rail keeps one width at every size it is shown at (the phone drawer below is
+   wider still). It used to slim to 200px on tablet, which left too little room for
+   the brand lockup and reflowed "Inventive Helpdesk" onto two lines — the title has
+   to read identically at every breakpoint. */
 /* Desktop/tablet: the hamburger collapses the sidebar to reclaim its width — the
    sidebar is removed from the grid so the content spans full width. */
 @media (min-width: 641px) {
@@ -494,24 +492,37 @@ a {
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   padding: 18px 18px 16px;
   border-bottom: 1px solid var(--line-2);
 }
-.sidebar-brand .brand-glyph {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+/* ---- Brand lockup, shared by the admin sidebar and the client portal bar ----
+   One definition for both chromes so they cannot drift apart again. They had:
+   the sidebar set no line-height and inherited body's 1.45 while the portal set
+   1.15, which made the same two-line lockup ~8px taller on the admin side, plus
+   a 30 vs 32px glyph and a 10 vs 11px gap. Portal-only extras (nowrap, explicit
+   ink colour, because it sits in a link) stay in the .portal-brand rules below. */
+.sidebar-brand .brand-glyph,
+.portal-brand .brand-glyph {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
 }
-.sidebar-brand .brand-glyph svg {
+.sidebar-brand .brand-glyph svg,
+.portal-brand .brand-glyph svg {
   width: 18px;
   height: 18px;
 }
-.sidebar-brand .t {
+.sidebar-brand .t,
+.portal-brand .pb-t {
   font-size: 14.5px;
   font-weight: 700;
+  line-height: 1.15;
+  /* "Inventive Helpdesk" stays on one line in both chromes at every width. */
+  white-space: nowrap;
 }
-.sidebar-brand .t span {
+.sidebar-brand .t span,
+.portal-brand .pb-t span {
   display: block;
   font-size: 11px;
   font-weight: 500;
@@ -645,7 +656,10 @@ a {
   font-weight: 500;
   color: var(--muted);
   margin-top: 1px;
-  overflow-wrap: anywhere;
+  /* Job titles ("Business Development Executive") wrap onto a second line at a space;
+     break-word (not anywhere) keeps the split between words, and only chops a single
+     word when that one word is itself wider than the column. */
+  overflow-wrap: break-word;
 }
 .signout {
   margin-left: auto;
@@ -805,27 +819,11 @@ a {
   color: inherit;
   flex: none;
 }
-.portal-brand .brand-glyph {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-}
-.portal-brand .brand-glyph svg {
-  width: 18px;
-  height: 18px;
-}
+/* Size, leading, nowrap and the muted sub-line come from the shared brand lockup
+   rules in the sidebar section. Only what is specific to sitting inside a link
+   (which would otherwise inherit the link colour) belongs here. */
 .portal-brand .pb-t {
-  font-size: 14.5px;
-  font-weight: 700;
-  line-height: 1.15;
   color: var(--ink);
-  white-space: nowrap;
-}
-.portal-brand .pb-t span {
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
 }
 /* The identity block holds arbitrary client/division/POC names — clamp them with an
    ellipsis so no client's data can bend the top bar out of shape. */
@@ -2293,6 +2291,28 @@ table.tk .t-id {
   color: var(--ink-2);
   white-space: nowrap;
 }
+/* Unread marker: a client message or internal note this agent hasn't seen. Per agent,
+   so a teammate opening the ticket doesn't clear it for you. The dot is absolutely
+   positioned in the id cell's existing padding so adding it never shifts the column
+   widths — the ticket table is fixed-layout and shared by every staff surface. */
+table.tk td.t-id {
+  position: relative;
+}
+.unread-dot {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+table.tk tr.trow.unread .t-id,
+table.tk tr.trow.unread .t-title {
+  font-weight: 700;
+  color: var(--ink);
+}
 /* Long ticket titles truncate within their column (with an ellipsis) instead of
    stretching the table out of alignment. Applies to every .tk table; the fixed-layout
    member/team tables set their own widths so max-width is a no-op there. */
@@ -2314,12 +2334,6 @@ table.tk .t-title {
 table.tk .t-cd {
   color: var(--ink-2);
   font-size: 12.5px;
-  white-space: nowrap;
-}
-table.tk .t-age {
-  color: var(--muted);
-  font-size: 12.5px;
-  font-family: var(--mono);
   white-space: nowrap;
 }
 .muted {
@@ -2846,6 +2860,63 @@ table.tk-contacts .row-actions {
 .internal-banner svg {
   width: 14px;
   height: 14px;
+}
+
+/* Ticket activity log — a server-written change history, so it reads as a dense
+   timeline rather than as messages: no avatars, no bubbles, one line per event.
+   Sits inside the shared .stream-scroll container, like the notes panel. */
+.activity-log {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+}
+.act {
+  position: relative;
+  display: flex;
+  gap: 11px;
+  padding: 0 0 14px 0;
+}
+/* The connecting rail, drawn from each dot down to the next; the last row stops it. */
+.act::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 14px;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.act:last-child {
+  padding-bottom: 2px;
+}
+.act:last-child::before {
+  display: none;
+}
+.act-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-sf);
+}
+.act-body {
+  min-width: 0;
+}
+.act-line {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.4;
+}
+.act-line b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.act-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
 }
 
 .composer {
