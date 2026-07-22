@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useStore } from "@/store";
+import { useStore, collabKey, mergeTicketDraft, type TicketDraft } from "@/store";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
@@ -17,10 +17,11 @@ import { fmtDateTime, fmtShortDate, fmtTime, initials, isResolved } from "@/lib/
 
 /** Short, compact ticket timestamp for the rail: "12/07/2026, 9:00 AM". */
 const stamp = (iso?: string) => (iso ? `${fmtShortDate(iso)}, ${fmtTime(iso)}` : "—");
+
 import { useAutoRefresh, TICKET_POLL_MS } from "@/lib/useAutoRefresh";
 import { onRealtime, subscribeDoc } from "@/lib/realtime";
 import { attachmentHref } from "@/lib/frappe";
-import type { Attachment, Collaborator, Message, Priority, Status, WorkNote } from "@/types";
+import type { Activity, Attachment, Collaborator, Message, Priority, Status, WorkNote } from "@/types";
 
 const STATUSES: Status[] = [
   "New",
@@ -32,6 +33,54 @@ const STATUSES: Status[] = [
   "Reopened",
 ];
 const PRIORITIES: Priority[] = ["Critical", "High", "Medium", "Low"];
+
+/** Phrase one activity row. The subject is the actor, rendered separately underneath,
+ *  so each line reads as "<what happened>" under "<who> · <when>".
+ *
+ *  An Assignee row whose new value is the actor themselves is a self-assignment —
+ *  api.claim_ticket deliberately writes no row of its own, so this is what makes a
+ *  claim read as a claim rather than as somebody assigning themselves. */
+function describeActivity(a: Activity) {
+  switch (a.action) {
+    case "Created":
+      return (
+        <>
+          opened the ticket as <b>{a.to ?? "New"}</b>
+        </>
+      );
+    case "Collaborator":
+      return a.to ? (
+        <>
+          added <b>{a.to}</b> as a collaborator
+        </>
+      ) : (
+        <>
+          removed <b>{a.from}</b> as a collaborator
+        </>
+      );
+    case "Assignee":
+      if (a.to && a.to === a.author) return <>claimed the ticket</>;
+      return a.to ? (
+        <>
+          assigned the ticket to <b>{a.to}</b>
+        </>
+      ) : (
+        <>unassigned the ticket</>
+      );
+    case "Team":
+      return (
+        <>
+          routed the ticket to <b>{a.to}</b>
+        </>
+      );
+    default:
+      return (
+        <>
+          changed {a.action.toLowerCase()} from <b>{a.from}</b> to <b>{a.to}</b>
+        </>
+      );
+  }
+}
 
 function AttachChips({ list }: { list?: Attachment[] }) {
   if (!list || !list.length) return null;
@@ -71,6 +120,7 @@ export function TicketDetail({ id }: { id: string }) {
   const ticket = useStore((s) => s.tickets.find((t) => t.id === id));
   const clients = useStore((s) => s.clients);
   const loadTicket = useStore((s) => s.loadTicket);
+  const markRead = useStore((s) => s.markRead);
   const setStatus = useStore((s) => s.setStatus);
   const setPriority = useStore((s) => s.setPriority);
   const setAssignment = useStore((s) => s.setAssignment);
@@ -94,7 +144,7 @@ export function TicketDetail({ id }: { id: string }) {
     else router.push(backTo);
   };
 
-  const [streamTab, setStreamTab] = useState<"client" | "internal">("client");
+  const [streamTab, setStreamTab] = useState<"client" | "internal" | "activity">("client");
   const [vis, setVis] = useState<"internal" | "client">("internal");
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -114,8 +164,11 @@ export function TicketDetail({ id }: { id: string }) {
   // ("__back__" = the Back button; otherwise a destination path).
   const [leaveTo, setLeaveTo] = useState<string | null>(null);
 
+  // Both internal streams are staff-only. A client never renders the tab strip, and
+  // this collapses them to the client thread anyway so no state can strand them on a
+  // tab with nothing behind it (their `activity`/`notes` come back empty regardless).
   const showStream = useMemo(
-    () => (streamTab === "internal" && isAdmin ? "internal" : "client"),
+    () => (streamTab !== "client" && isAdmin ? streamTab : "client"),
     [streamTab, isAdmin],
   );
 
@@ -139,31 +192,31 @@ export function TicketDetail({ id }: { id: string }) {
   }, [id, booted, loadTicket]);
 
   // Re-sync the draft to the ticket's server values whenever they actually change
-  // (initial load, our own save landing, or another user's edit). Unsaved local edits
-  // survive background polls because those return unchanged values → these deps don't fire.
-  // Stable key of the server's collaborators, so the draft re-syncs when they change.
-  const collabServerKey = (ticket?.collaborators ?? [])
-    .map((c) => `${c.partyType}:${c.party}`)
-    .sort()
-    .join("|");
+  // (initial load, our own save landing, or another user's edit). The per-field merge —
+  // and why a blanket overwrite was a bug — lives in mergeTicketDraft.
+  const collabServerKey = collabKey(ticket?.collaborators ?? []);
+  // Sole owner of this ref, deliberately: touching it from the id-change effect as well
+  // trips react-hooks/immutability. It carries the id so switching tickets can't have the
+  // new ticket's values read as your unsaved edits — a mismatched id means "first sync".
+  const syncedRef = useRef<{ id: string; vals: TicketDraft } | null>(null);
   useEffect(() => {
     if (!ticket) return;
-    setDraft({
+    const server: TicketDraft = {
       group: ticket.group ?? "",
       assignee: ticket.assignee,
       priority: ticket.priority,
       status: ticket.status,
       collaborators: ticket.collaborators,
-    });
+    };
+    const last = syncedRef.current?.id === id ? syncedRef.current.vals : null;
+    syncedRef.current = { id, vals: server };
+    setDraft((d) => mergeTicketDraft(d, last, server));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.group, ticket?.assignee, ticket?.priority, ticket?.status, collabServerKey]);
 
   // Unsaved staff edits staged in the rail (admin only) — assignment, priority/status,
   // and now collaborators, all committed together via "Update ticket".
-  const draftCollabKey = draft.collaborators
-    .map((c) => `${c.partyType}:${c.party}`)
-    .sort()
-    .join("|");
+  const draftCollabKey = collabKey(draft.collaborators);
   const dirty =
     !!ticket &&
     isAdmin &&
@@ -223,20 +276,36 @@ export function TicketDetail({ id }: { id: string }) {
   );
 
   // Live: join this ticket's doc room and re-pull it the instant it changes elsewhere
-  // (a teammate claims it, posts a note, flips status). The guarded loadTicket won't
-  // overwrite your own unsaved edit or in-progress compose; the poller above is the
-  // fallback when the socket is down.
+  // (a teammate claims it, posts a note, flips status). The poller above is the fallback
+  // when the socket is down, and this mirrors its guards deliberately: `guarded` only
+  // discards a refresh that raced a SAVE (store.loadTicket checks api.isMutating), so
+  // skipping while you're composing or holding unsaved edits has to happen here. Read
+  // skipping while you're composing or holding unsaved edits has to happen here. The
+  // listener is registered once per ticket, so it needs useEffectEvent to see the current
+  // compose/dirty state rather than the values from the render that registered it.
+  const refreshIfIdle = useEffectEvent(() => {
+    if (text.trim() || sending || dirty) return;
+    void loadTicket(id, true).catch(() => {});
+  });
   useEffect(() => {
     if (!booted || !detailLoaded) return;
     const leave = subscribeDoc("Support Ticket", id);
     const off = onRealtime<{ name: string }>("ticket_update", (d) => {
-      if (d?.name === id) loadTicket(id, true);
+      if (d?.name === id) refreshIfIdle();
     });
     return () => {
       off();
       leave();
     };
   }, [booted, detailLoaded, id, loadTicket]);
+
+  // Opening a ticket clears THIS agent's unread marker for it — not the team's. Runs on
+  // every re-pull too, so a reply that lands while you're reading the ticket doesn't
+  // leave the dot behind when you navigate away.
+  useEffect(() => {
+    if (!booted || !detailLoaded || !isAdmin) return;
+    void markRead(id);
+  }, [booted, detailLoaded, id, isAdmin, markRead, ticket?.updatedISO]);
 
   if (!ticket || !session) {
     return (
@@ -427,6 +496,12 @@ export function TicketDetail({ id }: { id: string }) {
                       icon: <Icon name="lock" />,
                       count: ticket.notes.length,
                     },
+                    {
+                      key: "activity",
+                      label: "Activity",
+                      icon: <Icon name="clock" />,
+                      count: ticket.activity.length,
+                    },
                   ]}
                   value={showStream}
                   onChange={setStreamTab}
@@ -463,7 +538,7 @@ export function TicketDetail({ id }: { id: string }) {
                       No messages yet.
                     </EmptyState>
                   )
-                ) : (
+                ) : showStream === "internal" ? (
                   <div className="notes-panel internal">
                     <div className="internal-banner">
                       <Icon name="lock" size={14} />
@@ -494,94 +569,126 @@ export function TicketDetail({ id }: { id: string }) {
                       </EmptyState>
                     )}
                   </div>
+                ) : (
+                  <div className="notes-panel internal">
+                    <div className="internal-banner">
+                      <Icon name="lock" size={14} />
+                      Internal only — never shown to the client
+                    </div>
+                    {ticket.activity.length ? (
+                      <ol className="activity-log">
+                        {ticket.activity.map((a, i) => (
+                          <li className="act" key={`${a.tm}-${i}`}>
+                            <span className="act-dot" aria-hidden="true" />
+                            <div className="act-body">
+                              <div className="act-line">{describeActivity(a)}</div>
+                              <div className="act-meta">
+                                {a.author} · {a.tm}
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : !detailLoaded ? (
+                      <EmptyState compact>Loading…</EmptyState>
+                    ) : (
+                      <EmptyState compact icon="clock">
+                        No activity recorded yet.
+                      </EmptyState>
+                    )}
+                  </div>
                 )}
               </div>
 
-              <div className="composer">
-                <textarea
-                  value={text}
-                  placeholder={
-                    !isAdmin
-                      ? "Reply to the Inventive team…"
-                      : vis === "internal"
-                        ? "Write an internal work note…"
-                        : "Write a reply to the client…"
-                  }
-                  onChange={(e) => setText(e.target.value)}
-                />
-                <StagedFileChips
-                  files={files}
-                  onRemove={(i) => setFiles(files.filter((_, idx) => idx !== i))}
-                />
-                <div className="composer-bar">
-                  {isAdmin && (
-                    <div className="vis-toggle">
-                      <button
-                        className={`vis-opt ${vis === "internal" ? "on-internal" : ""}`}
-                        onClick={() => setVis("internal")}
-                      >
-                        <Icon name="lock" size={13} />
-                        Internal note
-                      </button>
-                      <button
-                        className={`vis-opt ${vis === "client" ? "on-client" : ""}`}
-                        onClick={() => setVis("client")}
+              {/* The activity log is written by the server, never typed into — so the
+                  composer would be a control that cannot act on what is on screen. */}
+              {showStream !== "activity" && (
+                <div className="composer">
+                  <textarea
+                    value={text}
+                    placeholder={
+                      !isAdmin
+                        ? "Reply to the Inventive team…"
+                        : vis === "internal"
+                          ? "Write an internal work note…"
+                          : "Write a reply to the client…"
+                    }
+                    onChange={(e) => setText(e.target.value)}
+                  />
+                  <StagedFileChips
+                    files={files}
+                    onRemove={(i) => setFiles(files.filter((_, idx) => idx !== i))}
+                  />
+                  <div className="composer-bar">
+                    {isAdmin && (
+                      <div className="vis-toggle">
+                        <button
+                          className={`vis-opt ${vis === "internal" ? "on-internal" : ""}`}
+                          onClick={() => setVis("internal")}
+                        >
+                          <Icon name="lock" size={13} />
+                          Internal note
+                        </button>
+                        <button
+                          className={`vis-opt ${vis === "client" ? "on-client" : ""}`}
+                          onClick={() => setVis("client")}
+                        >
+                          <Icon name="chat" size={13} />
+                          Reply to client
+                        </button>
+                      </div>
+                    )}
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        if (e.target.files) setFiles([...files, ...Array.from(e.target.files)]);
+                        e.target.value = "";
+                      }}
+                    />
+                    <IconButton
+                      icon={<Icon name="paperclip" />}
+                      label="Attach files"
+                      onClick={() => fileRef.current?.click()}
+                    />
+                    {!isAdmin && (
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
                       >
                         <Icon name="chat" size={13} />
-                        Reply to client
-                      </button>
-                    </div>
-                  )}
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    multiple
-                    style={{ display: "none" }}
-                    onChange={(e) => {
-                      if (e.target.files) setFiles([...files, ...Array.from(e.target.files)]);
-                      e.target.value = "";
-                    }}
-                  />
-                  <IconButton
-                    icon={<Icon name="paperclip" />}
-                    label="Attach files"
-                    onClick={() => fileRef.current?.click()}
-                  />
-                  {!isAdmin && (
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: "var(--muted)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
+                        Visible to the Inventive team
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className={`btn send-btn ${isAdmin && vis === "internal" ? "" : "primary"}`}
+                      style={
+                        isAdmin && vis === "internal"
+                          ? { background: "var(--warning)", color: "#fff", borderColor: "var(--warning)" }
+                          : undefined
+                      }
+                      onClick={send}
+                      disabled={sending || !detailLoaded}
                     >
-                      <Icon name="chat" size={13} />
-                      Visible to the Inventive team
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className={`btn send-btn ${isAdmin && vis === "internal" ? "" : "primary"}`}
-                    style={
-                      isAdmin && vis === "internal"
-                        ? { background: "var(--warning)", color: "#fff", borderColor: "var(--warning)" }
-                        : undefined
-                    }
-                    onClick={send}
-                    disabled={sending || !detailLoaded}
-                  >
-                    {sending
-                      ? "Sending…"
-                      : !isAdmin
-                        ? "Send reply"
-                        : vis === "internal"
-                          ? "Add work note"
-                          : "Send to client"}
-                  </button>
+                      {sending
+                        ? "Sending…"
+                        : !isAdmin
+                          ? "Send reply"
+                          : vis === "internal"
+                            ? "Add work note"
+                            : "Send to client"}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

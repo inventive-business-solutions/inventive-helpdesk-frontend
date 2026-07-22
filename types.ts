@@ -73,6 +73,17 @@ export interface WorkNote {
   attachments?: Attachment[];
 }
 
+/** One entry in a ticket's activity log — who changed what, and when. Written
+ *  server-side only (SupportTicket.before_save); the backend keeps it at permlevel 1,
+ *  so a client POC's ticket read comes back with this list empty. */
+export interface Activity {
+  action: "Created" | "Status" | "Priority" | "Assignee" | "Team" | "Collaborator";
+  from?: string;
+  to?: string;
+  author: string;
+  tm: string;
+}
+
 /** A team or member looped in to coordinate on a ticket without owning it
  *  ("Collaborators"). They gain read access and can post internal notes. */
 export interface Collaborator {
@@ -115,6 +126,7 @@ export interface Ticket {
   attachments: Attachment[];
   conversation: Message[];
   notes: WorkNote[];
+  activity: Activity[];
   /** How the ticket was raised. Undefined = legacy/portal. */
   source?: "Portal" | "Email";
   /** Sender address when raised via email. */
@@ -133,6 +145,8 @@ export interface Session {
   member?: string;
   /** Staff only: the teams (assignment groups) this agent belongs to. */
   teams?: string[];
+  /** Staff only: the member's job title, shown under their name in the sidebar. */
+  title?: string;
   client?: string;
   div?: string;
 }

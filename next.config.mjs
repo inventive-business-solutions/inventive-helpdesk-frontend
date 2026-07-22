@@ -99,6 +99,14 @@ const proxyRewrites = [
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.upload_attachment`,
   },
   {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.unread_tickets",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.unread_tickets`,
+  },
+  {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.mark_ticket_read",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.mark_ticket_read`,
+  },
+  {
     source: "/api/frappe/method/inventive_helpdesk_backend.email.send_test_email",
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.email.send_test_email`,
   },

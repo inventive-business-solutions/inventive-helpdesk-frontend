@@ -41,6 +41,7 @@ export function AgentDashboard() {
   const go = (href: string) => router.push(href);
   const session = useStore((s) => s.session);
   const tickets = useStore((s) => s.tickets);
+  const unread = useStore((s) => s.unread);
   const claimTicket = useStore((s) => s.claimTicket);
   const { busy, run } = useSubmit();
   const [showNew, setShowNew] = useState(false);
@@ -268,6 +269,7 @@ export function AgentDashboard() {
         <div className="table-wrap">
           <TicketTable
             tickets={activityRows}
+            unread={unread}
             onOpen={(id) => go(`/tickets/${id}`)}
             empty={
               <EmptyState>

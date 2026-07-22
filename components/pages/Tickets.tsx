@@ -32,6 +32,7 @@ export function Tickets() {
   const router = useRouter();
   const sp = useSearchParams();
   const tickets = useStore((s) => s.tickets);
+  const unread = useStore((s) => s.unread);
   const clients = useStore((s) => s.clients);
   const members = useStore((s) => s.members);
   const groups = useStore((s) => s.groups);
@@ -412,6 +413,7 @@ export function Tickets() {
         <div className="table-wrap">
           <TicketTable
             tickets={pageRows}
+            unread={unread}
             onOpen={openTicket}
             empty={<EmptyState>No tickets match these filters.</EmptyState>}
           />

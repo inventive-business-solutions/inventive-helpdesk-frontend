@@ -11,6 +11,8 @@ import {
   type RawPoc,
   type RawUser,
 } from "../lib/frappe";
+import { keepHydratedDetail, mergeTicketDraft, type TicketDraft } from "../store";
+import type { Ticket } from "../types";
 
 // The store is now backed by the Frappe REST API (integration-tested against a
 // live backend). What's pure and worth unit-testing is the mapping layer that
@@ -74,6 +76,42 @@ describe("toTicket", () => {
     expect(t.client).toBe("—");
     expect(t.div).toBe("—");
     expect(t.assignee).toBe("Unassigned");
+    // A client POC's read comes back with the permlevel-1 activity log stripped —
+    // absent, not empty — so the mapping has to tolerate the key being missing.
+    expect(t.activity).toEqual([]);
+  });
+
+  it("maps the activity log, dropping blank endpoints rather than rendering them", () => {
+    const raw: RawTicket = {
+      name: "THX-HTG-0043",
+      title: "t",
+      ticket_type: "Bug",
+      priority: "Low",
+      status: "New",
+      activity: [
+        { action: "Created", new_value: "New", author: "Arjun Deshpande", acted_on: "10 July 2026" },
+        {
+          action: "Status",
+          old_value: "New",
+          new_value: "In Progress",
+          author: "Neha Kulkarni",
+          acted_on: "11 July 2026",
+        },
+        // Removing a collaborator records only the old value.
+        {
+          action: "Collaborator",
+          old_value: "Neha Kulkarni",
+          author: "Arjun Deshpande",
+          acted_on: "12 July 2026",
+        },
+      ],
+    };
+    const t = toTicket(raw, divName);
+    expect(t.activity).toHaveLength(3);
+    // `from` is undefined (not "") on the opening row, so the UI can branch on it.
+    expect(t.activity[0]).toMatchObject({ action: "Created", from: undefined, to: "New" });
+    expect(t.activity[1]).toMatchObject({ from: "New", to: "In Progress", author: "Neha Kulkarni" });
+    expect(t.activity[2]).toMatchObject({ action: "Collaborator", from: "Neha Kulkarni", to: undefined });
   });
 });
 
@@ -235,5 +273,100 @@ describe("toMember / toGroup", () => {
         members: [{ member: "Kiran Jaware" }, { member: "Abhishek Bankar" }],
       }),
     ).toEqual({ name: "IT Team", members: ["Kiran Jaware", "Abhishek Bankar"] });
+  });
+});
+
+describe("keepHydratedDetail — the 30s list poll must not blank an open ticket", () => {
+  // The list fetch returns no child tables, so every ticket it produces has empty
+  // conversation/notes/activity. Dropping those straight into the store makes an open
+  // detail view flicker once per poll. This merge is the guard, and it has to cover
+  // EVERY child table — it was a hardcoded (conversation, notes) pair and adding
+  // `activity` silently reintroduced the flicker for the new tab.
+  const listRow = (id: string): Ticket =>
+    toTicket({ name: id, title: "t", ticket_type: "Bug", priority: "Low", status: "New" }, divName);
+
+  const hydrated = (id: string): Ticket => ({
+    ...listRow(id),
+    conversation: [{ kind: "client", author: "R. Mehta", role: "Client", tm: "x", body: "hi" }],
+    notes: [{ author: "Arjun", tm: "x", body: "internal" }],
+    activity: [{ action: "Status", from: "New", to: "In Progress", author: "Arjun", tm: "x" }],
+  });
+
+  it("carries every hydrated child table over the refreshed row", () => {
+    const [merged] = keepHydratedDetail([listRow("T-1")], [hydrated("T-1")]);
+    expect(merged.conversation).toHaveLength(1);
+    expect(merged.notes).toHaveLength(1);
+    expect(merged.activity).toHaveLength(1);
+  });
+
+  it("takes the fresh scalar values, not the stale ones", () => {
+    const fresh = { ...listRow("T-1"), status: "Resolved" as const };
+    const [merged] = keepHydratedDetail([fresh], [hydrated("T-1")]);
+    expect(merged.status).toBe("Resolved");
+    expect(merged.activity).toHaveLength(1);
+  });
+
+  it("passes through tickets with nothing hydrated, and ones it has never seen", () => {
+    expect(keepHydratedDetail([listRow("T-2")], [listRow("T-2")])[0].activity).toEqual([]);
+    expect(keepHydratedDetail([listRow("T-3")], [])[0].id).toBe("T-3");
+  });
+});
+
+describe("mergeTicketDraft — a background refresh must not discard staged edits", () => {
+  // The detail rail stages Team/Assignee/Priority/Status/Collaborators and writes them
+  // together on "Update ticket". That draft is re-synced whenever ANY server field
+  // changes — the 30s list poll, the realtime ticket_update ping, or a teammate's save.
+  // A blanket overwrite therefore threw away whatever you had staged but not yet saved.
+  const base: TicketDraft = {
+    group: "Support L1",
+    assignee: "Arjun",
+    priority: "Medium",
+    status: "New",
+    collaborators: [],
+  };
+
+  it("keeps a staged field when an unrelated field changes on the server", () => {
+    // The reported bug: stage an assignee, a teammate flips priority, your edit vanishes.
+    const staged = { ...base, assignee: "Neha" };
+    const server = { ...base, priority: "Critical" as const };
+    const merged = mergeTicketDraft(staged, base, server);
+    expect(merged.assignee).toBe("Neha");
+    expect(merged.priority).toBe("Critical");
+  });
+
+  it("takes the server value for fields the user never touched", () => {
+    // The other half: keeping everything would let your save revert a teammate's change
+    // to a field you never looked at.
+    const merged = mergeTicketDraft(base, base, { ...base, status: "In Progress" });
+    expect(merged.status).toBe("In Progress");
+  });
+
+  it("keeps staged collaborators, compared by value not identity", () => {
+    const staged = { ...base, collaborators: [{ partyType: "Team" as const, party: "Support L2" }] };
+    const merged = mergeTicketDraft(staged, base, { ...base, priority: "Low" as const });
+    expect(merged.collaborators).toHaveLength(1);
+    // Reordering alone is not an edit — the same set must still track the server.
+    const reordered = {
+      ...base,
+      collaborators: [
+        { partyType: "Member" as const, party: "Neha" },
+        { partyType: "Team" as const, party: "Support L2" },
+      ],
+    };
+    const lastTwo = {
+      ...base,
+      collaborators: [
+        { partyType: "Team" as const, party: "Support L2" },
+        { partyType: "Member" as const, party: "Neha" },
+      ],
+    };
+    expect(mergeTicketDraft(reordered, lastTwo, { ...lastTwo, collaborators: [] }).collaborators).toEqual([]);
+  });
+
+  it("lets the server win on a first sync, including after switching tickets", () => {
+    // `last` is null when we have not synced this ticket id yet. Treating the previous
+    // ticket's values as 'last' would read the new ticket's fields as unsaved edits.
+    const merged = mergeTicketDraft({ ...base, assignee: "Stale" }, null, base);
+    expect(merged).toEqual(base);
   });
 });

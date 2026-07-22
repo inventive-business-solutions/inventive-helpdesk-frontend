@@ -109,6 +109,7 @@ function ManagerDashboard() {
   const go = (href: string) => router.push(href);
   const session = useStore((s) => s.session);
   const tickets = useStore((s) => s.tickets);
+  const unread = useStore((s) => s.unread);
   const clients = useStore((s) => s.clients);
   const members = useStore((s) => s.members);
   const groups = useStore((s) => s.groups);
@@ -358,6 +359,7 @@ function ManagerDashboard() {
         <div className="table-wrap">
           <TicketTable
             tickets={pendingAction.slice(0, 6)}
+            unread={unread}
             onOpen={(id) => go(`/tickets/${id}`)}
             empty={<EmptyState>Nothing needs attention right now.</EmptyState>}
           />
@@ -374,6 +376,7 @@ function ManagerDashboard() {
         <div className="table-wrap">
           <TicketTable
             tickets={emailTickets.slice(0, 6)}
+            unread={unread}
             onOpen={(id) => go(`/tickets/${id}`)}
             empty={
               <EmptyState>

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   Client,
+  Collaborator,
   Group,
   Message,
   Poc,
@@ -91,7 +92,7 @@ async function fetchMasters(role: Role) {
         .getList<{ name: string }>("Product", { fields: ["name"], limit: 0, orderBy: "product_name asc" })
         .then((prod) => prod.map((p) => p.name)),
       api
-        .getList<{ member_name: string; email?: string; title?: string; status?: "Active" | "Invited" }>(
+        .getList<{ member_name: string; email?: string; title?: string; status?: TeamMember["status"] }>(
           "Team Member",
           {
             fields: ["name", "member_name", "email", "title", "status"],
@@ -181,6 +182,73 @@ async function fetchTickets(divIndex: DivRef[], scope?: { client?: string; div?:
   return rows.map((d) => api.toTicket(d, resolve));
 }
 
+/** Carry already-hydrated detail across a LIST refresh.
+ *
+ *  The list fetch returns no child tables, so every ticket it produces has empty
+ *  conversation/notes/activity. Dropping those onto an open ticket detail blanks it
+ *  for a beat on every 30s poll — a visible flicker. This keeps whatever the previous
+ *  copy had; detail navigation re-hydrates fully via loadTicket.
+ *
+ *  ADDING A CHILD TABLE TO `Ticket` MEANS ADDING IT HERE. This was a hardcoded pair
+ *  (conversation, notes) in two separate places, and adding `activity` silently
+ *  reintroduced exactly the flicker the merge exists to prevent — hence one helper. */
+export function keepHydratedDetail(fresh: Ticket[], prev: Ticket[]): Ticket[] {
+  const byId = new Map(prev.map((t) => [t.id, t]));
+  return fresh.map((t) => {
+    const old = byId.get(t.id);
+    if (!old) return t;
+    const hydrated = old.conversation.length || old.notes.length || old.activity.length;
+    return hydrated ? { ...t, conversation: old.conversation, notes: old.notes, activity: old.activity } : t;
+  });
+}
+
+/** Order-independent identity of a collaborator set, so two lists compare by value. */
+export const collabKey = (cs: Collaborator[]) =>
+  cs
+    .map((c) => `${c.partyType}:${c.party}`)
+    .sort()
+    .join("|");
+
+/** The staged (unsaved) ticket edits held in the detail rail. */
+export interface TicketDraft {
+  group: string;
+  assignee: string;
+  priority: Priority;
+  status: Status;
+  collaborators: Collaborator[];
+}
+
+/** Merge freshly-arrived server values into a draft the user may be part-way through
+ *  editing — PER FIELD.
+ *
+ *  A blanket `setDraft(server)` looks right and is not: the detail view re-syncs whenever
+ *  ANY server field changes, so a teammate flipping priority (or the 30s poll landing)
+ *  silently discarded the assignee and collaborators you had staged but not yet saved.
+ *
+ *  `last` is what the server said at the previous sync, and it is what makes the
+ *  distinction possible: a field still equal to `last` is one you never touched, so it
+ *  should track the server; a field that differs is your unsaved edit, so it stays. Both
+ *  halves matter — keeping everything would let your save revert a teammate's change to a
+ *  field you never looked at. `last` is null on the first sync for a ticket (including
+ *  after navigating between tickets), where the server simply wins. */
+export function mergeTicketDraft(
+  draft: TicketDraft,
+  last: TicketDraft | null,
+  server: TicketDraft,
+): TicketDraft {
+  if (!last) return server;
+  return {
+    group: draft.group === last.group ? server.group : draft.group,
+    assignee: draft.assignee === last.assignee ? server.assignee : draft.assignee,
+    priority: draft.priority === last.priority ? server.priority : draft.priority,
+    status: draft.status === last.status ? server.status : draft.status,
+    collaborators:
+      collabKey(draft.collaborators) === collabKey(last.collaborators)
+        ? server.collaborators
+        : draft.collaborators,
+  };
+}
+
 /** Client.product is a Link to the Product doctype, so a typed name must resolve
  *  to a real Product. Return the existing Product's docname, creating it if new. */
 async function resolveProduct(name: string): Promise<string> {
@@ -200,6 +268,10 @@ interface Store {
   groups: Group[];
   products: string[];
   tickets: Ticket[];
+  /** Ticket ids with a client message or internal note THIS agent hasn't seen. Per agent,
+   *  so a teammate opening a ticket doesn't clear your marker. Empty for client sessions —
+   *  the endpoint is staff-only. */
+  unread: string[];
   session: Session | null;
   divIndex: DivRef[];
   booted: boolean;
@@ -214,10 +286,11 @@ interface Store {
    *  masters — used by the auto-refresh poller. */
   refreshTickets: () => Promise<void>;
   loadTicket: (id: string, guarded?: boolean) => Promise<void>;
+  /** Clear this agent's unread marker for a ticket (called when they open it). */
+  markRead: (id: string) => Promise<void>;
 
   setStatus: (id: string, status: Status) => Promise<void>;
   setPriority: (id: string, priority: Priority) => Promise<void>;
-  setGroup: (id: string, group: string) => Promise<void>;
   setAssignment: (id: string, group: string, assignee: string) => Promise<void>;
   /** Agent self-assigns a ticket from their team's queue (team-first, server-enforced). */
   claimTicket: (id: string) => Promise<void>;
@@ -283,6 +356,18 @@ export const useStore = create<Store>()((set, get) => {
   const divDocname = (client: string, name: string) =>
     get().divIndex.find((x) => x.client === client && x.name === name)?.docname;
 
+  /** Re-derive this agent's unread set. Staff only — the endpoint throws PermissionError
+   *  for a client POC, and a portal session has no ticket list to mark up anyway. Failures
+   *  are swallowed: an unread dot is a convenience, never a reason to break a refresh. */
+  const refreshUnread = async () => {
+    if (get().session?.role !== "admin") return;
+    try {
+      set({ unread: (await api.unreadTickets()) || [] });
+    } catch {
+      /* leave the previous set in place */
+    }
+  };
+
   const upsertTicket = (doc: api.RawTicket) =>
     set((s) => {
       const tk = api.toTicket(doc, resolver(s.divIndex));
@@ -297,6 +382,7 @@ export const useStore = create<Store>()((set, get) => {
     user: ctx.user,
     member: ctx.member || undefined,
     teams: ctx.teams || [],
+    title: ctx.title?.trim() || undefined,
     client: ctx.client,
     div: ctx.division_name,
   });
@@ -307,6 +393,7 @@ export const useStore = create<Store>()((set, get) => {
     groups: [],
     products: [],
     tickets: [],
+    unread: [],
     session: null,
     divIndex: [],
     booted: false,
@@ -326,6 +413,7 @@ export const useStore = create<Store>()((set, get) => {
       const tickets = await fetchTickets(masters.divIndex, scopeFor(session));
       markTabSession(true); // this tab now holds a live session (survives F5, not tab close)
       set({ session, ...masters, tickets, booted: true });
+      void refreshUnread();
       return session;
     },
     setPassword: async (key, newPassword) => {
@@ -353,6 +441,7 @@ export const useStore = create<Store>()((set, get) => {
       const tickets = await fetchTickets(masters.divIndex, scopeFor(session));
       markTabSession(true);
       set({ session, ...masters, tickets, booted: true });
+      void refreshUnread();
       return session;
     },
     restore: async () => {
@@ -374,6 +463,7 @@ export const useStore = create<Store>()((set, get) => {
         const masters = await fetchMasters(session.role);
         const tickets = await fetchTickets(masters.divIndex, scopeFor(session));
         set({ session, ...masters, tickets, booted: true });
+        void refreshUnread();
       } catch {
         set({ session: null, booted: true });
       }
@@ -404,17 +494,9 @@ export const useStore = create<Store>()((set, get) => {
       if (!session) return;
       const masters = await fetchMasters(session.role);
       const fresh = await fetchTickets(masters.divIndex, scopeFor(session));
-      // The list fetch omits conversation/notes; preserve any already-hydrated child
-      // tables so an open ticket detail doesn't blank out when a member/group change
-      // triggers this reload. Detail navigation re-hydrates fully via loadTicket.
-      const prev = new Map(get().tickets.map((t) => [t.id, t]));
-      const tickets = fresh.map((t) => {
-        const old = prev.get(t.id);
-        return old && (old.conversation.length || old.notes.length)
-          ? { ...t, conversation: old.conversation, notes: old.notes }
-          : t;
-      });
-      set({ ...masters, tickets });
+      // Keep hydrated child tables so an open ticket detail doesn't blank out when a
+      // member/group change triggers this reload.
+      set({ ...masters, tickets: keepHydratedDetail(fresh, get().tickets) });
     },
     reloadMasters: async () => {
       const role = get().session?.role;
@@ -429,17 +511,21 @@ export const useStore = create<Store>()((set, get) => {
       const ver = api.mutationVersion();
       const fresh = await fetchTickets(divIndex, scopeFor(session));
       if (api.isMutating() || api.mutationVersion() !== ver) return;
-      // Preserve already-hydrated conversation/notes (the list fetch omits them) so an
-      // open ticket detail doesn't blank — same merge as reload(), but tickets-only.
-      const prev = new Map(get().tickets.map((t) => [t.id, t]));
-      set({
-        tickets: fresh.map((t) => {
-          const old = prev.get(t.id);
-          return old && (old.conversation.length || old.notes.length)
-            ? { ...t, conversation: old.conversation, notes: old.notes }
-            : t;
-        }),
-      });
+      // Same merge as reload(), but tickets-only: this is the 30s background poll, so
+      // it is the one most likely to be running with a ticket detail open on screen.
+      set({ tickets: keepHydratedDetail(fresh, get().tickets) });
+      void refreshUnread();
+    },
+    markRead: async (id) => {
+      if (get().session?.role !== "admin") return;
+      // Drop it locally first so the dot clears the instant the ticket opens, rather
+      // than a round-trip later; the server call is the durable record.
+      set((s) => ({ unread: s.unread.filter((t) => t !== id) }));
+      try {
+        await api.markTicketRead(id);
+      } catch {
+        /* a failed mark-read is cosmetic — the next poll re-derives the truth */
+      }
     },
     // Fetch a single ticket's FULL document (incl. conversation/notes child
     // tables) for the detail page — the list fetch omits those for scale.
@@ -464,11 +550,6 @@ export const useStore = create<Store>()((set, get) => {
     },
     setPriority: async (id, priority) => {
       upsertTicket(await api.updateDoc<api.RawTicket>("Support Ticket", id, { priority }));
-    },
-    setGroup: async (id, group) => {
-      upsertTicket(
-        await api.updateDoc<api.RawTicket>("Support Ticket", id, { assignment_group: group || null }),
-      );
     },
     // Team + member in one write — a member only exists within a team, so the two
     // fields must move together (the backend rejects a member with no team).

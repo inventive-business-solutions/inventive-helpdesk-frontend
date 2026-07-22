@@ -5,6 +5,7 @@
  * hides internal work notes (permlevel) — this client just maps shapes.
  */
 import type {
+  Activity,
   Attachment,
   Client,
   Collaborator,
@@ -212,6 +213,8 @@ export interface Me {
   manage?: boolean;
   /** Staff only: this user's Team Member docname (matches ticket.assignee). */
   member?: string | null;
+  /** Staff only: the member's job title. Free text and often blank. */
+  title?: string;
   /** Staff only: assignment groups the member belongs to. */
   teams?: string[];
   /** Staff only: true when a non-manager agent (convenience mirror of !manage). */
@@ -252,6 +255,16 @@ export function reopenTicket(ticket: string) {
  *  ticket's team). Bumps a New ticket to Acknowledged server-side. */
 export function claimTicket(ticket: string) {
   return call<string>("inventive_helpdesk_backend.api.claim_ticket", { ticket });
+}
+/** Ticket ids with a client message or internal note this agent hasn't seen. Per agent —
+ *  a teammate reading a reply doesn't clear it for you. Staff only; the backend throws
+ *  PermissionError for a client POC, so the portal never calls this. */
+export function unreadTickets() {
+  return call<string[]>("inventive_helpdesk_backend.api.unread_tickets");
+}
+/** Called when an agent opens a ticket, clearing their own unread marker for it. */
+export function markTicketRead(ticket: string) {
+  return call<string>("inventive_helpdesk_backend.api.mark_ticket_read", { ticket });
 }
 /** Loop a team or member onto a ticket as a Collaborator (read + internal-note access,
  *  no ownership change). */
@@ -439,6 +452,15 @@ export interface RawTicket {
     added_on?: string;
   }[];
   notes?: { author: string; note_on: string; body: string; attachments?: string }[];
+  /** Absent for a client POC read — the backend strips permlevel-1 fields, so this
+   *  comes back as an empty list rather than the real log. */
+  activity?: {
+    action: Activity["action"];
+    old_value?: string;
+    new_value?: string;
+    author: string;
+    acted_on: string;
+  }[];
 }
 
 const MONTHS_LONG = [
@@ -537,6 +559,13 @@ export function toTicket(r: RawTicket, divName: (docname?: string) => string): T
       tm: fmtStamp(n.note_on),
       body: n.body,
       attachments: unpackAttachments(n.attachments),
+    })),
+    activity: (r.activity || []).map<Activity>((a) => ({
+      action: a.action,
+      from: a.old_value || undefined,
+      to: a.new_value || undefined,
+      author: a.author,
+      tm: fmtStamp(a.acted_on),
     })),
     source: r.source,
     fromEmail: r.from_email,

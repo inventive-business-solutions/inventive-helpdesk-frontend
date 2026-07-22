@@ -13,13 +13,19 @@ export function TicketTable({
   audience = "staff",
   onOpen,
   empty,
+  unread,
 }: {
   tickets: Ticket[];
   audience?: "staff" | "client";
   onOpen: (id: string) => void;
   empty: ReactNode;
+  /** Ticket ids with a client message or internal note THIS agent hasn't seen. Staff
+   *  surfaces pass the store's set; the client portal passes nothing (unread is an
+   *  agent-side concept and the endpoint behind it is staff-only). */
+  unread?: string[];
 }) {
   const staff = audience === "staff";
+  const unreadSet = new Set(unread ?? []);
   const onRowKey = (e: KeyboardEvent, id: string) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -52,50 +58,56 @@ export function TicketTable({
       </thead>
       <tbody>
         {tickets.length ? (
-          tickets.map((t) => (
-            <tr
-              className="trow"
-              key={t.id}
-              tabIndex={0}
-              role="link"
-              aria-label={`Open ticket ${t.id}`}
-              onClick={() => onOpen(t.id)}
-              onKeyDown={(e) => onRowKey(e, t.id)}
-            >
-              <td className="t-id">{t.id}</td>
-              <td className="left">
-                <MetaCell iso={t.createdISO} />
-              </td>
-              <td className="t-title" title={t.title}>
-                {t.title}
-              </td>
-              {staff ? (
-                <td className="left">
-                  <TypePrioCell type={t.type} priority={t.priority} />
+          tickets.map((t) => {
+            const isUnread = unreadSet.has(t.id);
+            return (
+              <tr
+                className={`trow ${isUnread ? "unread" : ""}`}
+                key={t.id}
+                tabIndex={0}
+                role="link"
+                aria-label={isUnread ? `Open ticket ${t.id}, has unread activity` : `Open ticket ${t.id}`}
+                onClick={() => onOpen(t.id)}
+                onKeyDown={(e) => onRowKey(e, t.id)}
+              >
+                <td className="t-id">
+                  {isUnread && <span className="unread-dot" aria-hidden="true" />}
+                  {t.id}
                 </td>
-              ) : (
+                <td className="left">
+                  <MetaCell iso={t.createdISO} />
+                </td>
+                <td className="t-title" title={t.title}>
+                  {t.title}
+                </td>
+                {staff ? (
+                  <td className="left">
+                    <TypePrioCell type={t.type} priority={t.priority} />
+                  </td>
+                ) : (
+                  <td className="center">
+                    <TypeTag type={t.type} />
+                  </td>
+                )}
+                {staff && (
+                  <td className="left">
+                    <ClientCell client={t.client} div={t.div} />
+                  </td>
+                )}
+                {staff && (
+                  <td className="left">
+                    <AssignCell group={t.group} assignee={t.assignee} />
+                  </td>
+                )}
                 <td className="center">
-                  <TypeTag type={t.type} />
+                  <SourceTag source={t.source} />
                 </td>
-              )}
-              {staff && (
-                <td className="left">
-                  <ClientCell client={t.client} div={t.div} />
+                <td className="center">
+                  <StatusPill status={t.status} />
                 </td>
-              )}
-              {staff && (
-                <td className="left">
-                  <AssignCell group={t.group} assignee={t.assignee} />
-                </td>
-              )}
-              <td className="center">
-                <SourceTag source={t.source} />
-              </td>
-              <td className="center">
-                <StatusPill status={t.status} />
-              </td>
-            </tr>
-          ))
+              </tr>
+            );
+          })
         ) : (
           <tr>
             <td colSpan={staff ? 8 : 6}>{empty}</td>
