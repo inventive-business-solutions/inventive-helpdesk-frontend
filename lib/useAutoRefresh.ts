@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
 /** Default cadence for background ticket refresh. */
 export const TICKET_POLL_MS = 30_000;
@@ -11,11 +11,14 @@ export const TICKET_POLL_MS = 30_000;
  * (no pile-ups). Background errors are swallowed and simply retried on the next tick.
  *
  * The latest `fn` closure is always called without resetting the timer, so passing an
- * inline arrow each render is fine.
+ * inline arrow each render is fine. That freshness comes from `useEffectEvent` (stable in
+ * React 19.2) rather than the older assign-a-ref-during-render idiom: writing a ref in the
+ * render body is a rules-of-React violation, because a render that React discards can
+ * still leave the ref pointing at a closure that never committed — and the interval would
+ * then call it.
  */
 export function useAutoRefresh(fn: () => Promise<void> | void, intervalMs = TICKET_POLL_MS, enabled = true) {
-  const fnRef = useRef(fn);
-  fnRef.current = fn;
+  const runLatest = useEffectEvent(() => fn());
   const running = useRef(false);
 
   useEffect(() => {
@@ -26,7 +29,7 @@ export function useAutoRefresh(fn: () => Promise<void> | void, intervalMs = TICK
       if (running.current || document.visibilityState !== "visible") return;
       running.current = true;
       try {
-        await fnRef.current();
+        await runLatest();
       } catch {
         /* background refresh — swallow and retry next tick */
       } finally {

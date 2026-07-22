@@ -13,8 +13,10 @@ import { NextResponse } from "next/server";
  * Backend reachability is still reported, as `status: "degraded"` plus `checks.backend`.
  */
 
-// Without this Next statically evaluates the handler at build time and every container
-// would serve one frozen timestamp, uptime and backend verdict.
+// Belt-and-braces. GET route handlers have been dynamic by DEFAULT since Next 15 (this
+// used to say the opposite, which was true of Next 14), and the handler additionally
+// fetches with `cache: "no-store"` and reads process.uptime(), neither of which is
+// prerenderable. Kept as an explicit statement of intent for a liveness probe.
 export const dynamic = "force-dynamic";
 
 const FRAPPE_URL = process.env.FRAPPE_URL || "http://127.0.0.1:8000";

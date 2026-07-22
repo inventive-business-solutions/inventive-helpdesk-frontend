@@ -1,15 +1,20 @@
 "use client";
+import { useEffect } from "react";
 
 // Catches errors thrown in the root layout itself (fonts, providers). It must
 // render its own <html>/<body> because it replaces the root layout.
-export default function GlobalError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
-  if (typeof console !== "undefined") console.error(error);
+//
+// `reset` is deliberately unused: the failure is in the root layout, so clearing the
+// boundary re-runs the same broken render and lands the user right back here. A full
+// reload is the only retry that can actually succeed, and it also discards whatever
+// client state contributed to the failure.
+export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
+  // In an effect, not the render body: a bare console.error here is a render-phase side
+  // effect that fires on every render, and twice under reactStrictMode.
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
   return (
     <html lang="en">
       <body
@@ -19,10 +24,10 @@ export default function GlobalError({
           <div style={{ maxWidth: 420, textAlign: "center" }}>
             <h1 style={{ fontSize: 20, marginBottom: 8 }}>Something went wrong</h1>
             <p style={{ opacity: 0.7, fontSize: 14, marginBottom: 20 }}>
-              An unexpected error occurred. Try again, or reload the page.
+              An unexpected error occurred. Reloading the page usually clears it.
             </p>
             <button
-              onClick={() => reset()}
+              onClick={() => window.location.reload()}
               style={{
                 padding: "9px 18px",
                 borderRadius: 8,
@@ -32,7 +37,7 @@ export default function GlobalError({
                 cursor: "pointer",
               }}
             >
-              Try again
+              Reload
             </button>
           </div>
         </div>

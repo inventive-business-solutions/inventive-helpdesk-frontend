@@ -105,15 +105,21 @@ export function Contacts() {
   const pageRows = rows.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
 
   // Provision (or resend) a POC's portal login — same best-effort toast as the Clients page.
-  const onInvite = (p: Poc) =>
+  const onInvite = (p: Poc) => {
+    // Narrow rather than assert: the Invite button only renders when p.id is set, so
+    // this cannot fire without one — but the `!` hid that invariant, and the delete paths
+    // in this same file already guard the identical case explicitly.
+    const id = p.id;
+    if (!id) return;
     run(async () => {
-      const r = await invitePoc(p.id!);
+      const r = await invitePoc(id);
       toast(
         r.email_sent
           ? `Sign-in email sent to ${p.email}`
           : `Portal account ready for ${p.email} — configure an email account to deliver the sign-in link`,
       );
     });
+  };
 
   // "Add contact" attaches to the currently-filtered client + division (a POC always needs both).
   const canAdd = !!(clientF && divF);

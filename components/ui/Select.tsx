@@ -55,7 +55,6 @@ export function Select({
     width: number;
     up: boolean;
   } | null>(null);
-  const [mounted, setMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
@@ -65,8 +64,6 @@ export function Select({
   const selectedIndex = options.findIndex((o) => o.value === value);
   const hasValue = value !== "";
   const display = hasValue && selectedIndex >= 0 ? options[selectedIndex].label : label;
-
-  useEffect(() => setMounted(true), []);
 
   // Position the menu from the trigger's viewport rect (fixed → never clipped).
   const reposition = () => {
@@ -212,7 +209,9 @@ export function Select({
         <span className="ui-select-value">{display}</span>
         <Icon name="chevronDown" size={15} className="ui-select-caret" />
       </button>
-      {mounted && menu ? createPortal(menu, document.body) : null}
+      {/* No `mounted` guard needed: `menu` is `open && pos && (…)`, and both start
+          falsy, so this is null on the server and on the first client render alike. */}
+      {menu ? createPortal(menu, document.body) : null}
     </div>
   );
 }

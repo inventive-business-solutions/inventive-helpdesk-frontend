@@ -1,11 +1,25 @@
 "use client";
-import { useEffect } from "react";
+import { startTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  const router = useRouter();
   useEffect(() => {
     // Surface for debugging; wire to a real logger/Sentry later.
     console.error(error);
   }, [error]);
+
+  // `reset()` alone only clears the boundary's own state; it does not re-fetch the
+  // segment, so anything that failed server-side re-throws immediately and the user sees
+  // the same screen. Refreshing first is what actually retries. Next 16.2 exposes this as
+  // the `unstable_retry` prop, whose implementation is exactly the two calls below
+  // (next/dist/client/components/error-boundary.js) — done here with stable APIs so no
+  // unstable prop ends up on a production path.
+  const retry = () =>
+    startTransition(() => {
+      router.refresh();
+      reset();
+    });
 
   return (
     <div className="card">
@@ -15,7 +29,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           This screen hit an unexpected error. You can retry, or head back to the dashboard.
         </div>
         <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button className="btn primary" onClick={reset}>
+          <button className="btn primary" onClick={retry}>
             Try again
           </button>
           {/* Hard navigation (full reload) is intentional in an error boundary: it clears

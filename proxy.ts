@@ -30,5 +30,9 @@ export const config = {
   // backend path, not a page. Left in, this gate ran on every long-poll request, and an
   // expired session answered the transport with a redirect to the /login *page* instead
   // of letting Frappe reject the handshake on its own terms.
-  matcher: ["/((?!api|socket.io|frappe-files|_next/static|_next/image|favicon.ico).*)"],
+  // `socket\.io` escapes the dot — unescaped it is "any character", so it also excluded
+  // paths like /socketXio. `_next` rather than `_next/static|_next/image`: every other
+  // Next internal (HMR in dev, the build manifest) was being auth-gated and 307'd to
+  // /login when signed out.
+  matcher: ["/((?!api|socket\\.io|frappe-files|_next|favicon.ico).*)"],
 };

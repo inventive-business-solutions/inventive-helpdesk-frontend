@@ -30,7 +30,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!booted || !session) return;
     const leave = subscribeDoctype("Support Ticket");
-    const off = onRealtime("ticket_list_dirty", () => refreshTickets());
+    // Caught, not awaited: an un-handled rejection here would surface as a global
+    // `unhandledrejection` (and a process warning on the standalone server) every time the
+    // backend hiccups. A failed background refresh is a no-op — the poller retries.
+    const off = onRealtime("ticket_list_dirty", () => void refreshTickets().catch(() => {}));
     return () => {
       off();
       leave();
@@ -65,6 +68,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [booted, session, inPortal, inManagerArea, router]);
 
   // Loading gate: wait until we know who (if anyone) is signed in.
+  //
+  // LOAD-BEARING FOR THE BUILD, not just the UX. `booted` is false during prerender, so
+  // this returns before <Sidebar> ever renders — and Sidebar calls useSearchParams() with
+  // no <Suspense> above it anywhere in app/(app)/layout.tsx. Remove or relax this gate and
+  // `next build` fails with missing-suspense-with-csr-bailout, pointing at Sidebar rather
+  // than at whatever was changed here. If that happens, wrap <Sidebar /> below in Suspense.
   if (!booted) {
     return (
       <div

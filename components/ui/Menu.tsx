@@ -17,8 +17,6 @@ function usePopover(open: boolean, setOpen: (o: boolean) => void, minWidth: numb
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<Pos | null>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   const reposition = useCallback(() => {
     const el = triggerRef.current;
@@ -72,7 +70,7 @@ function usePopover(open: boolean, setOpen: (o: boolean) => void, minWidth: numb
     };
   }, [open, setOpen]);
 
-  return { triggerRef, menuRef, pos, mounted, reposition };
+  return { triggerRef, menuRef, pos, reposition };
 }
 
 export function Popover({
@@ -99,7 +97,7 @@ export function Popover({
     (o: boolean) => (isControlled ? onOpenChange?.(o) : setInternalOpen(o)),
     [isControlled, onOpenChange],
   );
-  const { triggerRef, menuRef, pos, mounted } = usePopover(open, setOpen, minWidth);
+  const { triggerRef, menuRef, pos } = usePopover(open, setOpen, minWidth);
 
   const menu = open && pos && (
     <div
@@ -121,7 +119,9 @@ export function Popover({
   return (
     <>
       {trigger({ ref: triggerRef, open, onClick: () => setOpen(!open) })}
-      {mounted && menu ? createPortal(menu, document.body) : null}
+      {/* No `mounted` guard needed: `menu` is `open && pos && (…)`, and both start
+          falsy, so this is null on the server and on the first client render alike. */}
+      {menu ? createPortal(menu, document.body) : null}
     </>
   );
 }

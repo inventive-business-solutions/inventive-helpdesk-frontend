@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-export interface TrendPoint {
+interface TrendPoint {
   week: string;
   created: number;
   resolved: number;
