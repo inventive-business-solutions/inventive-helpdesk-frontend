@@ -2756,7 +2756,7 @@ table.tk-contacts .row-actions {
   width: 12px;
   height: 12px;
 }
-/* In a field (New Ticket / Simulate Email) the chips align flush-left with the full-width
+/* In a field (e.g. New Ticket) the chips align flush-left with the full-width
    attach button and the label above. The composer keeps a 12px inset to match its padding. */
 .staged-attachments {
   display: flex;

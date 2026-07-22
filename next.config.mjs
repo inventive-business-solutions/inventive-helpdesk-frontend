@@ -107,10 +107,6 @@ const proxyRewrites = [
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.mark_ticket_read`,
   },
   {
-    source: "/api/frappe/method/inventive_helpdesk_backend.email.send_test_email",
-    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.email.send_test_email`,
-  },
-  {
     source: "/api/frappe/method/inventive_helpdesk_backend.api.update_member",
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.update_member`,
   },

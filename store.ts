@@ -301,18 +301,6 @@ interface Store {
   addMessage: (id: string, msg: Message, files?: File[]) => Promise<void>;
   addNote: (id: string, note: WorkNote, files?: File[]) => Promise<void>;
   raiseTicket: (input: RaiseTicketInput) => Promise<string>;
-  intakeEmail: (input: {
-    fromEmail: string;
-    subject: string;
-    body: string;
-    attachments: string[];
-  }) => Promise<{ id: string; matched: boolean }>;
-  sendMailpitTest: (input: {
-    fromEmail: string;
-    fromName?: string;
-    subject: string;
-    body: string;
-  }) => Promise<{ to: string; sender: string }>;
 
   addMember: (name: string, email: string, title: string, invite: boolean, group?: string) => Promise<void>;
   updateMember: (name: string, patch: { name?: string; title?: string; email?: string }) => Promise<void>;
@@ -618,38 +606,6 @@ export const useStore = create<Store>()((set, get) => {
       }
       return doc.name;
     },
-    intakeEmail: async (input) => {
-      const from = input.fromEmail.trim().toLowerCase();
-      let clientName: string | undefined, divName: string | undefined, pocName: string | undefined;
-      for (const c of get().clients)
-        for (const d of c.divisions)
-          for (const p of d.pocs)
-            if (p.email.toLowerCase() === from) {
-              clientName = c.name;
-              divName = d.name;
-              pocName = p.name;
-            }
-      const matched = !!(clientName && divName);
-      const doc = await api.createDoc<api.RawTicket>("Support Ticket", {
-        title: input.subject.trim() || "(no subject)",
-        ticket_type: "Query",
-        priority: "Medium",
-        status: "New",
-        client: clientName || null,
-        division: matched ? divDocname(clientName!, divName!) || null : null,
-        raised_by: pocName || input.fromEmail,
-        description: input.body.trim() || "—",
-        source: "Email",
-        from_email: input.fromEmail,
-      });
-      upsertTicket(doc);
-      return { id: doc.name, matched };
-    },
-    // Real-pipeline demo: send the email into Mailpit (server-side), which captures it and
-    // fires the webhook → a ticket appears via the auto-refresh poller. No local upsert.
-    sendMailpitTest: async (input) =>
-      api.sendTestEmail(input.fromEmail, input.subject, input.body, input.fromName),
-
     // ---- team ----
     addMember: async (name, email, title, invite, group) => {
       if (get().members.some((m) => m.name.toLowerCase() === name.toLowerCase()))

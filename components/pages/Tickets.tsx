@@ -10,7 +10,6 @@ import { Pagination } from "@/components/ui/Pagination";
 import { TicketTable } from "@/components/ui/TicketTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
-import { SimulateEmailModal } from "@/components/modals/SimulateEmailModal";
 import { buildFacets, type FacetOpts } from "@/lib/facets";
 import { MONTHS, RESOLVED, isActive, needsAttention, parseISO } from "@/lib/helpers";
 import type { Priority, Status, TicketType } from "@/types";
@@ -41,11 +40,8 @@ export function Tickets() {
   // own teams (their "my work" views live in the sidebar). See buildFacets.
   const session = useStore((s) => s.session);
   const [showNew, setShowNew] = useState(false);
-  const [showSim, setShowSim] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const showSimulate =
-    process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ENABLE_SIMULATE === "1";
   const filterKey = sp.toString();
   useEffect(() => setPage(1), [filterKey]); // any filter/search change → back to page 1
 
@@ -386,11 +382,6 @@ export function Tickets() {
           </p>
         </div>
         <div className="head-controls">
-          {showSimulate && (
-            <Button variant="ghost" icon={<Icon name="mail" size={16} />} onClick={() => setShowSim(true)}>
-              Simulate inbound email
-            </Button>
-          )}
           <Button variant="primary" icon={<Icon name="plus" size={16} />} onClick={() => setShowNew(true)}>
             New ticket
           </Button>
@@ -429,7 +420,6 @@ export function Tickets() {
       </div>
 
       {showNew && <NewTicketModal onClose={() => setShowNew(false)} />}
-      {showSimulate && showSim && <SimulateEmailModal onClose={() => setShowSim(false)} />}
     </>
   );
 }

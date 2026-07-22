@@ -378,11 +378,7 @@ function ManagerDashboard() {
             tickets={emailTickets.slice(0, 6)}
             unread={unread}
             onOpen={(id) => go(`/tickets/${id}`)}
-            empty={
-              <EmptyState>
-                No email tickets yet — try <b>Simulate inbound email</b>.
-              </EmptyState>
-            }
+            empty={<EmptyState>Nothing has arrived by email yet.</EmptyState>}
           />
         </div>
       </div>

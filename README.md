@@ -44,11 +44,10 @@ Open **http://localhost:5175**.
 
 ### Environment
 
-| Variable                      | Purpose                                                                                                                                                                                                |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `FRAPPE_URL`                  | Base URL of the Frappe backend the Next server proxies to. Server-side only, never exposed to the browser. **Required in production**; defaults to `http://127.0.0.1:8000` in dev.                     |
-| `SOCKETIO_URL`                | Base URL of Frappe's Socket.IO server (realtime). Server-side only. Defaults to `http://127.0.0.1:9000` (Frappe's dev socketio port). In production, point at the host nginx serves `/socket.io` from. |
-| `NEXT_PUBLIC_ENABLE_SIMULATE` | Set to `1` to show the admin "Simulate inbound email" dev tool. Hidden in production by default.                                                                                                       |
+| Variable       | Purpose                                                                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `FRAPPE_URL`   | Base URL of the Frappe backend the Next server proxies to. Server-side only, never exposed to the browser. **Required in production**; defaults to `http://127.0.0.1:8000` in dev.                     |
+| `SOCKETIO_URL` | Base URL of Frappe's Socket.IO server (realtime). Server-side only. Defaults to `http://127.0.0.1:9000` (Frappe's dev socketio port). In production, point at the host nginx serves `/socket.io` from. |
 
 > **`FRAPPE_URL` and `SOCKETIO_URL` take effect at _build_ time.** They are interpolated
 > into the proxy rewrites, which `next build` freezes into the routes manifest; the

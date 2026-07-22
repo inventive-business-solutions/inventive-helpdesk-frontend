@@ -300,16 +300,6 @@ export async function uploadAttachment(ticket: string, file: File, onTicket = fa
   );
   return r.message;
 }
-/** DEV: inject a test email into Mailpit so it flows through the real inbound pipeline
- *  (Mailpit → webhook → receive_webhook → ticket). Returns the resolved To + sender. */
-export function sendTestEmail(fromEmail: string, subject: string, body: string, fromName?: string) {
-  return call<{ to: string; sender: string }>("inventive_helpdesk_backend.email.send_test_email", {
-    from_email: fromEmail,
-    subject,
-    body,
-    from_name: fromName || "",
-  });
-}
 
 // ---- client / POC administration (staff) ---------------------------------
 // These go through whitelisted methods (not raw REST) because they rename

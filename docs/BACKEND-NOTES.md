@@ -50,7 +50,6 @@ Each is proxied in `next.config.mjs` and wrapped in `lib/frappe.ts`. All live in
 | `updateClient` / `updateProduct` / `updatePoc` / `deletePoc` | `api.update_client` / `api.update_product` / `api.update_poc` / `api.delete_poc` |
 | `invitePoc` / `inviteMember`                                 | `api.invite_poc` / `api.invite_member`                                           |
 | (`store.ts`) `update_member`                                 | `api.update_member`                                                              |
-| `sendTestEmail` (dev)                                        | `email.send_test_email`                                                          |
 
 **Adding a new whitelisted method:** add a proxy entry to the `proxyRewrites` allowlist in
 `next.config.mjs` (both `source` and `destination`, underscore module path), then a typed wrapper
