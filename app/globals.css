@@ -2698,11 +2698,6 @@ table.tk-contacts .row-actions {
 .d-badges .id-chip {
   flex: none;
 }
-.d-from {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 12px;
-}
 /* Ticket provenance: where it came from, and whether a reply can reach the sender.
    Wraps rather than truncates — an agent must be able to read the whole warning. */
 .sender-strip {
