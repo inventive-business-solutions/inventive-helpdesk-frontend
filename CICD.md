@@ -83,16 +83,25 @@ long-polling. Updates still arrive in about a second.
 **Branch flow:** day-to-day work is committed to `development`. Releases are made by
 merging `development` → `master`, which is the branch the hosted environment tracks.
 
+**Both branches run the pipeline; only `master` publishes.** A push to `development`
+does everything up to the registry and stops — including the docker build, which is the
+only step that runs `next build`. That matters more than it sounds: the prerender pass is
+where a missing Suspense boundary around `useSearchParams`, a bad route export or a
+server/client boundary mistake shows up, and lint, typecheck and vitest all pass straight
+through those. Publishing and deploying are branch-gated, so `development` can never
+reach the server.
+
 ```
-merge development -> master  (release)
-       │
-       ▼
+push to development                    merge development -> master  (release)
+       │                                      │
+       ▼                                      ▼
 GitHub Actions (self-hosted, inventive-microscan)
-       ├── lint, typecheck, unit tests
+       ├── lint, format check, typecheck, unit tests      ← both branches
        ├── docker build (linux/amd64), FRAPPE_URL + SOCKETIO_URL + BUILD_SHA baked in
-       ├── push to GHCR (:<sha> and :latest)
-       ├── POST the Portainer webhook
-       └── poll /api/health until it reports this commit's SHA
+       │                                                  ← both branches
+       ├── push to GHCR (:<sha> and :latest)              ← master only
+       ├── POST the Portainer webhook                     ← master only
+       └── poll /api/health until it reports this commit's SHA  ← master only
        ▼
 Docker Swarm redeploys the stack
 ```
