@@ -46,12 +46,22 @@ export const Badge = ({
 /** Explicit source, shown as a symbol only (no label) to keep the column tight:
  *  an envelope for Email, a monitor for anything raised in the portal. The word
  *  lives in the tooltip / aria-label so the meaning stays accessible. */
-export const SourceTag = ({ source }: { source?: "Portal" | "Email" }) => {
-  const email = source === "Email";
-  const label = email ? "Received by email" : "Raised in portal";
+/** How the ticket reached us. Icon-only so the column stays narrow; the label carries
+ *  the meaning for hover and for screen readers. */
+const SOURCES = {
+  Email: { icon: "mail", label: "Received by email", cls: "email" },
+  Portal: { icon: "monitor", label: "Raised in portal", cls: "portal" },
+  Manual: { icon: "pencil", label: "Logged by an agent", cls: "manual" },
+  API: { icon: "grid", label: "Created over the API", cls: "api" },
+} as const;
+
+export const SourceTag = ({ source }: { source?: keyof typeof SOURCES }) => {
+  // Unknown/absent falls back to Portal, matching how tickets behaved before `source`
+  // carried four values — an unrecognised value must not render a blank cell.
+  const s = SOURCES[source as keyof typeof SOURCES] ?? SOURCES.Portal;
   return (
-    <span className={`src-tag ${email ? "email" : "portal"}`} title={label} aria-label={label}>
-      <Icon name={email ? "mail" : "monitor"} size={14} />
+    <span className={`src-tag ${s.cls}`} title={s.label} aria-label={s.label}>
+      <Icon name={s.icon} size={14} />
     </span>
   );
 };

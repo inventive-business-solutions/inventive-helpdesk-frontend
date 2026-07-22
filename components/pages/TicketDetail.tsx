@@ -8,6 +8,7 @@ import { IconButton } from "@/components/ui/IconButton";
 import { Segmented } from "@/components/ui/Segmented";
 import { Modal } from "@/components/ui/Modal";
 import { Badge, IdChip, StatusPill, TypeTag } from "@/components/ui/Chips";
+import { SenderBadge } from "@/components/ui/SenderBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
@@ -469,9 +470,9 @@ export function TicketDetail({ id }: { id: string }) {
                   <TypeTag type={ticket.type} lg />
                 </div>
               </div>
-              {ticket.source === "Email" && ticket.fromEmail ? (
-                <div className="d-from">Received by email from {ticket.fromEmail}</div>
-              ) : null}
+              {/* Staff only: clients have no use for their own classification, and
+                  "Unregistered sender" is meaningless read by the sender. */}
+              {isAdmin ? <SenderBadge ticket={ticket} /> : null}
               <div className="d-desc">{ticket.desc}</div>
               <AttachChips list={ticket.attachments} />
             </div>

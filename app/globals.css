@@ -2703,6 +2703,73 @@ table.tk-contacts .row-actions {
   color: var(--muted);
   margin-top: 12px;
 }
+/* Ticket provenance: where it came from, and whether a reply can reach the sender.
+   Wraps rather than truncates — an agent must be able to read the whole warning. */
+.sender-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.sender-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.sender-chip.src {
+  color: var(--ink-2);
+  background: var(--surface-2, #f4f5fb);
+  border-color: var(--line, #e6e8f2);
+}
+.sender-chip.ok {
+  color: #15803d;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.sender-chip.warn {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+.sender-chip.danger {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+/* The address sits inside the chip in mono, so it reads as data rather than prose. */
+.sender-addr {
+  font-family: var(--mono);
+  font-weight: 500;
+  opacity: 0.85;
+}
+.sender-reason {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  .sender-chip.ok {
+    color: #86efac;
+    background: rgba(22, 101, 52, 0.18);
+    border-color: rgba(134, 239, 172, 0.3);
+  }
+  .sender-chip.warn {
+    color: #fcd34d;
+    background: rgba(180, 83, 9, 0.18);
+    border-color: rgba(252, 211, 77, 0.3);
+  }
+  .sender-chip.danger {
+    color: #fca5a5;
+    background: rgba(185, 28, 28, 0.18);
+    border-color: rgba(252, 165, 165, 0.3);
+  }
+}
 /* A hairline splits the header from the description body. */
 .d-desc {
   font-size: 15px;

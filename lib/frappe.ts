@@ -422,7 +422,9 @@ export interface RawTicket {
   sla_risk?: 0 | 1;
   description?: string;
   attachments?: string;
-  source?: "Portal" | "Email";
+  source?: "Portal" | "Email" | "Manual" | "API";
+  sender_kind?: "Registered" | "Known Contact" | "Unregistered" | "No Reply";
+  no_reply_reason?: string;
   from_email?: string;
   creation?: string;
   modified?: string;
@@ -558,6 +560,8 @@ export function toTicket(r: RawTicket, divName: (docname?: string) => string): T
       tm: fmtStamp(a.acted_on),
     })),
     source: r.source,
+    senderKind: r.sender_kind,
+    noReplyReason: r.no_reply_reason,
     fromEmail: r.from_email,
   };
 }

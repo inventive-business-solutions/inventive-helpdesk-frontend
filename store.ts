@@ -151,6 +151,8 @@ const TICKET_LIST_FIELDS = [
   "description",
   "source",
   "from_email",
+  "sender_kind",
+  "no_reply_reason",
   "creation",
   "modified",
 ];
@@ -594,7 +596,10 @@ export const useStore = create<Store>()((set, get) => {
         division: divDocname(input.client, input.div) || null,
         raised_by: input.raisedBy,
         description: input.desc || "—",
-        source: "Portal",
+        // "Portal" means the client raised it themselves. An agent logging a ticket on a
+        // customer's behalf is "Manual" — the provenance strip and the source column both
+        // read this, and calling every agent-logged ticket "Portal" misattributes it.
+        source: get().session?.role === "admin" ? "Manual" : "Portal",
       });
       // Attachments upload after the ticket exists (they attach to it, privately) and are
       // recorded on its description-level list; re-fetch so the header shows them.

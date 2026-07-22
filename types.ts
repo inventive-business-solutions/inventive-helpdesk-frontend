@@ -128,7 +128,12 @@ export interface Ticket {
   notes: WorkNote[];
   activity: Activity[];
   /** How the ticket was raised. Undefined = legacy/portal. */
-  source?: "Portal" | "Email";
+  source?: "Portal" | "Email" | "Manual" | "API";
+  /** Who is on the other end, derived server-side by sender.classify(). Governs whether a
+   *  reply can reach them at all, and whether the portal is an option. */
+  senderKind?: "Registered" | "Known Contact" | "Unregistered" | "No Reply";
+  /** Set only for "No Reply" — which rule or pattern matched, so the badge can explain itself. */
+  noReplyReason?: string;
   /** Sender address when raised via email. */
   fromEmail?: string;
 }

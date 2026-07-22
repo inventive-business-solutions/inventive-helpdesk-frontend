@@ -370,3 +370,38 @@ describe("mergeTicketDraft — a background refresh must not discard staged edit
     expect(merged).toEqual(base);
   });
 });
+
+describe("toTicket — sender classification reaches the UI", () => {
+  // The badge is derived server-side and only rendered here, so the whole feature is one
+  // mapping away from silently showing nothing. A dropped field would blank every badge
+  // without failing anything else.
+  it("carries sender_kind and no_reply_reason through", () => {
+    const t = toTicket(
+      {
+        name: "INB-0009",
+        title: "Invoice ready",
+        ticket_type: "Query",
+        priority: "Low",
+        status: "New",
+        source: "Email",
+        from_email: "noreply@vendor.test",
+        sender_kind: "No Reply",
+        no_reply_reason: "“noreply@” is an unmonitored mailbox by convention",
+      },
+      divName,
+    );
+    expect(t.senderKind).toBe("No Reply");
+    expect(t.noReplyReason).toContain("unmonitored");
+    expect(t.source).toBe("Email");
+  });
+
+  it("leaves them undefined when the backend has not classified yet", () => {
+    // Pre-migration rows, and any ticket the back-fill has not reached. SenderBadge
+    // renders nothing rather than guessing a kind.
+    const t = toTicket(
+      { name: "INB-0010", title: "x", ticket_type: "Query", priority: "Low", status: "New" },
+      divName,
+    );
+    expect(t.senderKind).toBeUndefined();
+  });
+});
