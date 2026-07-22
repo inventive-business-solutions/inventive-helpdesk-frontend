@@ -2,7 +2,11 @@ name: INVENTIVE HELPDESK FRONTEND CI/CD PIPELINE
 
 on:
   push:
-    branches: [master]
+    # development builds and tests but never pushes or deploys, so a failure shows up
+    # while you are still working rather than at merge time. Only master releases.
+    # Matches the backend pipeline; without development here the first build this code
+    # ever got was the release itself.
+    branches: [master, development]
   workflow_dispatch:
 
 concurrency:
@@ -23,8 +27,7 @@ jobs:
   # between the gate and the build it was meant to gate.
   # ============================================================
   BUILD_AND_DEPLOY_PROD:
-    name: Quality, Build & Deploy (Production)
-    if: github.ref == 'refs/heads/master'
+    name: Quality, Build & Deploy
     runs-on: [self-hosted, inventive-microscan]
     environment: Production
     timeout-minutes: 45
@@ -77,6 +80,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Prettier is configured and the tree is clean; without a gate it silently drifts
+      # and every later diff carries unrelated reformatting.
+      - name: Format check
+        run: npm run format:check
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -93,11 +101,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push AMD64 image
+      - name: Build AMD64 image (published only from master)
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          # Build on BOTH branches, publish only from master. The build is the point on
+          # development: `next build` is the only thing that runs the prerender pass, so
+          # a missing Suspense boundary around useSearchParams, a bad route export or a
+          # server/client boundary mistake surfaces here and nowhere else — lint,
+          # typecheck and vitest all pass straight through them.
+          push: ${{ github.ref == 'refs/heads/master' }}
           tags: |
             ${{ vars.IMAGE_NAME }}:${{ github.sha }}
             ${{ vars.IMAGE_NAME }}:latest
@@ -119,7 +132,8 @@ jobs:
       # redeploying :latest picks up the image this run just pushed.
       - name: Deploy to server
         id: deploy
-        if: success()
+        # Branch-gated, not just success-gated: development must never reach the server.
+        if: success() && github.ref == 'refs/heads/master'
         env:
           WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
         run: |
@@ -186,7 +200,11 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| **Environment** | Production |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            echo "| **Environment** | Production (release) |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| **Environment** | Validation only — not published, not deployed |" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "| **Image** | \`${{ vars.IMAGE_NAME }}:${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **Platform** | \`linux/amd64\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **Frontend** | https://${{ vars.FRONTEND_DOMAIN }} |" >> "$GITHUB_STEP_SUMMARY"
