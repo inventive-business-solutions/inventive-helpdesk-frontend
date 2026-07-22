@@ -134,6 +134,9 @@ export interface Ticket {
   senderKind?: "Registered" | "Known Contact" | "Unregistered" | "No Reply";
   /** Set only for "No Reply" — which rule or pattern matched, so the badge can explain itself. */
   noReplyReason?: string;
+  /** When a staff reply was first emailed to this client. Unset means they have never had
+   *  one, which is what makes the next reply go out even with the email toggle off. */
+  firstResponseEmailedOn?: string;
   /** Sender address when raised via email. */
   fromEmail?: string;
 }

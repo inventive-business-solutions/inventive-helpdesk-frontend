@@ -153,6 +153,7 @@ const TICKET_LIST_FIELDS = [
   "from_email",
   "sender_kind",
   "no_reply_reason",
+  "first_response_notified_on",
   "creation",
   "modified",
 ];
@@ -202,6 +203,14 @@ export function keepHydratedDetail(fresh: Ticket[], prev: Ticket[]): Ticket[] {
     const hydrated = old.conversation.length || old.notes.length || old.activity.length;
     return hydrated ? { ...t, conversation: old.conversation, notes: old.notes, activity: old.activity } : t;
   });
+}
+
+/** What the server actually did with a reply — see sender.reply_plan. `emailed` is the
+ *  outcome, not the request: the toggle is ignored for senders with no portal. */
+export interface ReplyResult {
+  ticket: string;
+  emailed: boolean;
+  detail: string;
 }
 
 /** Order-independent identity of a collaborator set, so two lists compare by value. */
@@ -300,7 +309,7 @@ interface Store {
   addCollaborator: (id: string, partyType: "Team" | "Member", party: string) => Promise<void>;
   removeCollaborator: (id: string, partyType: "Team" | "Member", party: string) => Promise<void>;
   reopen: (id: string) => Promise<void>;
-  addMessage: (id: string, msg: Message, files?: File[]) => Promise<void>;
+  addMessage: (id: string, msg: Message, files?: File[], sendEmail?: boolean) => Promise<ReplyResult>;
   addNote: (id: string, note: WorkNote, files?: File[]) => Promise<void>;
   raiseTicket: (input: RaiseTicketInput) => Promise<string>;
 
@@ -572,12 +581,13 @@ export const useStore = create<Store>()((set, get) => {
     },
     // Replies and notes go through server methods that append one child row
     // atomically (no lost-update race) and enforce scope/role server-side.
-    addMessage: async (id, msg, files) => {
+    addMessage: async (id, msg, files, sendEmail) => {
       const attachments = files?.length
         ? await Promise.all(files.map((f) => api.uploadAttachment(id, f)))
         : msg.attachments;
-      await api.addTicketMessage(id, msg.body, attachments);
+      const result = await api.addTicketMessage(id, msg.body, attachments, sendEmail);
       upsertTicket(await api.getDoc<api.RawTicket>("Support Ticket", id));
+      return result;
     },
     addNote: async (id, note, files) => {
       const attachments = files?.length

@@ -234,12 +234,24 @@ export async function me(): Promise<Me> {
 }
 
 // Controlled ticket mutations (server appends atomically + enforces scope/role).
-export function addTicketMessage(ticket: string, body: string, attachments?: Attachment[]) {
-  return call<string>("inventive_helpdesk_backend.api.add_message", {
-    ticket,
-    body,
-    attachments: attachments || [],
-  });
+/** Post a client-visible reply. `sendEmail` is the agent's toggle and is only a REQUEST —
+ *  the server decides (sender.reply_plan), and reports back what it actually did so the
+ *  UI can say so rather than implying the toggle was obeyed. */
+export function addTicketMessage(
+  ticket: string,
+  body: string,
+  attachments?: Attachment[],
+  sendEmail?: boolean,
+) {
+  return call<{ ticket: string; emailed: boolean; detail: string }>(
+    "inventive_helpdesk_backend.api.add_message",
+    {
+      ticket,
+      body,
+      attachments: attachments || [],
+      ...(sendEmail === undefined ? {} : { send_email: sendEmail ? 1 : 0 }),
+    },
+  );
 }
 export function addTicketNote(ticket: string, body: string, attachments?: Attachment[]) {
   return call<string>("inventive_helpdesk_backend.api.add_note", {
@@ -425,6 +437,7 @@ export interface RawTicket {
   source?: "Portal" | "Email" | "Manual" | "API";
   sender_kind?: "Registered" | "Known Contact" | "Unregistered" | "No Reply";
   no_reply_reason?: string;
+  first_response_notified_on?: string;
   from_email?: string;
   creation?: string;
   modified?: string;
@@ -562,6 +575,7 @@ export function toTicket(r: RawTicket, divName: (docname?: string) => string): T
     source: r.source,
     senderKind: r.sender_kind,
     noReplyReason: r.no_reply_reason,
+    firstResponseEmailedOn: r.first_response_notified_on,
     fromEmail: r.from_email,
   };
 }

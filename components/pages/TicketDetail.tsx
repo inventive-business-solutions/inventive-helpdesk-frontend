@@ -22,7 +22,16 @@ const stamp = (iso?: string) => (iso ? `${fmtShortDate(iso)}, ${fmtTime(iso)}` :
 import { useAutoRefresh, TICKET_POLL_MS } from "@/lib/useAutoRefresh";
 import { onRealtime, subscribeDoc } from "@/lib/realtime";
 import { attachmentHref } from "@/lib/frappe";
-import type { Activity, Attachment, Collaborator, Message, Priority, Status, WorkNote } from "@/types";
+import type {
+  Activity,
+  Attachment,
+  Collaborator,
+  Message,
+  Priority,
+  Status,
+  Ticket,
+  WorkNote,
+} from "@/types";
 
 const STATUSES: Status[] = [
   "New",
@@ -111,6 +120,56 @@ function AttachChips({ list }: { list?: Attachment[] }) {
   );
 }
 
+/** What happens to a reply, and the only choice the agent actually has.
+ *
+ *  Module scope, not declared inside TicketDetail: a component created during render is a
+ *  new type on every pass, so React remounts it and the checkbox loses focus mid-click.
+ *
+ *  States the outcome rather than showing a bare switch, because the toggle does not
+ *  always apply — it is ignored for a sender with no portal, and the FIRST reply to a
+ *  registered user goes out even with it off. A switch that silently does nothing is worse
+ *  than no switch. The server (sender.reply_plan) is the enforcer; this only sets
+ *  expectations. */
+function EmailChoice({
+  ticket,
+  canChoose,
+  unreachable,
+  emailReply,
+  onChange,
+  willEmail,
+}: {
+  ticket: Ticket;
+  canChoose: boolean;
+  unreachable: boolean;
+  emailReply: boolean;
+  onChange: (v: boolean) => void;
+  willEmail: boolean;
+}) {
+  if (unreachable)
+    return (
+      <span className="email-choice danger" title={ticket.noReplyReason}>
+        <Icon name="alert" size={13} />
+        No-reply address — this will not reach anyone
+      </span>
+    );
+  if (!canChoose)
+    return (
+      <span className="email-choice fixed">
+        <Icon name="mail" size={13} />
+        Will be emailed to {ticket.fromEmail ?? "the client"} — their only channel
+      </span>
+    );
+  return (
+    <label className="email-choice">
+      <input type="checkbox" checked={emailReply} onChange={(e) => onChange(e.target.checked)} />
+      Send reply over email
+      {!emailReply && willEmail ? (
+        <span className="email-choice-note">first reply — sent once regardless</span>
+      ) : null}
+    </label>
+  );
+}
+
 export function TicketDetail({ id }: { id: string }) {
   const router = useRouter();
   const toast = useToast();
@@ -147,6 +206,15 @@ export function TicketDetail({ id }: { id: string }) {
 
   const [streamTab, setStreamTab] = useState<"client" | "internal" | "activity">("client");
   const [vis, setVis] = useState<"internal" | "client">("internal");
+  // The "Send reply over email" toggle. Only meaningful for a registered user — everyone
+  // else has no portal to read a reply in, so the server emails regardless (reply_plan).
+  const [emailReply, setEmailReply] = useState(true);
+  // Whether the agent gets a choice about email. Mirrors sender.reply_plan, but the server
+  // is the enforcer — this only decides what to render and what to promise.
+  const senderKind = ticket?.senderKind;
+  const canChooseEmail = senderKind === "Registered";
+  const unreachable = senderKind === "No Reply";
+  const willEmail = !unreachable && (!canChooseEmail || emailReply || !ticket?.firstResponseEmailedOn);
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
@@ -424,9 +492,15 @@ export function TicketDetail({ id }: { id: string }) {
           tm: now,
           body: text.trim(),
         };
-        await addMessage(ticket.id, msg, staged);
+        const res = await addMessage(ticket.id, msg, staged, canChooseEmail ? emailReply : undefined);
         setStreamTab("client");
-        toast(`Reply sent to client${nFiles}`);
+        // Report the server's decision, not the toggle's position — they differ by design
+        // for the first reply and for senders with no portal.
+        toast(
+          res.emailed
+            ? `Reply sent and emailed${nFiles}`
+            : `Reply saved to the thread — not emailed${nFiles}`,
+        );
       }
       setText("");
       setFiles([]);
@@ -639,6 +713,16 @@ export function TicketDetail({ id }: { id: string }) {
                         </button>
                       </div>
                     )}
+                    {isAdmin && vis === "client" ? (
+                      <EmailChoice
+                        ticket={ticket}
+                        canChoose={canChooseEmail}
+                        unreachable={unreachable}
+                        emailReply={emailReply}
+                        onChange={setEmailReply}
+                        willEmail={willEmail}
+                      />
+                    ) : null}
                     <input
                       ref={fileRef}
                       type="file"

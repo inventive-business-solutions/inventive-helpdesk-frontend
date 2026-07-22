@@ -4266,3 +4266,41 @@ button.stat:not(:disabled):hover {
     transition: none !important;
   }
 }
+
+/* Composer: what happens to this reply. Sits under the Internal/Client switch and states
+   the outcome, because the toggle does not apply to every sender. */
+.email-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.email-choice input {
+  accent-color: var(--brand, #4f46e5);
+  cursor: pointer;
+}
+/* Not a control — these senders get no choice, so it must not look clickable. */
+.email-choice.fixed,
+.email-choice.danger {
+  cursor: default;
+}
+.email-choice.fixed {
+  color: var(--muted);
+}
+.email-choice.danger {
+  color: #b91c1c;
+  font-weight: 600;
+}
+.email-choice-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-style: italic;
+}
+@media (prefers-color-scheme: dark) {
+  .email-choice.danger {
+    color: #fca5a5;
+  }
+}
