@@ -16,12 +16,21 @@ export interface Attachment {
   url: string;
 }
 
+/** A person on the client side. Two flavours, one shape:
+ *  - a division POC, holding the one division they belong to;
+ *  - a Lead, created during client onboarding to oversee divisions.
+ *  A Lead starts with `divisions` empty, which means no ticket access at all — access is
+ *  only ever granted by assigning divisions. */
 export interface Poc {
   /** POC docname — set on POCs loaded from the backend; needed to edit/delete. */
   id?: string;
   name: string;
   email: string;
-  primary: boolean;
+  phone?: string;
+  /** Created at client level and oversees divisions, rather than belonging to one. */
+  isLead: boolean;
+  /** Division docnames this person can see. Empty = no ticket access yet. */
+  divisions: string[];
   /** State of this POC's portal login (admin view only). */
   portal?: PortalStatus;
 }
@@ -43,17 +52,40 @@ export interface Group {
 }
 
 export interface Division {
+  /** Display name, e.g. "Boiler". */
   name: string;
   code: string;
+  /** Division docname ("Thermax-BOI") — what tickets and contacts actually link to. */
+  docname?: string;
   pocs: Poc[];
+}
+
+/** Where a client is in its relationship with Inventive. */
+export type ClientStatus = "Onboarding" | "Active" | "On Hold" | "Churned";
+
+/** A product Inventive runs for a client — the engagement, with its own dates.
+ *  `divisions` empty means it's attached to the client as a whole, which is the only
+ *  shape available to a client with no divisions and a valid choice for one with them. */
+export interface ClientProduct {
+  id: string;
+  product: string;
+  devStart?: string;
+  expectedCompletion?: string;
+  divisions: string[];
 }
 
 export interface Client {
   name: string;
   code: string;
+  status: ClientStatus;
+  /** Date Inventive onboarded this client. */
   since?: string;
-  /** The product this client runs — common across all its divisions (e.g. "EniMAX"). */
+  /** Legacy single product. Superseded by `products`; still read while the backend
+   *  keeps the column populated for rollback. */
   product?: string;
+  products: ClientProduct[];
+  /** Leads: client-level contacts, not attached to any one division. */
+  leads: Poc[];
   divisions: Division[];
 }
 
@@ -156,7 +188,12 @@ export interface Session {
   /** Staff only: the member's job title, shown under their name in the sidebar. */
   title?: string;
   client?: string;
+  /** Client only: FIRST division's display name. Kept for views that show one label;
+   *  never use it to decide what a contact may see — that is `divisions`. */
   div?: string;
+  /** Client only: every division docname this contact holds. Empty means no ticket
+   *  access at all, which is how a lead starts before anyone assigns them. */
+  divisions?: string[];
 }
 
 export interface RaiseTicketInput {

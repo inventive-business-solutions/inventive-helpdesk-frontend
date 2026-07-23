@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   Client,
+  ClientStatus,
   Collaborator,
   Group,
   Message,
@@ -49,7 +50,10 @@ const resolver = (divIndex: DivRef[]) => (docname?: string) =>
  *  role. The backend scopes everything, so a client only receives their own. */
 async function fetchMasters(role: Role) {
   const [rawClients, rawDivs] = await Promise.all([
-    api.getList<api.RawClient>("Client", { fields: ["name", "client_code", "since", "product"], limit: 0 }),
+    api.getList<api.RawClient>("Client", {
+      fields: ["name", "client_code", "status", "since", "product"],
+      limit: 0,
+    }),
     api.getList<api.RawDivision>("Division", {
       fields: ["name", "division_name", "division_code", "client"],
       limit: 0,
@@ -57,6 +61,9 @@ async function fetchMasters(role: Role) {
   ]);
 
   let rawPocs: api.RawPoc[] = [];
+  let pocDivisions: api.RawChildDivision[] = [];
+  let clientProducts: api.RawClientProduct[] = [];
+  let productDivisions: api.RawChildDivision[] = [];
   let members: TeamMember[] = [];
   let groups: Group[] = [];
   let products: string[] = [];
@@ -64,12 +71,12 @@ async function fetchMasters(role: Role) {
   if (role === "admin") {
     // POCs, products, members and groups are mutually independent — fetch them
     // concurrently so login/reload latency is the slowest call, not their sum.
-    const [pocData, productNames, memberList, groupList] = await Promise.all([
+    const [pocData, productNames, memberList, groupList, productData] = await Promise.all([
       // POCs plus each linked User's portal-login state. Best-effort on the User
       // list: if it isn't readable the page still loads, POCs just show no account.
       (async () => {
         const raw = await api.getList<api.RawPoc>("POC", {
-          fields: ["name", "poc_name", "email", "is_primary", "client", "division", "user", "invited_on"],
+          fields: ["name", "poc_name", "email", "phone", "is_lead", "client", "user", "invited_on"],
           limit: 0,
         });
         let map = new Map<string, api.RawUser>();
@@ -86,7 +93,20 @@ async function fetchMasters(role: Role) {
             /* User list not readable — leave portal status as "none" */
           }
         }
-        return { raw, users: map };
+        // One list call for every contact's divisions, not a getDoc per contact — the
+        // `parent` option exists for exactly this. Best-effort like the User lookup: a
+        // failure here must not blank the Clients page, it just shows contacts unassigned.
+        let divRows: api.RawChildDivision[] = [];
+        try {
+          divRows = await api.getList<api.RawChildDivision>("POC Division", {
+            fields: ["parent", "division"],
+            parent: "POC",
+            limit: 0,
+          });
+        } catch {
+          /* leave contacts showing no divisions rather than failing the page */
+        }
+        return { raw, users: map, divRows };
       })(),
       api
         .getList<{ name: string }>("Product", { fields: ["name"], limit: 0, orderBy: "product_name asc" })
@@ -113,15 +133,44 @@ async function fetchMasters(role: Role) {
         );
         return gdocs.map(api.toGroup);
       })(),
+      // Client products (the engagements) plus the divisions each is attached to.
+      (async () => {
+        const rows = await api.getList<api.RawClientProduct>("Client Product", {
+          fields: ["name", "client", "product", "dev_start", "expected_completion"],
+          limit: 0,
+        });
+        let divRows: api.RawChildDivision[] = [];
+        try {
+          divRows = await api.getList<api.RawChildDivision>("Client Product Division", {
+            fields: ["parent", "division"],
+            parent: "Client Product",
+            limit: 0,
+          });
+        } catch {
+          /* products then read as client-wide, which is the safe default */
+        }
+        return { rows, divRows };
+      })(),
     ]);
     rawPocs = pocData.raw;
     users = pocData.users;
+    pocDivisions = pocData.divRows;
     products = productNames;
     members = memberList;
     groups = groupList;
+    clientProducts = productData.rows;
+    productDivisions = productData.divRows;
   }
 
-  const clients = api.assembleClients(rawClients, rawDivs, rawPocs, users);
+  const clients = api.assembleClients(
+    rawClients,
+    rawDivs,
+    rawPocs,
+    users,
+    pocDivisions,
+    clientProducts,
+    productDivisions,
+  );
   const divIndex: DivRef[] = rawDivs.map((d) => ({
     docname: d.name,
     name: d.division_name,
@@ -160,21 +209,26 @@ const TICKET_LIST_FIELDS = [
 
 /** Client (portal) sessions fetch only their own scope; admins pass nothing (see all). */
 const scopeFor = (session: Session | null) =>
-  session?.role === "client" ? { client: session.client, div: session.div } : undefined;
+  session?.role === "client"
+    ? { client: session.client, divisions: session.divisions ?? [] }
+    : undefined;
 
 /** Load the (scoped) tickets in a single list call. Kept separate so
  *  master-data edits don't refetch the whole ticket set. */
-async function fetchTickets(divIndex: DivRef[], scope?: { client?: string; div?: string }) {
+async function fetchTickets(divIndex: DivRef[], scope?: { client?: string; divisions?: string[] }) {
   const resolve = resolver(divIndex);
-  // Defense-in-depth: a client session asks only for its own client's tickets — and its
-  // own division when resolvable. The backend already scopes this server-side
+  // Defense-in-depth: a client session asks only for its own client's tickets, and only
+  // the divisions it actually holds. The backend already scopes this server-side
   // (permission_query_conditions); these filters ensure a regression there can't spill
   // another tenant's tickets into the browser store. Admin sessions pass no scope.
+  //
+  // A contact with NO divisions asks for nothing rather than everything — mirroring the
+  // server, where an empty scope denies. Getting that inverted here would defeat the
+  // whole point of the second layer.
   const filters: unknown[] = [];
   if (scope?.client) {
     filters.push(["client", "=", scope.client]);
-    const divDoc = divIndex.find((x) => x.client === scope.client && x.name === scope.div)?.docname;
-    if (divDoc) filters.push(["division", "=", divDoc]);
+    filters.push(["division", "in", scope.divisions ?? []]);
   }
   const rows = await api.getList<api.RawTicket>("Support Ticket", {
     fields: TICKET_LIST_FIELDS,
@@ -325,26 +379,49 @@ interface Store {
   addClient: (input: {
     name: string;
     since: string;
-    product?: string;
-    division?: string;
-    poc?: { name: string; email: string } | null;
+    status: ClientStatus;
+    /** Client-side leads captured during onboarding. They hold no divisions yet — none
+     *  exist — so they get no ticket access until assigned from a division. */
+    leads?: { name: string; email: string; phone?: string; invite?: boolean }[];
   }) => Promise<void>;
-  addPoc: (clientName: string, divName: string, poc: Poc) => Promise<void>;
+  addPoc: (
+    clientName: string,
+    divName: string,
+    poc: { name: string; email: string; phone?: string; invite?: boolean },
+  ) => Promise<void>;
   addDivision: (
     clientName: string,
-    input: { name: string; poc?: { name: string; email: string; primary: boolean } | null },
+    input: {
+      name: string;
+      poc?: { name: string; email: string; phone?: string; invite?: boolean } | null;
+      /** Existing Leads to grant sight of this division (POC docnames). */
+      leads?: string[];
+    },
   ) => Promise<void>;
+  setLeadDivisions: (leadId: string, divisions: string[]) => Promise<void>;
+  addClientProduct: (
+    clientName: string,
+    input: { product: string; devStart?: string; expectedCompletion?: string; divisions: string[] },
+  ) => Promise<void>;
+  updateClientProduct: (
+    id: string,
+    input: { product?: string; devStart?: string; expectedCompletion?: string; divisions?: string[] },
+  ) => Promise<void>;
+  removeClientProduct: (id: string) => Promise<void>;
   addProduct: (name: string, client?: string) => Promise<void>;
   renameProduct: (oldName: string, newName: string) => Promise<void>;
   deleteProduct: (name: string) => Promise<void>;
   setProduct: (clientName: string, product: string) => Promise<void>;
   assignProductToClient: (product: string, client: string, keepExisting: boolean) => Promise<void>;
-  updatePoc: (pocId: string, patch: { name: string; email: string; primary: boolean }) => Promise<void>;
+  updatePoc: (
+    pocId: string,
+    patch: { name: string; email: string; phone?: string; divisions?: string[] },
+  ) => Promise<void>;
   invitePoc: (pocId: string) => Promise<{ user: string; email_sent: boolean }>;
   removePoc: (pocId: string) => Promise<void>;
   updateClient: (
     clientName: string,
-    patch: { name: string; code: string; since?: string },
+    patch: { name: string; code: string; since?: string; status?: ClientStatus },
   ) => Promise<string>;
   removeClient: (clientName: string) => Promise<void>;
   updateDivision: (clientName: string, divName: string, patch: { name: string }) => Promise<void>;
@@ -384,6 +461,7 @@ export const useStore = create<Store>()((set, get) => {
     title: ctx.title?.trim() || undefined,
     client: ctx.client,
     div: ctx.division_name,
+    divisions: ctx.divisions || [],
   });
 
   return {
@@ -713,42 +791,45 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     // ---- clients / divisions / pocs ----
+    // Onboarding creates the company and its Leads, nothing else. Divisions and products
+    // are added afterwards from the client card — many clients have no divisions for a
+    // while, and demanding one up front is what made the old dialog wrong.
     addClient: async (input) => {
       const code = makeCode(input.name, new Set(get().clients.map((c) => c.code)));
-      const product = input.product ? await resolveProduct(input.product) : null;
       await api.createDoc("Client", {
         client_name: input.name,
         client_code: code,
+        status: input.status,
         since: input.since || null,
-        product,
       });
-      if (input.division) {
-        const dcode = makeCode(input.division, new Set());
-        const divDoc = await api.createDoc<{ name: string }>("Division", {
+      // Sequential, not Promise.all: a duplicate email among the leads must fail on that
+      // lead alone, with the message naming it, rather than racing several inserts and
+      // reporting whichever lost.
+      for (const lead of input.leads || []) {
+        if (!lead.email) continue;
+        const id = await api.createContact({
           client: input.name,
-          division_name: input.division,
-          division_code: dcode,
+          poc_name: lead.name,
+          email: lead.email,
+          phone: lead.phone,
+          is_lead: 1,
+          divisions: [], // no divisions exist yet — assigned later, from the division dialog
         });
-        if (input.poc && input.poc.email) {
-          await api.createDoc("POC", {
-            poc_name: input.poc.name,
-            email: input.poc.email,
-            is_primary: 1,
-            client: input.name,
-            division: divDoc.name,
-          });
-        }
+        if (lead.invite) await api.invitePoc(id);
       }
       await get().reloadMasters();
     },
     addPoc: async (clientName, divName, poc) => {
-      await api.createDoc("POC", {
+      const div = divDocname(clientName, divName);
+      const id = await api.createContact({
+        client: clientName,
         poc_name: poc.name,
         email: poc.email,
-        is_primary: poc.primary ? 1 : 0,
-        client: clientName,
-        division: divDocname(clientName, divName),
+        phone: poc.phone,
+        is_lead: 0,
+        divisions: div ? [div] : [],
       });
+      if (poc.invite) await api.invitePoc(id);
       await get().reloadMasters();
     },
     addDivision: async (clientName, input) => {
@@ -764,14 +845,57 @@ export const useStore = create<Store>()((set, get) => {
         division_code: dcode,
       });
       if (input.poc && input.poc.email) {
-        await api.createDoc("POC", {
+        const id = await api.createContact({
+          client: clientName,
           poc_name: input.poc.name,
           email: input.poc.email,
-          is_primary: input.poc.primary ? 1 : 0,
-          client: clientName,
-          division: divDoc.name,
+          phone: input.poc.phone,
+          is_lead: 0,
+          divisions: [divDoc.name],
         });
+        if (input.poc.invite) await api.invitePoc(id);
       }
+      // Grant the chosen Leads sight of this division. Additive: their existing divisions
+      // are preserved, since assigning a lead here must not silently drop the others.
+      for (const leadId of input.leads || []) {
+        const lead = get()
+          .clients.find((c) => c.name === clientName)
+          ?.leads.find((l) => l.id === leadId);
+        const next = [...new Set([...(lead?.divisions ?? []), divDoc.name])];
+        await api.setContactDivisions(leadId, next);
+      }
+      await get().reloadMasters();
+    },
+    setLeadDivisions: async (leadId, divisions) => {
+      await api.setContactDivisions(leadId, divisions);
+      await get().reloadMasters();
+    },
+    addClientProduct: async (clientName, input) => {
+      const product = await resolveProduct(input.product);
+      await api.createClientProduct({
+        client: clientName,
+        product,
+        dev_start: input.devStart || null,
+        expected_completion: input.expectedCompletion || null,
+        // Empty means attached to the client as a whole — the only option when the client
+        // has no divisions, and a deliberate choice when it does.
+        divisions: input.divisions,
+      });
+      await get().reloadMasters();
+    },
+    updateClientProduct: async (id, input) => {
+      const product = input.product ? await resolveProduct(input.product) : undefined;
+      await api.updateClientProduct({
+        name: id,
+        product,
+        dev_start: input.devStart ?? null,
+        expected_completion: input.expectedCompletion ?? null,
+        divisions: input.divisions,
+      });
+      await get().reloadMasters();
+    },
+    removeClientProduct: async (id) => {
+      await api.deleteClientProduct(id);
       await get().reloadMasters();
     },
     // Rename a division (its display name). The docname/code stay put, so existing
@@ -823,7 +947,12 @@ export const useStore = create<Store>()((set, get) => {
     // Goes through update_poc (not a raw field write): POC is autonamed by email,
     // so an email change must rename the doc + its linked portal user to stay in sync.
     updatePoc: async (pocId, patch) => {
-      await api.updatePoc(pocId, { poc_name: patch.name, email: patch.email, is_primary: patch.primary });
+      await api.updatePoc(pocId, {
+        poc_name: patch.name,
+        email: patch.email,
+        phone: patch.phone,
+        divisions: patch.divisions,
+      });
       await get().reloadMasters();
     },
     invitePoc: async (pocId) => {
@@ -842,6 +971,7 @@ export const useStore = create<Store>()((set, get) => {
         client_name: patch.name,
         client_code: patch.code,
         since: patch.since || "",
+        status: patch.status,
       });
       await get().reloadMasters();
       return newName;

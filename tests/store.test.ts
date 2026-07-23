@@ -186,27 +186,72 @@ describe("fmtDay (via toTicket) — date-only values never go through `new Date(
 });
 
 describe("assembleClients", () => {
+  const clients: RawClient[] = [{ name: "Thermax", client_code: "THX", product: "EniMAX" }];
+  const divisions: RawDivision[] = [
+    { name: "Thermax-HTG", division_name: "Heating", division_code: "HTG", client: "Thermax" },
+    { name: "Thermax-BOI", division_name: "Boiler", division_code: "BOI", client: "Thermax" },
+    { name: "Thermax-CHM", division_name: "Chemical", division_code: "CHM", client: "Thermax" },
+  ];
+  const poc = (over: Partial<RawPoc>): RawPoc => ({
+    name: "r@x.com",
+    poc_name: "R. Mehta",
+    email: "r@x.com",
+    client: "Thermax",
+    ...over,
+  });
+
   it("nests divisions and pocs under their client", () => {
-    const clients: RawClient[] = [{ name: "Thermax", client_code: "THX", product: "EniMAX" }];
-    const divisions: RawDivision[] = [
-      { name: "Thermax-HTG", division_name: "Heating", division_code: "HTG", client: "Thermax" },
-    ];
-    const pocs: RawPoc[] = [
-      {
-        name: "r@x.com",
-        poc_name: "R. Mehta",
-        email: "r@x.com",
-        is_primary: 1,
-        client: "Thermax",
-        division: "Thermax-HTG",
-      },
-    ];
-    const [c] = assembleClients(clients, divisions, pocs);
+    const pocs = [poc({})];
+    const [c] = assembleClients(clients, divisions, pocs, new Map(), [
+      { parent: "r@x.com", division: "Thermax-HTG" },
+    ]);
     expect(c.code).toBe("THX");
-    expect(c.product).toBe("EniMAX");
-    expect(c.divisions).toHaveLength(1);
+    expect(c.divisions).toHaveLength(3);
     expect(c.divisions[0].name).toBe("Heating");
-    expect(c.divisions[0].pocs[0]).toMatchObject({ name: "R. Mehta", email: "r@x.com", primary: true });
+    expect(c.divisions[0].pocs[0]).toMatchObject({ name: "R. Mehta", email: "r@x.com", isLead: false });
+    expect(c.divisions[1].pocs).toHaveLength(0);
+  });
+
+  it("lists a multi-division lead under every division it holds", () => {
+    // Not a duplicate: one person legitimately appears on several division cards, which is
+    // what makes each card tell the truth about who can see it.
+    const pocs = [poc({ name: "lead@x.com", email: "lead@x.com", poc_name: "Akash", is_lead: 1 })];
+    const [c] = assembleClients(clients, divisions, pocs, new Map(), [
+      { parent: "lead@x.com", division: "Thermax-HTG" },
+      { parent: "lead@x.com", division: "Thermax-CHM" },
+    ]);
+    expect(c.divisions.map((d) => d.pocs.length)).toEqual([1, 0, 1]);
+    expect(c.leads).toHaveLength(1);
+    expect(c.leads[0].divisions).toEqual(["Thermax-HTG", "Thermax-CHM"]);
+  });
+
+  it("surfaces a lead holding no divisions, so it can still be found and assigned", () => {
+    // The state every lead starts in, created during onboarding before any division
+    // exists. Without this they would be in the database and invisible on the page.
+    const pocs = [poc({ name: "new@x.com", email: "new@x.com", poc_name: "Fresh", is_lead: 1 })];
+    const [c] = assembleClients(clients, divisions, pocs, new Map(), []);
+    expect(c.leads).toHaveLength(1);
+    expect(c.leads[0].divisions).toEqual([]);
+    expect(c.divisions.every((d) => d.pocs.length === 0)).toBe(true);
+  });
+
+  it("reads a product with no divisions as attached to the client", () => {
+    const [c] = assembleClients(
+      clients,
+      divisions,
+      [],
+      new Map(),
+      [],
+      [{ name: "cp1", client: "Thermax", product: "EniMAX", dev_start: "2026-01-05" }],
+      [],
+    );
+    expect(c.products).toHaveLength(1);
+    expect(c.products[0]).toMatchObject({ product: "EniMAX", devStart: "2026-01-05", divisions: [] });
+  });
+
+  it("defaults status to Active when the backend hasn't set one", () => {
+    const [c] = assembleClients(clients, divisions, []);
+    expect(c.status).toBe("Active");
   });
 });
 

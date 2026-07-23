@@ -56,7 +56,15 @@ export function Portal() {
 
   if (!session) return null;
 
-  const mine = tickets.filter((t) => t.client === session.client && t.div === session.div);
+  // Scoped by the divisions this contact holds, not one label: a lead may oversee
+  // several. `t.div` is the display name, so compare against the resolved names rather
+  // than the docnames the session carries.
+  const myDivNames = new Set(
+    (session.divisions ?? []).map(
+      (dn) => clients.flatMap((c) => c.divisions).find((d) => d.docname === dn)?.name ?? dn,
+    ),
+  );
+  const mine = tickets.filter((t) => t.client === session.client && myDivNames.has(t.div));
   const open = mine.filter((t) => isActive(t.status));
   const pending = mine.filter((t) => t.status === "Pending Client");
   const resolved = mine.filter((t) => RESOLVED.includes(t.status));
@@ -64,9 +72,17 @@ export function Portal() {
   // Clicking a KPI toggles its quick-filter (click again to clear).
   const toggle = (f: PortalFilter) => setFilter((cur) => (cur === f ? "all" : f));
 
-  // The product(s) this POC's client runs — one today; the dropdown is ready for more.
+  // The products this contact's client runs. Now genuinely several: a client may run a
+  // different product per division, so show the ones covering the divisions they hold
+  // plus any attached client-wide (an empty division list).
   const myClient = clients.find((c) => c.name === session.client);
-  const myProducts = myClient?.product ? [myClient.product] : [];
+  const myProducts = [
+    ...new Set(
+      (myClient?.products ?? [])
+        .filter((p) => p.divisions.length === 0 || p.divisions.some((d) => (session.divisions ?? []).includes(d)))
+        .map((p) => p.product),
+    ),
+  ];
 
   // Option lists. Status/Type are the full canonical sets; the rest are data-driven.
   const years = Array.from(
@@ -105,7 +121,7 @@ export function Portal() {
     if (statusF && t.status !== statusF) return false;
     if (typeF && t.type !== typeF) return false;
     if (sourceF && (t.source ?? "Portal") !== sourceF) return false;
-    if (productF && (myClient?.product ?? "") !== productF) return false;
+    if (productF && !myProducts.includes(productF)) return false;
     if (monthF && (parseISO(t.createdISO)?.getMonth() ?? -1) + 1 !== Number(monthF)) return false;
     if (yearF && parseISO(t.createdISO)?.getFullYear() !== Number(yearF)) return false;
     return true;

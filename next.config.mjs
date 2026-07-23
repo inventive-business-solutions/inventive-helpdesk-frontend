@@ -137,6 +137,26 @@ const proxyRewrites = [
     source: "/api/frappe/method/inventive_helpdesk_backend.api.invite_member",
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.invite_member`,
   },
+  {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.create_contact",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.create_contact`,
+  },
+  {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.set_contact_divisions",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.set_contact_divisions`,
+  },
+  {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.create_client_product",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.create_client_product`,
+  },
+  {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.update_client_product",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.update_client_product`,
+  },
+  {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.delete_client_product",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.delete_client_product`,
+  },
   { source: "/api/frappe/resource/:path*", destination: `${FRAPPE_URL}/api/resource/:path*` },
   // Realtime (Socket.IO) — same-origin so the session cookie rides the handshake. A Next
   // rewrite does not proxy the HTTP Upgrade handshake, so the transport stays on polling;

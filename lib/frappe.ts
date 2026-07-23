@@ -8,6 +8,8 @@ import type {
   Activity,
   Attachment,
   Client,
+  ClientProduct,
+  ClientStatus,
   Collaborator,
   Division,
   Group,
@@ -247,6 +249,9 @@ export interface Me {
   is_agent?: boolean;
   name?: string;
   client?: string;
+  /** Every division this contact holds — the real portal scope. */
+  divisions?: string[];
+  /** First of `divisions`, for views that display a single label. Not authoritative. */
   division?: string;
   division_name?: string;
   division_code?: string;
@@ -344,18 +349,66 @@ export async function uploadAttachment(ticket: string, file: File, onTicket = fa
 // autonamed docs and cascade Link references — a plain field update can't.
 export function updateClient(
   name: string,
-  patch: { client_name?: string; client_code?: string; since?: string; product?: string },
+  patch: {
+    client_name?: string;
+    client_code?: string;
+    since?: string;
+    status?: ClientStatus;
+    product?: string;
+  },
 ) {
   return call<string>("inventive_helpdesk_backend.api.update_client", { name, ...patch });
 }
 export function updateProduct(name: string, patch: { product_name?: string }) {
   return call<string>("inventive_helpdesk_backend.api.update_product", { name, ...patch });
 }
-export function updatePoc(name: string, patch: { poc_name?: string; email?: string; is_primary?: boolean }) {
+export function updatePoc(
+  name: string,
+  patch: { poc_name?: string; email?: string; phone?: string; divisions?: string[] },
+) {
   return call<string>("inventive_helpdesk_backend.api.update_poc", { name, ...patch });
 }
 export function deletePoc(name: string) {
   return call<string>("inventive_helpdesk_backend.api.delete_poc", { name });
+}
+/** Create a client contact — a division POC or a Lead, same record either way.
+ *  `divisions` may be empty, and for a Lead usually is: they are added during onboarding,
+ *  before any division exists, and hold no ticket access until someone assigns them. */
+export function createContact(args: {
+  client: string;
+  poc_name: string;
+  email: string;
+  phone?: string;
+  is_lead?: 0 | 1;
+  divisions: string[];
+}) {
+  return call<string>("inventive_helpdesk_backend.api.create_contact", args);
+}
+/** Replace the divisions a contact can see. This IS the access-granting call: the set
+ *  passed here becomes their entire scope, so anything omitted loses access. */
+export function setContactDivisions(name: string, divisions: string[]) {
+  return call<string>("inventive_helpdesk_backend.api.set_contact_divisions", { name, divisions });
+}
+export function createClientProduct(args: {
+  client: string;
+  product: string;
+  dev_start?: string | null;
+  expected_completion?: string | null;
+  divisions: string[];
+}) {
+  return call<string>("inventive_helpdesk_backend.api.create_client_product", args);
+}
+export function updateClientProduct(args: {
+  name: string;
+  product?: string;
+  dev_start?: string | null;
+  expected_completion?: string | null;
+  divisions?: string[];
+}) {
+  return call<string>("inventive_helpdesk_backend.api.update_client_product", args);
+}
+export function deleteClientProduct(name: string) {
+  return call<string>("inventive_helpdesk_backend.api.delete_client_product", { name });
 }
 /** Provision (or resend) a POC's portal login + sign-in email. */
 export function invitePoc(poc: string) {
@@ -370,7 +423,17 @@ export function inviteMember(member: string) {
 }
 
 // ---- generic resource helpers --------------------------------------------
-type ListOpts = { fields?: string[]; filters?: unknown[]; limit?: number; orderBy?: string };
+type ListOpts = {
+  fields?: string[];
+  filters?: unknown[];
+  limit?: number;
+  orderBy?: string;
+  /** Parent doctype, required by Frappe when listing a CHILD table (e.g. "POC Division").
+   *  Without it the request is rejected — child rows are permission-checked through their
+   *  parent, so the server has to be told which parent to check against. Lets us read every
+   *  POC's divisions in one call instead of a getDoc per contact. */
+  parent?: string;
+};
 
 export async function getList<T = Record<string, unknown>>(
   doctype: string,
@@ -381,6 +444,7 @@ export async function getList<T = Record<string, unknown>>(
   if (opts.filters) p.set("filters", JSON.stringify(opts.filters));
   p.set("limit_page_length", String(opts.limit ?? 0));
   if (opts.orderBy) p.set("order_by", opts.orderBy);
+  if (opts.parent) p.set("parent", opts.parent);
   const r = await request<{ data: T[] }>(`/resource/${encodeURIComponent(doctype)}?${p}`);
   return r.data;
 }
@@ -609,8 +673,21 @@ export function toTicket(r: RawTicket, divName: (docname?: string) => string): T
 export interface RawClient {
   name: string;
   client_code: string;
+  status?: ClientStatus;
   since?: string;
   product?: string;
+}
+export interface RawClientProduct {
+  name: string;
+  client: string;
+  product: string;
+  dev_start?: string | null;
+  expected_completion?: string | null;
+}
+/** A row of any of our child tables that just links a division. */
+export interface RawChildDivision {
+  parent: string;
+  division: string;
 }
 export interface RawDivision {
   name: string;
@@ -622,9 +699,12 @@ export interface RawPoc {
   name: string;
   poc_name: string;
   email: string;
-  is_primary?: 0 | 1;
+  phone?: string | null;
+  is_lead?: 0 | 1;
   client: string;
-  division: string;
+  /** Legacy single division. The divisions child table is the real scope — this is only
+   *  still populated so the backend migration can be rolled back. Do not read it. */
+  division?: string;
   user?: string;
   invited_on?: string | null;
 }
@@ -651,35 +731,80 @@ export function pocPortalStatus(poc: RawPoc, users: Map<string, RawUser>): Porta
   return "active";
 }
 
-/** Assemble the nested Client[] (with divisions + pocs) the frontend expects.
- *  `users` maps a POC's linked User → its login state (admin view; empty otherwise). */
+/** Group child rows by their parent docname. */
+function byParent(rows: RawChildDivision[]): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.division) continue;
+    const list = m.get(r.parent);
+    if (list) list.push(r.division);
+    else m.set(r.parent, [r.division]);
+  }
+  return m;
+}
+
+/** Assemble the nested Client[] (divisions + contacts + products) the frontend expects.
+ *
+ *  A contact holds a SET of divisions, so one person legitimately appears under several
+ *  division cards — that is the multi-division Lead, not a duplicate. Contacts holding no
+ *  division at all are surfaced as `client.leads`: a Lead created during onboarding, before
+ *  anyone assigned them anything. Without that they would exist in the database and be
+ *  invisible on the page, with no way to assign them.
+ *
+ *  `users` maps a contact's linked User → its login state (admin view; empty otherwise). */
 export function assembleClients(
   clients: RawClient[],
   divisions: RawDivision[],
   pocs: RawPoc[],
   users: Map<string, RawUser> = new Map(),
+  pocDivisions: RawChildDivision[] = [],
+  clientProducts: RawClientProduct[] = [],
+  productDivisions: RawChildDivision[] = [],
 ): Client[] {
-  return clients.map((c) => ({
-    name: c.name,
-    code: c.client_code,
-    since: c.since,
-    product: c.product || undefined,
-    divisions: divisions
-      .filter((d) => d.client === c.name)
-      .map<Division>((d) => ({
-        name: d.division_name,
-        code: d.division_code,
-        pocs: pocs
-          .filter((p) => p.division === d.name)
-          .map<Poc>((p) => ({
-            id: p.name,
-            name: p.poc_name,
-            email: p.email,
-            primary: !!p.is_primary,
-            portal: pocPortalStatus(p, users),
-          })),
-      })),
-  }));
+  const pocDivs = byParent(pocDivisions);
+  const prodDivs = byParent(productDivisions);
+
+  const toPoc = (p: RawPoc): Poc => ({
+    id: p.name,
+    name: p.poc_name,
+    email: p.email,
+    phone: p.phone || undefined,
+    isLead: !!p.is_lead,
+    divisions: pocDivs.get(p.name) ?? [],
+    portal: pocPortalStatus(p, users),
+  });
+
+  return clients.map((c) => {
+    const mine = pocs.filter((p) => p.client === c.name).map(toPoc);
+    return {
+      name: c.name,
+      code: c.client_code,
+      status: c.status ?? "Active",
+      since: c.since,
+      product: c.product || undefined,
+      products: clientProducts
+        .filter((cp) => cp.client === c.name)
+        .map<ClientProduct>((cp) => ({
+          id: cp.name,
+          product: cp.product,
+          devStart: cp.dev_start || undefined,
+          expectedCompletion: cp.expected_completion || undefined,
+          divisions: prodDivs.get(cp.name) ?? [],
+        })),
+      // Leads are listed at client level regardless of how many divisions they hold, so
+      // they can be found and re-assigned; they also still appear under each division they
+      // oversee, which is what makes the division card tell the truth about who sees it.
+      leads: mine.filter((p) => p.isLead),
+      divisions: divisions
+        .filter((d) => d.client === c.name)
+        .map<Division>((d) => ({
+          name: d.division_name,
+          code: d.division_code,
+          docname: d.name,
+          pocs: mine.filter((p) => p.divisions.includes(d.name)),
+        })),
+    };
+  });
 }
 
 export function toMember(r: {

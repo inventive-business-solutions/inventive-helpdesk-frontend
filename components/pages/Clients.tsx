@@ -6,25 +6,37 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
 import { StatTile } from "@/components/ui/StatTile";
-import { Badge } from "@/components/ui/Chips";
+import { Badge, type BadgeTone } from "@/components/ui/Chips";
 import { AddClientModal } from "@/components/modals/AddClientModal";
 import { AddPocModal } from "@/components/modals/AddPocModal";
 import { AddDivisionModal } from "@/components/modals/AddDivisionModal";
 import { EditDivisionModal } from "@/components/modals/EditDivisionModal";
-import { SetProductModal } from "@/components/modals/SetProductModal";
+import { AddClientProductModal } from "@/components/modals/AddClientProductModal";
+import { ClientLeads, ClientProducts } from "@/components/pages/ClientSections";
 import { EditClientModal } from "@/components/modals/EditClientModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { useSubmit } from "@/components/ui/useSubmit";
 import { RESOLVED, enc, fmtDate, initials, isActive } from "@/lib/helpers";
-import type { Client, Division, Poc } from "@/types";
+import type { Client, ClientProduct, Division, Poc } from "@/types";
 
 const PALETTE = ["var(--cat-1)", "var(--cat-2)", "var(--cat-4)", "var(--cat-3)", "var(--accent)"];
+
+/** Onboarding lifecycle → badge tone. Churned reads as critical because it changes how
+ *  every other number on the card should be read, not because it is an error. */
+const STATUS_TONE: Record<Client["status"], BadgeTone> = {
+  Onboarding: "info",
+  Active: "good",
+  "On Hold": "warning",
+  Churned: "critical",
+};
 
 type Confirm =
   | { kind: "client"; client: string }
   | { kind: "division"; client: string; div: string }
-  | { kind: "poc"; client: string; div: string; poc: Poc };
+  | { kind: "poc"; client: string; div: string; poc: Poc }
+  | { kind: "lead"; client: string; poc: Poc }
+  | { kind: "product"; client: string; product: ClientProduct };
 
 export function Clients() {
   const router = useRouter();
@@ -33,6 +45,7 @@ export function Clients() {
   const removeClient = useStore((s) => s.removeClient);
   const removeDivision = useStore((s) => s.removeDivision);
   const removePoc = useStore((s) => s.removePoc);
+  const removeClientProduct = useStore((s) => s.removeClientProduct);
   const invitePoc = useStore((s) => s.invitePoc);
   const toast = useToast();
   const { busy, run } = useSubmit();
@@ -40,7 +53,10 @@ export function Clients() {
   const [pocTarget, setPocTarget] = useState<{ client: string; div: string; poc?: Poc } | null>(null);
   const [divTarget, setDivTarget] = useState<string | null>(null);
   const [divEditTarget, setDivEditTarget] = useState<{ client: string; division: Division } | null>(null);
-  const [productTarget, setProductTarget] = useState<{ client: string; current?: string } | null>(null);
+  const [productTarget, setProductTarget] = useState<{ client: string; product?: ClientProduct } | null>(
+    null,
+  );
+  const [leadTarget, setLeadTarget] = useState<{ client: string; poc: Poc } | null>(null);
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
@@ -121,28 +137,17 @@ export function Clients() {
               </span>
               <div className="head-text">
                 <div className="eyebrow">Client</div>
-                <div className="cc-name">{cl.name}</div>
-                <div className="cc-sub">{cl.since ? `Since ${fmtDate(cl.since)}` : "—"}</div>
+                <div className="cc-name" title={cl.name}>
+                  {cl.name}
+                </div>
+                <div className="cc-sub">
+                  {cl.since ? `Onboarded ${fmtDate(cl.since)}` : "No onboarding date"}
+                </div>
               </div>
               <div className="cc-actions">
-                {cl.product ? (
-                  <button
-                    className="prod-chip"
-                    title="Edit product"
-                    onClick={() => setProductTarget({ client: cl.name, current: cl.product })}
-                  >
-                    <Icon name="box" size={14} className="pk-ic" />
-                    <span className="eyebrow">Product</span>
-                    {cl.product}
-                  </button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    onClick={() => setProductTarget({ client: cl.name, current: undefined })}
-                  >
-                    + Add product
-                  </Button>
-                )}
+                {/* Products moved into their own section below — a client can run several,
+                    each with its own dates, which no longer fits a single header chip. */}
+                <Badge tone={STATUS_TONE[cl.status] ?? "neutral"}>{cl.status}</Badge>
                 <Button
                   variant="ghost"
                   icon={<Icon name="plus" size={14} />}
@@ -190,6 +195,18 @@ export function Clients() {
             </div>
 
             <div className="cc-body">
+              <ClientProducts
+                client={cl}
+                onAdd={() => setProductTarget({ client: cl.name })}
+                onEdit={(p) => setProductTarget({ client: cl.name, product: p })}
+                onRemove={(p) => setConfirm({ kind: "product", client: cl.name, product: p })}
+              />
+              <ClientLeads
+                client={cl}
+                onEdit={(p) => setLeadTarget({ client: cl.name, poc: p })}
+                onRemove={(p) => setConfirm({ kind: "lead", client: cl.name, poc: p })}
+                onInvite={onInvite}
+              />
               {cl.divisions.length ? (
                 <div className="div-grid">
                   {cl.divisions.map((d) => (
@@ -222,10 +239,10 @@ export function Clients() {
                               <span className="poc-av">{initials(p.name)}</span>
                               <div className="poc-id">
                                 <div className="poc-name">
-                                  {p.name}
-                                  {p.primary && (
+                                  <span className="poc-name-text">{p.name}</span>
+                                  {p.isLead && (
                                     <Badge sm tone="accent">
-                                      Primary
+                                      Lead
                                     </Badge>
                                   )}
                                   {p.portal === "active" && (
@@ -306,6 +323,14 @@ export function Clients() {
           onClose={() => setPocTarget(null)}
         />
       )}
+      {leadTarget && (
+        <AddPocModal
+          clientName={leadTarget.client}
+          divName=""
+          poc={leadTarget.poc}
+          onClose={() => setLeadTarget(null)}
+        />
+      )}
       {divTarget && <AddDivisionModal clientName={divTarget} onClose={() => setDivTarget(null)} />}
       {divEditTarget && (
         <EditDivisionModal
@@ -315,9 +340,9 @@ export function Clients() {
         />
       )}
       {productTarget && (
-        <SetProductModal
+        <AddClientProductModal
           clientName={productTarget.client}
-          current={productTarget.current}
+          existing={productTarget.product}
           onClose={() => setProductTarget(null)}
         />
       )}
@@ -346,6 +371,38 @@ export function Clients() {
           onConfirm={() =>
             run(() => removeDivision(confirm.client, confirm.div), {
               success: `${confirm.div} deleted`,
+              onSuccess: () => setConfirm(null),
+            })
+          }
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.kind === "lead" && (
+        <ConfirmDialog
+          title="Remove lead"
+          message={`Remove ${confirm.poc.name} as a lead for ${confirm.client}? Their portal login is disabled unless another record still uses it.`}
+          confirmLabel="Remove"
+          busy={busy}
+          onConfirm={() => {
+            const id = confirm.poc.id;
+            if (!id) return setConfirm(null);
+            run(() => removePoc(id), {
+              success: `${confirm.poc.name} removed`,
+              onSuccess: () => setConfirm(null),
+            });
+          }}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.kind === "product" && (
+        <ConfirmDialog
+          title="Remove product"
+          message={`Remove ${confirm.product.product} from ${confirm.client}? Tickets already raised are not affected.`}
+          confirmLabel="Remove"
+          busy={busy}
+          onConfirm={() =>
+            run(() => removeClientProduct(confirm.product.id), {
+              success: `${confirm.product.product} removed`,
               onSuccess: () => setConfirm(null),
             })
           }

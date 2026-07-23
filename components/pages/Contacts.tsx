@@ -203,7 +203,7 @@ export function Contacts() {
               <col style={{ width: "16%" }} />
               {/* Division */}
               <col style={{ width: "10%" }} />
-              {/* Primary */}
+              {/* Role */}
               <col style={{ width: "14%" }} />
               {/* Portal */}
               <col style={{ width: "18%" }} />
@@ -214,7 +214,7 @@ export function Contacts() {
                 <th className="left">Contact</th>
                 <th className="left">Client</th>
                 <th className="left">Division</th>
-                <th className="center">Primary</th>
+                <th className="center">Role</th>
                 <th className="center">Portal</th>
                 <th className="center">Actions</th>
               </tr>
@@ -244,7 +244,7 @@ export function Contacts() {
                       {r.div}
                     </td>
                     <td className="center">
-                      {p.primary ? <Badge tone="accent">Primary</Badge> : <span className="muted">—</span>}
+                      {p.isLead ? <Badge tone="accent">Lead</Badge> : <span className="muted">POC</span>}
                     </td>
                     <td className="center">{portalBadge(p.portal)}</td>
                     <td className="center">
