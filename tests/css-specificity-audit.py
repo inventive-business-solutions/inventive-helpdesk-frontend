@@ -22,11 +22,12 @@ TARGETS = [
     ("lead-section", "div"), ("lead-section-head", "div"), ("lead-card", "div"),
     ("lead-card-head", "div"), ("lead-card-title", "span"), ("lead-count", "span"),
     ("add-lead", "button"), ("poc-name-text", "span"),
+    ("date-wrap", "span"), ("date-ph", "span"),
 ]
 # Ancestors present on every one of them.
 ANCESTORS = {"field", "checklist", "checklist-body", "checklist-row", "modal-body",
              "client-card", "cc-body", "cc-section", "prod-row", "prod-id", "poc-row",
-             "poc-id", "poc-name", "lead-section", "lead-card", "div-card", "modal"}
+             "poc-id", "poc-name", "lead-section", "lead-card", "div-card", "modal", "date-wrap"}
 
 
 def specificity(sel):

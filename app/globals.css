@@ -3847,21 +3847,45 @@ button.stat:not(:disabled):hover {
 .field textarea::placeholder {
   color: var(--muted);
 }
-/* An empty <input type="date"> paints the browser's own "dd/mm/yyyy" scaffold in full
-   text colour, so it reads as a value the user already chose rather than a prompt — and
-   next to a red "Required" it just looks broken. Date inputs take no `placeholder` and
-   ignore `::placeholder`, so TextField flags the empty state and we tone the scaffold
-   down to match every other placeholder. Once a date is picked the flag drops and the
-   value paints normally.
-   Chromium exposes the scaffold as ::-webkit-datetime-edit; Firefox has no equivalent
-   pseudo-element and simply keeps its own (already muted) rendering. */
-.field input[type="date"][data-empty="true"]::-webkit-datetime-edit {
+/* Empty date fields.
+   The browser paints its own scaffold into an empty date input, whose separators render
+   as a row of dashes ("dd-----yyyy") — it reads as a value already chosen rather than a
+   prompt, and next to a red "Required" it looks broken. Date inputs accept no
+   `placeholder` and ignore `::placeholder`, so TextField wraps them and lays a clean
+   "DD / MM / YYYY" over the top while empty — including while focused, so a click never
+   reveals the dashes. Clicking opens the native calendar instead; the scaffold only comes
+   back once there is a value, or the moment someone starts typing (see TextField).
+
+   Two classes deep on purpose: `.field input` (0,1,1) outranks a lone class and would
+   otherwise win — the same trap that broke the division table. */
+.field .date-wrap {
+  position: relative;
+  display: block;
+}
+/* opacity, not `color: transparent`. Hiding only the colour leaves the browser's own
+   segment-selection highlight painting behind it — click the field and a blue "dd" block
+   appears on top of the placeholder. opacity takes the whole edit region, highlight
+   included. */
+.field .date-wrap input[data-empty="true"]::-webkit-datetime-edit {
+  opacity: 0;
+}
+.field .date-wrap input[data-empty="true"]::-webkit-datetime-edit-fields-wrapper {
+  opacity: 0;
+}
+.field .date-ph {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13.5px;
   color: var(--muted);
+  pointer-events: none;
+  user-select: none;
 }
-.field input[type="date"]:focus[data-empty="true"]::-webkit-datetime-edit {
-  color: var(--ink);
-}
-/* The picker icon sits at full contrast against a muted value; dim it to match, and
+/* Firefox has no ::-webkit-datetime-edit and shows nothing in an empty date input, so our
+   placeholder simply sits in the empty space — no scaffold to hide. */
+
+/* The picker icon sits at full contrast against a muted field; dim it to match, and
    restore it on hover so it still reads as clickable. */
 .field input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 0.55;

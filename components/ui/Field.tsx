@@ -1,5 +1,5 @@
 "use client";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 /** Optional / required marker shown next to a field label. */
 function LabelTag({ optional, required }: { optional?: boolean; required?: boolean }) {
@@ -75,28 +75,80 @@ export function TextField({
   hint?: ReactNode;
 }) {
   const id = useId();
+  // An empty date input paints the browser's own scaffold, whose separators render as a
+  // row of dashes ("dd-----yyyy") that reads as a half-filled value rather than a prompt.
+  // Date inputs take no `placeholder` and ignore `::placeholder`, so we hide that scaffold
+  // whenever the field is empty — including while focused — and lay a clean
+  // "DD / MM / YYYY" over it.
+  //
+  // Clicking therefore opens the native calendar instead of parking a caret in an
+  // invisible editor: you pick a date and never meet the scaffold at all.
+  //
+  // `typing` is the exception that keeps the keyboard usable. Someone who tabs in and
+  // types needs to see the digits land, and a date input reports value="" until the whole
+  // date is valid — so without this they would be typing blind. The first keypress
+  // reveals the editor; leaving the field empty puts the placeholder back.
+  const [typing, setTyping] = useState(false);
+  const dateEmpty = type === "date" && !value;
+  const input = (
+    <input
+      id={id}
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      autoFocus={autoFocus}
+      readOnly={readOnly}
+      aria-invalid={error || undefined}
+      data-empty={dateEmpty && !typing ? "true" : undefined}
+      style={uppercase ? { textTransform: "uppercase" } : undefined}
+      onChange={(e) => onChange(e.target.value)}
+      {...(type === "date" && {
+        onMouseDown: (e: React.MouseEvent<HTMLInputElement>) => {
+          if (readOnly) return;
+          // showPicker needs a user gesture, which a mousedown is. Preventing default
+          // stops the caret landing in the hidden editor behind the placeholder.
+          const el = e.currentTarget;
+          if (typeof el.showPicker !== "function") return;
+          // preventDefault keeps focus off the input entirely. Focusing it would make the
+          // browser select its first segment, and a selected segment paints a highlight
+          // that no amount of colour styling hides. showPicker only needs the user
+          // gesture, not focus.
+          e.preventDefault();
+          try {
+            el.showPicker();
+          } catch {
+            /* not allowed in this context — the field still works by typing */
+          }
+        },
+        onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+          if (e.key.length === 1 || e.key === "Backspace" || e.key.startsWith("Arrow")) {
+            setTyping(true);
+          }
+        },
+        onBlur: () => setTyping(false),
+      })}
+    />
+  );
   return (
     <div className={`field ${error ? "invalid" : ""}`.trim()}>
       <label htmlFor={id}>
         {label} <LabelTag optional={optional} required={required} />
       </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        autoFocus={autoFocus}
-        readOnly={readOnly}
-        aria-invalid={error || undefined}
-        // An empty date input renders the browser's own "dd/mm/yyyy" scaffold in full
-        // text colour, so it reads as a filled value rather than a prompt. There is no
-        // `placeholder` for date inputs and `::placeholder` doesn't apply, so flag the
-        // empty state here and let CSS mute the scaffold to placeholder grey.
-        data-empty={type === "date" && !value ? "true" : undefined}
-        style={uppercase ? { textTransform: "uppercase" } : undefined}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      {type === "date" ? (
+        <span className="date-wrap">
+          {input}
+          {dateEmpty && !typing && (
+            // aria-hidden + pointer-events:none — it is decoration. The input keeps its
+            // own label and stays the thing that is focused, typed into and clicked.
+            <span className="date-ph" aria-hidden="true">
+              {placeholder || "DD / MM / YYYY"}
+            </span>
+          )}
+        </span>
+      ) : (
+        input
+      )}
       {hint && <div className="field-hint">{hint}</div>}
     </div>
   );
