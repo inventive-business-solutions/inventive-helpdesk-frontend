@@ -147,7 +147,9 @@ export function AddClientProductModal({
         {hasDivisions ? (
           <CheckList
             label="Divisions running this product"
-            hint="Leave all unticked to attach it to the client as a whole."
+            hint="Leave all off to attach it to the client as a whole."
+            labelHead="Division"
+            metaHead="Code"
             selected={divisions}
             options={divs.map((d) => ({
               value: d.docname ?? d.name,

@@ -120,6 +120,8 @@ export function AddDivisionModal({ clientName, onClose }: { clientName: string; 
           <CheckList
             label="Leads who can see this division"
             hint="Leads see nothing until a division is assigned to them."
+            labelHead="Lead"
+            metaHead="Current access"
             selected={leadIds}
             options={leads.map((l) => ({
               value: l.id ?? l.email,

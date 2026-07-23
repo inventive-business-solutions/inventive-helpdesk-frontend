@@ -117,7 +117,9 @@ export function AddPocModal({
         {editing ? (
           <CheckList
             label="Divisions this contact can see"
-            hint="Unticking a division removes their access to its tickets."
+            hint="Turning a division off removes their access to its tickets."
+            labelHead="Division"
+            metaHead="Code"
             selected={divisions}
             options={(client?.divisions ?? []).map((d) => ({
               value: d.docname ?? d.name,
