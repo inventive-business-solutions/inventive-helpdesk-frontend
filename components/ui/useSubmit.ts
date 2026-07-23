@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { userFacingMessage } from "@/lib/frappe";
 import { useToast } from "./Toast";
 
 /**
@@ -28,7 +29,10 @@ export function useSubmit() {
       opts?.onSuccess?.();
     } catch (e) {
       console.error(e);
-      toast(opts?.error ?? "Something went wrong — please try again.");
+      // Prefer the reason the action actually failed. Swallowing it meant a backend
+      // validation message — "that email is already used by …" — surfaced as a bare
+      // "Something went wrong", leaving the user with no idea what to change.
+      toast(userFacingMessage(e) ?? opts?.error ?? "Something went wrong — please try again.");
     } finally {
       inFlight.current = false;
       setBusy(false);

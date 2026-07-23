@@ -25,13 +25,32 @@ import { fmtDateTime } from "./helpers";
 
 const BASE = "/api/frappe";
 
-class FrappeError extends Error {
+export class FrappeError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** True when `message` is meant for a human — a validation message the backend wrote,
+     *  or one we wrote here. False when it is only the HTTP status text ("Internal Server
+     *  Error"), which says nothing useful and should not be shown as if it were advice. */
+    readonly displayable = false,
   ) {
     super(message);
   }
+}
+
+/** An error whose message was written for the user and is safe to put on screen.
+ *  Store actions throw this for rules they enforce client-side (duplicate names and the
+ *  like); anything else that escapes is a bug, and its message stays internal. */
+export class UserError extends Error {}
+
+/** The message to show for a failed action, or null when there is nothing worth showing
+ *  and the caller should fall back to a generic line. Deliberately narrow: an unexpected
+ *  TypeError also has a `.message`, and "Cannot read properties of undefined" must never
+ *  be toasted at a support agent. */
+export function userFacingMessage(err: unknown): string | null {
+  if (err instanceof UserError) return err.message || null;
+  if (err instanceof FrappeError && err.displayable) return err.message || null;
+  return null;
 }
 
 // CSRF token (from `me()`); attached to every mutating request. Harmless while
@@ -134,7 +153,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     try {
       res = await fetch(`${BASE}${path}`, { ...init, method, credentials: "include", headers });
     } catch (e) {
-      throw new FrappeError("Network error — is the backend reachable?", 0);
+      throw new FrappeError("Network error — is the backend reachable?", 0, true);
     }
 
     const text = await res.text();
@@ -149,7 +168,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) void maybeHandleAuthLoss();
-      throw new FrappeError(serverErrorMessage(json) || res.statusText, res.status);
+      // A message the backend wrote is worth showing; bare status text is not.
+      const serverMessage = serverErrorMessage(json);
+      throw new FrappeError(serverMessage || res.statusText, res.status, Boolean(serverMessage));
     }
     return json as T;
   } finally {

@@ -404,7 +404,7 @@ export const useStore = create<Store>()((set, get) => {
       // Authenticated, but with no app role they aren't a valid user of this tool —
       // reject rather than silently admitting them as a client (same guard restore uses).
       if (!ctx || ctx.user === "Guest" || !ctx.role) {
-        throw new Error("This account isn't set up for the support app — contact your administrator.");
+        throw new api.UserError("This account isn't set up for the support app — contact your administrator.");
       }
       api.setCsrfToken(ctx.csrf_token);
       const session = sessionFromCtx(ctx);
@@ -432,7 +432,7 @@ export const useStore = create<Store>()((set, get) => {
       await api.setPassword(key, newPassword);
       const ctx = await api.me();
       if (!ctx || ctx.user === "Guest" || !ctx.role) {
-        throw new Error("This account isn't set up for the support app — contact your administrator.");
+        throw new api.UserError("This account isn't set up for the support app — contact your administrator.");
       }
       api.setCsrfToken(ctx.csrf_token);
       const session = sessionFromCtx(ctx);
@@ -624,7 +624,7 @@ export const useStore = create<Store>()((set, get) => {
     // ---- team ----
     addMember: async (name, email, title, invite, group) => {
       if (get().members.some((m) => m.name.toLowerCase() === name.toLowerCase()))
-        throw new Error("A member with that name already exists.");
+        throw new api.UserError("A member with that name already exists.");
       await api.createDoc("Team Member", {
         member_name: name,
         email: email || null,
@@ -684,7 +684,7 @@ export const useStore = create<Store>()((set, get) => {
     // ---- groups ----
     addGroup: async (name) => {
       if (get().groups.some((g) => g.name.toLowerCase() === name.toLowerCase()))
-        throw new Error("A team with that name already exists.");
+        throw new api.UserError("A team with that name already exists.");
       await api.createDoc("Assignment Group", { group_name: name });
       await get().reloadMasters();
     },
@@ -700,7 +700,7 @@ export const useStore = create<Store>()((set, get) => {
     addGroupMember: async (group, member) => {
       const gdoc = await api.getDoc<{ members?: { member: string }[] }>("Assignment Group", group);
       if ((gdoc.members || []).some((m) => m.member === member))
-        throw new Error(`${member} is already in ${group}.`);
+        throw new api.UserError(`${member} is already in ${group}.`);
       await api.updateDoc("Assignment Group", group, { members: [...(gdoc.members || []), { member }] });
       await get().reloadMasters();
     },
@@ -779,7 +779,7 @@ export const useStore = create<Store>()((set, get) => {
     // (not reloadMasters) so tickets re-resolve their division name too.
     updateDivision: async (clientName, divName, patch) => {
       const dName = divDocname(clientName, divName);
-      if (!dName) throw new Error("Division not found.");
+      if (!dName) throw new api.UserError("Division not found.");
       await api.updateDoc("Division", dName, { division_name: patch.name.trim() });
       await get().reload();
     },
