@@ -196,10 +196,15 @@ export async function logout(): Promise<void> {
 export function isAccountDisabledError(err: unknown): boolean {
   return err instanceof FrappeError && /disabled/i.test(err.message);
 }
-/** Trigger Frappe's built-in password-reset email. Guest-callable; we never
- *  reveal whether the address exists (avoids user enumeration). */
+/** Trigger the password-reset email. Guest-callable; we never reveal whether the address
+ *  exists (avoids user enumeration).
+ *
+ *  Ours, not `frappe.core.doctype.user.user.reset_password` — that one builds its link with
+ *  get_url(), so the mail pointed at the BACKEND host's /update-password, i.e. the Frappe
+ *  desk. Portal clients have no business there, and it isn't our product. The app endpoint
+ *  retargets the same key at this app's /set-password, matching the invite mail. */
 export async function requestPasswordReset(user: string): Promise<void> {
-  await request("/method/frappe.core.doctype.user.user.reset_password", {
+  await request("/method/inventive_helpdesk_backend.api.request_password_reset", {
     method: "POST",
     body: JSON.stringify({ user }),
   });

@@ -58,9 +58,12 @@ const proxyRewrites = [
     source: "/api/frappe/method/frappe.auth.get_logged_user",
     destination: `${FRAPPE_URL}/api/method/frappe.auth.get_logged_user`,
   },
+  // Ours, not frappe.core…reset_password: that one mails a link built with get_url(),
+  // which points at the BACKEND host's /update-password — Frappe's desk, not this app.
+  // Same key, retargeted at our own /set-password below.
   {
-    source: "/api/frappe/method/frappe.core.doctype.user.user.reset_password",
-    destination: `${FRAPPE_URL}/api/method/frappe.core.doctype.user.user.reset_password`,
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.request_password_reset",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.request_password_reset`,
   },
   {
     source: "/api/frappe/method/frappe.core.doctype.user.user.update_password",
