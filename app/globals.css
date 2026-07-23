@@ -3370,11 +3370,13 @@ button.stat:not(:disabled):hover {
 .cc-body {
   padding: 16px 20px 18px;
 }
-/* auto-fill, not a fixed pair: division cards now carry more (several contacts, chips),
-   so they get a real minimum and reflow instead of being squeezed to two per row. */
+/* auto-FIT, not auto-fill: auto-fill keeps the empty tracks it created, so three cards in
+   a five-column row sit at minimum width with dead space to their right. auto-fit collapses
+   the unused tracks, and the 1fr max lets the cards that DO exist share the row equally —
+   they widen to fill and wrap only when they would drop below the 280px minimum. */
 .div-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
 }
 @media (max-width: 720px) {
@@ -3844,6 +3846,29 @@ button.stat:not(:disabled):hover {
 .field input::placeholder,
 .field textarea::placeholder {
   color: var(--muted);
+}
+/* An empty <input type="date"> paints the browser's own "dd/mm/yyyy" scaffold in full
+   text colour, so it reads as a value the user already chose rather than a prompt — and
+   next to a red "Required" it just looks broken. Date inputs take no `placeholder` and
+   ignore `::placeholder`, so TextField flags the empty state and we tone the scaffold
+   down to match every other placeholder. Once a date is picked the flag drops and the
+   value paints normally.
+   Chromium exposes the scaffold as ::-webkit-datetime-edit; Firefox has no equivalent
+   pseudo-element and simply keeps its own (already muted) rendering. */
+.field input[type="date"][data-empty="true"]::-webkit-datetime-edit {
+  color: var(--muted);
+}
+.field input[type="date"]:focus[data-empty="true"]::-webkit-datetime-edit {
+  color: var(--ink);
+}
+/* The picker icon sits at full contrast against a muted value; dim it to match, and
+   restore it on hover so it still reads as clickable. */
+.field input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+  cursor: pointer;
+}
+.field input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 .field textarea {
   min-height: 84px;
@@ -4542,4 +4567,37 @@ button.stat:not(:disabled):hover {
 }
 .checklist-empty {
   font-style: italic;
+}
+
+
+/* Division cards are clickable — the whole card opens that division's tickets. Interactive
+   children (edit/delete/invite/add-POC) stop propagation, so the card click never fires
+   behind them. Focusable and Enter/Space-activated, because a click target that only works
+   with a mouse is not a control. */
+.div-card {
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+.div-card:hover {
+  box-shadow: var(--shadow-1);
+  transform: translateY(-1px);
+}
+.div-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Nested controls keep their own cursor so the card's pointer doesn't imply they do the
+   same thing. */
+.div-card button,
+.div-card a,
+.div-card input,
+.div-card label {
+  cursor: auto;
+}
+.div-card button,
+.div-card a {
+  cursor: pointer;
 }

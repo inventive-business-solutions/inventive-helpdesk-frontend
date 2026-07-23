@@ -89,6 +89,11 @@ export function TextField({
         autoFocus={autoFocus}
         readOnly={readOnly}
         aria-invalid={error || undefined}
+        // An empty date input renders the browser's own "dd/mm/yyyy" scaffold in full
+        // text colour, so it reads as a filled value rather than a prompt. There is no
+        // `placeholder` for date inputs and `::placeholder` doesn't apply, so flag the
+        // empty state here and let CSS mute the scaffold to placeholder grey.
+        data-empty={type === "date" && !value ? "true" : undefined}
         style={uppercase ? { textTransform: "uppercase" } : undefined}
         onChange={(e) => onChange(e.target.value)}
       />

@@ -210,7 +210,24 @@ export function Clients() {
               {cl.divisions.length ? (
                 <div className="div-grid">
                   {cl.divisions.map((d) => (
-                    <div className="div-card" key={d.name}>
+                    <div
+                      className="div-card"
+                      key={d.name}
+                      role="button"
+                      tabIndex={0}
+                      title={`View ${d.name} tickets`}
+                      // The card opens its division's tickets. Nested controls call
+                      // stopPropagation, so this only fires on the card's own surface —
+                      // clicking Edit must not also navigate away from the dialog it opens.
+                      onClick={() => router.push(`/tickets?client=${enc(cl.name)}&div=${enc(d.name)}`)}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(`/tickets?client=${enc(cl.name)}&div=${enc(d.name)}`);
+                        }
+                      }}
+                    >
                       <div className="dv-head">
                         <span className="dv-name">{d.name}</span>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -221,14 +238,17 @@ export function Clients() {
                             size="sm"
                             icon={<Icon name="pencil" />}
                             label="Edit division"
-                            onClick={() => setDivEditTarget({ client: cl.name, division: d })}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDivEditTarget({ client: cl.name, division: d });
+                            }}
                           />
                           <IconButton
                             size="sm"
                             tone="danger"
                             icon={<Icon name="x" />}
                             label="Delete division"
-                            onClick={() => onDeleteDivision(cl.name, d.name)}
+                            onClick={(e) => { e.stopPropagation(); onDeleteDivision(cl.name, d.name); }}
                           />
                         </span>
                       </div>
@@ -276,16 +296,20 @@ export function Clients() {
                                   size="sm"
                                   icon={<Icon name="pencil" />}
                                   label="Edit POC"
-                                  onClick={() => setPocTarget({ client: cl.name, div: d.name, poc: p })}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPocTarget({ client: cl.name, div: d.name, poc: p });
+                                  }}
                                 />
                                 <IconButton
                                   size="sm"
                                   tone="danger"
                                   icon={<Icon name="x" />}
                                   label="Remove POC"
-                                  onClick={() =>
-                                    setConfirm({ kind: "poc", client: cl.name, div: d.name, poc: p })
-                                  }
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirm({ kind: "poc", client: cl.name, div: d.name, poc: p });
+                                  }}
                                 />
                               </div>
                             </div>
@@ -296,7 +320,10 @@ export function Clients() {
                       </div>
                       <button
                         className="add-poc"
-                        onClick={() => setPocTarget({ client: cl.name, div: d.name })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPocTarget({ client: cl.name, div: d.name });
+                        }}
                       >
                         <Icon name="plus" size={13} />
                         {d.pocs.length ? "Add another POC" : "Add POC"}

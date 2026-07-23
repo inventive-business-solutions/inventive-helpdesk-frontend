@@ -2,16 +2,19 @@
 import { useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Icon } from "../ui/Icon";
-import { TextField } from "../ui/Field";
+import { Field, TextField } from "../ui/Field";
+import { Select } from "../ui/Select";
 import { ModalFooter } from "../ui/ModalFooter";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
-import type { Client } from "../../types";
+import type { Client, ClientStatus } from "../../types";
+
+const STATUSES: ClientStatus[] = ["Onboarding", "Active", "On Hold", "Churned"];
 
 /** Edit a client's core identity: name (renames + cascades across its tickets,
- *  divisions and POCs), code, and start date. Product, divisions and POCs are
- *  managed from the client card itself. */
+ *  divisions and POCs), code, onboarding date and status. Products, divisions,
+ *  leads and POCs are managed from the client card itself. */
 export function EditClientModal({ client, onClose }: { client: Client; onClose: () => void }) {
   const clients = useStore((s) => s.clients);
   const updateClient = useStore((s) => s.updateClient);
@@ -21,6 +24,7 @@ export function EditClientModal({ client, onClose }: { client: Client; onClose: 
   const [name, setName] = useState(client.name);
   const [code, setCode] = useState(client.code);
   const [since, setSince] = useState(client.since ?? "");
+  const [status, setStatus] = useState<ClientStatus>(client.status);
   const [errs, setErrs] = useState<{ name?: boolean; code?: boolean; since?: boolean }>({});
 
   const submit = (e: React.FormEvent) => {
@@ -42,10 +46,19 @@ export function EditClientModal({ client, onClose }: { client: Client; onClose: 
       toast("Another client already uses that code");
       return;
     }
-    run(() => updateClient(client.name, { name: name.trim(), code: code.trim().toUpperCase(), since }), {
-      success: `${name.trim()} updated`,
-      onSuccess: onClose,
-    });
+    run(
+      () =>
+        updateClient(client.name, {
+          name: name.trim(),
+          code: code.trim().toUpperCase(),
+          since,
+          status,
+        }),
+      {
+        success: `${name.trim()} updated`,
+        onSuccess: onClose,
+      },
+    );
   };
 
   return (
@@ -82,7 +95,7 @@ export function EditClientModal({ client, onClose }: { client: Client; onClose: 
             }}
           />
           <TextField
-            label="Start date"
+            label="Onboarding date"
             required
             type="date"
             value={since}
@@ -93,6 +106,19 @@ export function EditClientModal({ client, onClose }: { client: Client; onClose: 
             }}
           />
         </div>
+        <Field label="Status">
+          {(id) => (
+            <Select
+              id={id}
+              block
+              label="Select status"
+              ariaLabel="Client status"
+              value={status}
+              options={STATUSES.map((s) => ({ value: s, label: s }))}
+              onChange={(v) => setStatus(v as ClientStatus)}
+            />
+          )}
+        </Field>
         <div className="auth-note">
           <Icon name="info" size={14} />
           <div>
