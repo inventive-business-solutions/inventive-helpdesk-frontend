@@ -1,12 +1,25 @@
-"""Find rules that outrank my checklist rules on the same property.
+"""Find rules that outrank a given set of class rules on the same property.
 
 The bug twice over: `.field input {width:100%}` and `.field label {display:block}` both
-outrank a single class selector, so my declarations silently lost. This checks the whole
-sheet rather than trusting my reading of it.
-"""
-import re
+outrank a single class selector, so those declarations silently lost. This checks the whole
+sheet rather than trusting a reading of it.
 
-CSS = open("/home/abhinban/Projects/Inventive-Helpdesk/Frontend/app/globals.css").read()
+Run it with `npm run audit:css`, or `python3 scripts/css-specificity-audit.py`.
+
+**A diagnostic, not a test.** It deliberately lives outside `tests/` because nothing runs
+it automatically and it is not coverage. TARGETS below is scoped to the change that
+prompted it (the checklist / division picker and the client-card sections) — point it at
+whatever you are working on rather than expecting it to be current. Exits 1 when it finds
+a clash, so it can gate a command if you ever want it to.
+"""
+import pathlib
+import re
+import sys
+
+# Relative to this file, so it runs from any checkout and any working directory — it used
+# to hardcode one machine's absolute path, which meant it ran nowhere else.
+CSS_PATH = pathlib.Path(__file__).resolve().parent.parent / "app" / "globals.css"
+CSS = CSS_PATH.read_text()
 CSS = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
 
 # The elements my component actually renders, as (class, html-tag).
@@ -75,7 +88,7 @@ for i, (sels, body) in enumerate(rules):
             entry = (i, sel, specificity(sel), props, cls)
             (mine if cls in sel else theirs).append(entry)
 
-print("Rules that could outrank one of the new declarations:\n")
+print(f"Auditing {CSS_PATH.name} — rules that could outrank one of the target declarations:\n")
 found = False
 for i, sel, spec, props, cls in mine:
     for j, osel, ospec, oprops, ocls in theirs:
@@ -90,4 +103,8 @@ for i, sel, spec, props, cls in mine:
                 print(f"  .{cls}: `{prop}` — `{osel}` {ospec} beats `{sel}` {spec}")
                 print(f"      theirs: {oprops[prop].strip()}   mine: {props[prop].strip()}")
 if not found:
-    print("  none — every checklist declaration wins on its own element.")
+    print("  none — every target declaration wins on its own element.")
+
+# Exit non-zero on a finding. It always exited 0 before, so it could report a clash and
+# still look like a pass to anything calling it.
+sys.exit(1 if found else 0)

@@ -11,7 +11,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit:css": "python3 scripts/css-specificity-audit.py"
   },
   "dependencies": {
     "next": "^16.2.10",
