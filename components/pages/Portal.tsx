@@ -79,7 +79,9 @@ export function Portal() {
   const myProducts = [
     ...new Set(
       (myClient?.products ?? [])
-        .filter((p) => p.divisions.length === 0 || p.divisions.some((d) => (session.divisions ?? []).includes(d)))
+        .filter(
+          (p) => p.divisions.length === 0 || p.divisions.some((d) => (session.divisions ?? []).includes(d)),
+        )
         .map((p) => p.product),
     ),
   ];

@@ -85,9 +85,7 @@ export function AddClientModal({ onClose }: { onClose: () => void }) {
       title="Onboard client"
       onClose={onClose}
       onSubmit={submit}
-      footer={
-        <ModalFooter submitLabel="Onboard client" busyLabel="Saving…" busy={busy} onCancel={onClose} />
-      }
+      footer={<ModalFooter submitLabel="Onboard client" busyLabel="Saving…" busy={busy} onCancel={onClose} />}
     >
       <div className="modal-body">
         <TextField
@@ -183,9 +181,9 @@ export function AddClientModal({ onClose }: { onClose: () => void }) {
         <div className="auth-note">
           <Icon name="info" size={14} />
           <div>
-            Only the client name and onboarding date are required. Add divisions and products from the
-            client card once it exists — many clients have none at first. Leads added here can sign in,
-            but see no tickets until you give them a division, which you do when adding one.
+            Only the client name and onboarding date are required. Add divisions and products from the client
+            card once it exists — many clients have none at first. Leads added here can sign in, but see no
+            tickets until you give them a division, which you do when adding one.
           </div>
         </div>
       </div>

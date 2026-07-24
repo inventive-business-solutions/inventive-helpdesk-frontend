@@ -106,13 +106,7 @@ export function AddPocModal({
             placeholder="name@company.com"
             onChange={setEmail}
           />
-          <TextField
-            label="Phone"
-            optional
-            value={phone}
-            placeholder="+91 98765 43210"
-            onChange={setPhone}
-          />
+          <TextField label="Phone" optional value={phone} placeholder="+91 98765 43210" onChange={setPhone} />
         </div>
         {editing ? (
           <CheckList

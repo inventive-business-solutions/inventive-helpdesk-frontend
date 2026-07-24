@@ -248,7 +248,10 @@ export function Clients() {
                             tone="danger"
                             icon={<Icon name="x" />}
                             label="Delete division"
-                            onClick={(e) => { e.stopPropagation(); onDeleteDivision(cl.name, d.name); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteDivision(cl.name, d.name);
+                            }}
                           />
                         </span>
                       </div>

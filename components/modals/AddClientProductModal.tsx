@@ -128,13 +128,7 @@ export function AddClientProductModal({
           }}
         />
         <div className="field-2">
-          <TextField
-            label="Dev start date"
-            optional
-            type="date"
-            value={devStart}
-            onChange={setDevStart}
-          />
+          <TextField label="Dev start date" optional type="date" value={devStart} onChange={setDevStart} />
           <TextField
             label="Expected completion"
             optional
@@ -162,8 +156,8 @@ export function AddClientProductModal({
           <div className="auth-note">
             <Icon name="info" size={14} />
             <div>
-              {clientName} has no divisions yet, so this product will be attached to the client itself.
-              Add divisions from the client card and you can scope it to them afterwards.
+              {clientName} has no divisions yet, so this product will be attached to the client itself. Add
+              divisions from the client card and you can scope it to them afterwards.
             </div>
           </div>
         )}

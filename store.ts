@@ -209,9 +209,7 @@ const TICKET_LIST_FIELDS = [
 
 /** Client (portal) sessions fetch only their own scope; admins pass nothing (see all). */
 const scopeFor = (session: Session | null) =>
-  session?.role === "client"
-    ? { client: session.client, divisions: session.divisions ?? [] }
-    : undefined;
+  session?.role === "client" ? { client: session.client, divisions: session.divisions ?? [] } : undefined;
 
 /** Load the (scoped) tickets in a single list call. Kept separate so
  *  master-data edits don't refetch the whole ticket set. */
@@ -482,7 +480,9 @@ export const useStore = create<Store>()((set, get) => {
       // Authenticated, but with no app role they aren't a valid user of this tool —
       // reject rather than silently admitting them as a client (same guard restore uses).
       if (!ctx || ctx.user === "Guest" || !ctx.role) {
-        throw new api.UserError("This account isn't set up for the support app — contact your administrator.");
+        throw new api.UserError(
+          "This account isn't set up for the support app — contact your administrator.",
+        );
       }
       api.setCsrfToken(ctx.csrf_token);
       const session = sessionFromCtx(ctx);
@@ -510,7 +510,9 @@ export const useStore = create<Store>()((set, get) => {
       await api.setPassword(key, newPassword);
       const ctx = await api.me();
       if (!ctx || ctx.user === "Guest" || !ctx.role) {
-        throw new api.UserError("This account isn't set up for the support app — contact your administrator.");
+        throw new api.UserError(
+          "This account isn't set up for the support app — contact your administrator.",
+        );
       }
       api.setCsrfToken(ctx.csrf_token);
       const session = sessionFromCtx(ctx);

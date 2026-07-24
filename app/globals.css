@@ -4375,7 +4375,6 @@ button.stat:not(:disabled):hover {
   }
 }
 
-
 /* ---- client card sections: products, leads, division chips -----------------
    Everything here is sized to survive real data: a product name longer than its
    column, a lead on a dozen divisions, a client with none. Nothing may widen the
@@ -4688,7 +4687,6 @@ button.stat:not(:disabled):hover {
 .checklist-empty {
   font-style: italic;
 }
-
 
 /* Division cards are clickable — the whole card opens that division's tickets. Interactive
    children (edit/delete/invite/add-POC) stop propagation, so the card click never fires
