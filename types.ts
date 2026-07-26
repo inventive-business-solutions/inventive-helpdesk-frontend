@@ -80,9 +80,9 @@ export interface Client {
   status: ClientStatus;
   /** Date Inventive onboarded this client. */
   since?: string;
-  /** Legacy single product. Superseded by `products`; still read while the backend
-   *  keeps the column populated for rollback. */
-  product?: string;
+  /** The products this client runs, as engagements — each with its own dates and the
+   *  divisions it covers. This is the ONLY product relationship; the backend still has a
+   *  legacy `Client.product` column, populated for rollback and read by nothing. */
   products: ClientProduct[];
   /** Leads: client-level contacts, not attached to any one division. */
   leads: Poc[];
@@ -134,6 +134,9 @@ export interface Ticket {
   title: string;
   client: string;
   div: string;
+  /** The product this ticket is about. Exactly one, or none for an emailed-in ticket
+   *  nobody has tagged yet. Single value by design — see Support Ticket.product. */
+  product?: string;
   raisedBy: string;
   assignee: string;
   /** Assignment group (e.g. "IT Team") the ticket is routed to. */
@@ -151,6 +154,9 @@ export interface Ticket {
   updated?: string;
   /** Raw ISO last-updated timestamp. */
   updatedISO?: string;
+  /** Compact relative recency ("2h", "3d") for the list. Computed when the ticket is
+   *  mapped, not when it is rendered — see relativeAge. */
+  updatedAgo?: string;
   due: string;
   age: string;
   slaRisk: boolean;
@@ -203,6 +209,8 @@ export interface RaiseTicketInput {
   desc: string;
   client: string;
   div: string;
+  /** Chosen from the products running at `div`; omitted when that division runs none. */
+  product?: string;
   raisedBy: string;
   files: File[];
 }

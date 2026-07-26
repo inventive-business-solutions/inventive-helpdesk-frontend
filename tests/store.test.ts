@@ -186,7 +186,9 @@ describe("fmtDay (via toTicket) — date-only values never go through `new Date(
 });
 
 describe("assembleClients", () => {
-  const clients: RawClient[] = [{ name: "Thermax", client_code: "THX", product: "EniMAX" }];
+  // No `product`: the legacy single-product column is neither fetched nor assembled any
+  // more — a client's products are its Client Product engagements.
+  const clients: RawClient[] = [{ name: "Thermax", client_code: "THX" }];
   const divisions: RawDivision[] = [
     { name: "Thermax-HTG", division_name: "Heating", division_code: "HTG", client: "Thermax" },
     { name: "Thermax-BOI", division_name: "Boiler", division_code: "BOI", client: "Thermax" },
@@ -367,6 +369,7 @@ describe("mergeTicketDraft — a background refresh must not discard staged edit
     assignee: "Arjun",
     priority: "Medium",
     status: "New",
+    product: "SmartFlow",
     collaborators: [],
   };
 
@@ -377,6 +380,21 @@ describe("mergeTicketDraft — a background refresh must not discard staged edit
     const merged = mergeTicketDraft(staged, base, server);
     expect(merged.assignee).toBe("Neha");
     expect(merged.priority).toBe("Critical");
+  });
+
+  it("keeps a product staged at triage while the server moves other fields", () => {
+    // Tagging an emailed-in ticket is a triage edit staged like the rest, so it has to
+    // survive a poll landing mid-edit exactly as assignee does.
+    const staged = { ...base, product: "Analytics Hub" };
+    const server = { ...base, status: "In Progress" as const };
+    const merged = mergeTicketDraft(staged, base, server);
+    expect(merged.product).toBe("Analytics Hub");
+    expect(merged.status).toBe("In Progress");
+  });
+
+  it("takes a product set on the server when the user never touched it", () => {
+    const server = { ...base, product: "Analytics Hub" };
+    expect(mergeTicketDraft(base, base, server).product).toBe("Analytics Hub");
   });
 
   it("takes the server value for fields the user never touched", () => {

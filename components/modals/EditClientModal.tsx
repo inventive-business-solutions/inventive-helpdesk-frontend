@@ -5,6 +5,7 @@ import { Icon } from "../ui/Icon";
 import { Field, TextField } from "../ui/Field";
 import { Select } from "../ui/Select";
 import { ModalFooter } from "../ui/ModalFooter";
+import { Button } from "../ui/Button";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
@@ -15,7 +16,17 @@ const STATUSES: ClientStatus[] = ["Onboarding", "Active", "On Hold", "Churned"];
 /** Edit a client's core identity: name (renames + cascades across its tickets,
  *  divisions and POCs), code, onboarding date and status. Products, divisions,
  *  leads and POCs are managed from the client card itself. */
-export function EditClientModal({ client, onClose }: { client: Client; onClose: () => void }) {
+export function EditClientModal({
+  client,
+  onClose,
+  onDelete,
+}: {
+  client: Client;
+  onClose: () => void;
+  /** Rendered as Delete in the footer. This is the manage view for a client, so removing
+   *  one happens here — while looking at the record — rather than from a bare ✕ in a row. */
+  onDelete?: () => void;
+}) {
   const clients = useStore((s) => s.clients);
   const updateClient = useStore((s) => s.updateClient);
   const toast = useToast();
@@ -26,6 +37,13 @@ export function EditClientModal({ client, onClose }: { client: Client; onClose: 
   const [since, setSince] = useState(client.since ?? "");
   const [status, setStatus] = useState<ClientStatus>(client.status);
   const [errs, setErrs] = useState<{ name?: boolean; code?: boolean; since?: boolean }>({});
+  // "Save changes" stays inert until there are changes — otherwise the primary button
+  // invites a write that would do nothing.
+  const dirty =
+    name !== client.name ||
+    code !== client.code ||
+    since !== (client.since ?? "") ||
+    status !== client.status;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +84,22 @@ export function EditClientModal({ client, onClose }: { client: Client; onClose: 
       title={`Edit ${client.name}`}
       onClose={onClose}
       onSubmit={submit}
-      footer={<ModalFooter submitLabel="Save changes" busyLabel="Saving…" busy={busy} onCancel={onClose} />}
+      footer={
+        <ModalFooter
+          submitLabel="Save changes"
+          busyLabel="Saving…"
+          busy={busy}
+          submitDisabled={!dirty}
+          onCancel={onClose}
+          left={
+            onDelete ? (
+              <Button variant="ghost" danger onClick={onDelete} disabled={busy}>
+                Delete client
+              </Button>
+            ) : undefined
+          }
+        />
+      }
     >
       <div className="modal-body">
         <TextField

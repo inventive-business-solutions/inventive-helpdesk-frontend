@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { IconButton } from "@/components/ui/IconButton";
+import { ManageButton } from "@/components/ui/ManageButton";
 import { StatTile } from "@/components/ui/StatTile";
 import { Badge, type BadgeTone } from "@/components/ui/Chips";
 import { AddClientModal } from "@/components/modals/AddClientModal";
@@ -17,7 +17,7 @@ import { EditClientModal } from "@/components/modals/EditClientModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { useSubmit } from "@/components/ui/useSubmit";
-import { RESOLVED, enc, fmtDate, initials, isActive } from "@/lib/helpers";
+import { RESOLVED, clientContacts, enc, fmtDate, initials, isActive } from "@/lib/helpers";
 import type { Client, ClientProduct, Division, Poc } from "@/types";
 
 const PALETTE = ["var(--cat-1)", "var(--cat-2)", "var(--cat-4)", "var(--cat-3)", "var(--accent)"];
@@ -52,6 +52,10 @@ export function Clients() {
   const [showAddClient, setShowAddClient] = useState(false);
   const [pocTarget, setPocTarget] = useState<{ client: string; div: string; poc?: Poc } | null>(null);
   const [divTarget, setDivTarget] = useState<string | null>(null);
+  // Which division rows are expanded, keyed "client|division". Division names are only
+  // unique within a client, so the client has to be part of the key or expanding Boiler at
+  // one client would expand it at every other.
+  const [expandedDivs, setExpandedDivs] = useState<Set<string>>(new Set());
   const [divEditTarget, setDivEditTarget] = useState<{ client: string; division: Division } | null>(null);
   const [productTarget, setProductTarget] = useState<{ client: string; product?: ClientProduct } | null>(
     null,
@@ -119,7 +123,9 @@ export function Clients() {
         const color = PALETTE[i % PALETTE.length];
         const open = tickets.filter((t) => t.client === cl.name && isActive(t.status)).length;
         const resolved = tickets.filter((t) => t.client === cl.name && RESOLVED.includes(t.status)).length;
-        const pocCount = cl.divisions.reduce((n, d) => n + d.pocs.length, 0);
+        // Distinct people. Summing divisions[].pocs counted a multi-division Lead once
+        // per division and missed one holding none — see clientContacts.
+        const pocCount = clientContacts(cl).length;
         const metrics = [
           { v: cl.divisions.length, l: "Divisions" },
           { v: pocCount, l: "POCs" },
@@ -147,27 +153,11 @@ export function Clients() {
               <div className="cc-actions">
                 {/* Products moved into their own section below — a client can run several,
                     each with its own dates, which no longer fits a single header chip. */}
+                {/* "+ Division" lives with the Divisions section now, next to "+ Product"
+                    with its own list — one Add button per thing you can add, where that
+                    thing is. The header keeps only client-level actions. */}
                 <Badge tone={STATUS_TONE[cl.status] ?? "neutral"}>{cl.status}</Badge>
-                <Button
-                  variant="ghost"
-                  icon={<Icon name="plus" size={14} />}
-                  onClick={() => setDivTarget(cl.name)}
-                >
-                  Division
-                </Button>
-                <IconButton
-                  size="sm"
-                  icon={<Icon name="pencil" />}
-                  label="Edit client"
-                  onClick={() => setEditClient(cl)}
-                />
-                <IconButton
-                  size="sm"
-                  tone="danger"
-                  icon={<Icon name="x" />}
-                  label="Delete client"
-                  onClick={() => onDeleteClient(cl.name)}
-                />
+                <ManageButton subject={cl.name} onClick={() => setEditClient(cl)} />
               </div>
             </div>
 
@@ -197,9 +187,16 @@ export function Clients() {
             <div className="cc-body">
               <ClientProducts
                 client={cl}
+                openCount={(product) =>
+                  tickets.filter((t) => t.client === cl.name && t.product === product && isActive(t.status))
+                    .length
+                }
                 onAdd={() => setProductTarget({ client: cl.name })}
                 onEdit={(p) => setProductTarget({ client: cl.name, product: p })}
                 onRemove={(p) => setConfirm({ kind: "product", client: cl.name, product: p })}
+                onShowTickets={(p) =>
+                  router.push(`/tickets?client=${enc(cl.name)}&product=${enc(p.product)}`)
+                }
               />
               <ClientLeads
                 client={cl}
@@ -207,138 +204,143 @@ export function Clients() {
                 onRemove={(p) => setConfirm({ kind: "lead", client: cl.name, poc: p })}
                 onInvite={onInvite}
               />
-              {cl.divisions.length ? (
-                <div className="div-grid">
-                  {cl.divisions.map((d) => (
-                    <div
-                      className="div-card"
-                      key={d.name}
-                      role="button"
-                      tabIndex={0}
-                      title={`View ${d.name} tickets`}
-                      // The card opens its division's tickets. Nested controls call
-                      // stopPropagation, so this only fires on the card's own surface —
-                      // clicking Edit must not also navigate away from the dialog it opens.
-                      onClick={() => router.push(`/tickets?client=${enc(cl.name)}&div=${enc(d.name)}`)}
-                      onKeyDown={(e) => {
-                        if (e.target !== e.currentTarget) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          router.push(`/tickets?client=${enc(cl.name)}&div=${enc(d.name)}`);
-                        }
-                      }}
-                    >
-                      <div className="dv-head">
-                        <span className="dv-name">{d.name}</span>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <Badge className="mono">
-                            {cl.code}-{d.code}
-                          </Badge>
-                          <IconButton
-                            size="sm"
-                            icon={<Icon name="pencil" />}
-                            label="Edit division"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDivEditTarget({ client: cl.name, division: d });
-                            }}
+              <section className="cc-section">
+                <div className="cc-section-head">
+                  <span className="eyebrow">Divisions</span>
+                  <Button
+                    variant="ghost"
+                    icon={<Icon name="plus" size={13} />}
+                    onClick={() => setDivTarget(cl.name)}
+                  >
+                    Division
+                  </Button>
+                </div>
+                {cl.divisions.length ? (
+                  <div className="row-list">
+                    {cl.divisions.map((d) => {
+                      const key = `${cl.name}|${d.name}`;
+                      const expanded = expandedDivs.has(key);
+                      const divOpen = tickets.filter(
+                        (t) => t.client === cl.name && t.div === d.name && isActive(t.status),
+                      ).length;
+                      return (
+                        <div className="row-item div-row" key={d.name} data-open={expanded || undefined}>
+                          <div className="cell-id">
+                            {/* The name opens this division's tickets; POCs live behind
+                                "Show details" so the list stays one line per division. */}
+                            <button
+                              className="dv-open"
+                              title={`View ${d.name} tickets`}
+                              onClick={() =>
+                                router.push(`/tickets?client=${enc(cl.name)}&div=${enc(d.name)}`)
+                              }
+                            >
+                              <span className="dv-name">{d.name}</span>
+                            </button>
+                          </div>
+                          <div className="cell-tag">
+                            <Badge className="mono">
+                              {cl.code}-{d.code}
+                            </Badge>
+                          </div>
+                          <div className="cell-count">
+                            <Badge count tone={divOpen ? "accent" : "neutral"} title={`${divOpen} open`}>
+                              {divOpen || "—"}
+                            </Badge>
+                          </div>
+                          <button
+                            className="row-link cell-link"
+                            aria-expanded={expanded}
+                            onClick={() =>
+                              setExpandedDivs((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(key)) next.delete(key);
+                                else next.add(key);
+                                return next;
+                              })
+                            }
+                          >
+                            {expanded ? "Hide details" : "Show details"}
+                            {/* One icon, rotated when open — there is no chevronUp, and a
+                                rotation animates where an icon swap would jump. */}
+                            <Icon name="chevronDown" size={12} />
+                          </button>
+                          <ManageButton
+                            subject={d.name}
+                            onClick={() => setDivEditTarget({ client: cl.name, division: d })}
                           />
-                          <IconButton
-                            size="sm"
-                            tone="danger"
-                            icon={<Icon name="x" />}
-                            label="Delete division"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteDivision(cl.name, d.name);
-                            }}
-                          />
-                        </span>
-                      </div>
-                      <div className="poc-list">
-                        {d.pocs.length ? (
-                          d.pocs.map((p, idx) => (
-                            <div className="poc-row" key={p.id ?? `${p.email}-${idx}`}>
-                              <span className="poc-av">{initials(p.name)}</span>
-                              <div className="poc-id">
-                                <div className="poc-name">
-                                  <span className="poc-name-text">{p.name}</span>
-                                  {p.isLead && (
-                                    <Badge sm tone="accent">
-                                      Lead
-                                    </Badge>
-                                  )}
-                                  {p.portal === "active" && (
-                                    <Badge sm tone="good">
-                                      Active
-                                    </Badge>
-                                  )}
-                                  {p.portal === "invited" && (
-                                    <Badge sm tone="warning">
-                                      Invited
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="poc-email">{p.email}</div>
-                              </div>
-                              <div className="poc-actions">
-                                {p.portal !== "active" && p.id && (
-                                  <button
-                                    className="poc-invite"
-                                    title={
-                                      p.portal === "invited"
-                                        ? "Resend the portal sign-in email"
-                                        : "Create a portal login and email a sign-in link"
-                                    }
-                                    onClick={() => onInvite(p)}
-                                  >
-                                    {p.portal === "invited" ? "Resend" : "Invite"}
-                                  </button>
-                                )}
-                                <IconButton
-                                  size="sm"
-                                  icon={<Icon name="pencil" />}
-                                  label="Edit POC"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPocTarget({ client: cl.name, div: d.name, poc: p });
-                                  }}
-                                />
-                                <IconButton
-                                  size="sm"
-                                  tone="danger"
-                                  icon={<Icon name="x" />}
-                                  label="Remove POC"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setConfirm({ kind: "poc", client: cl.name, div: d.name, poc: p });
-                                  }}
-                                />
-                              </div>
+                          {expanded && (
+                            <div className="poc-list">
+                              {d.pocs.length ? (
+                                d.pocs.map((p, idx) => (
+                                  <div className="poc-row" key={p.id ?? `${p.email}-${idx}`}>
+                                    <span className="poc-av">{initials(p.name)}</span>
+                                    <div className="poc-id">
+                                      <div className="poc-name">
+                                        <span className="poc-name-text">{p.name}</span>
+                                        {p.isLead && (
+                                          <Badge sm tone="accent">
+                                            Lead
+                                          </Badge>
+                                        )}
+                                        {p.portal === "active" && (
+                                          <Badge sm tone="good">
+                                            Active
+                                          </Badge>
+                                        )}
+                                        {p.portal === "invited" && (
+                                          <Badge sm tone="warning">
+                                            Invited
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="poc-email">{p.email}</div>
+                                    </div>
+                                    <div className="poc-actions">
+                                      {p.portal !== "active" && p.id && (
+                                        <button
+                                          className="poc-invite"
+                                          title={
+                                            p.portal === "invited"
+                                              ? "Resend the portal sign-in email"
+                                              : "Create a portal login and email a sign-in link"
+                                          }
+                                          onClick={() => onInvite(p)}
+                                        >
+                                          {p.portal === "invited" ? "Resend" : "Invite"}
+                                        </button>
+                                      )}
+                                      <ManageButton
+                                        subject={p.name}
+                                        onClick={() => setPocTarget({ client: cl.name, div: d.name, poc: p })}
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="poc-empty">No POC yet — add one below.</div>
+                              )}
                             </div>
-                          ))
-                        ) : (
-                          <div className="poc-empty">No POC yet — add one below.</div>
-                        )}
-                      </div>
-                      <button
-                        className="add-poc"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPocTarget({ client: cl.name, div: d.name });
-                        }}
-                      >
-                        <Icon name="plus" size={13} />
-                        {d.pocs.length ? "Add another POC" : "Add POC"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="div-empty">
-                  No divisions yet — use <b>+ Division</b> above to add one.
-                </div>
-              )}
+                          )}
+                          {expanded && (
+                            <button
+                              className="add-poc"
+                              onClick={() => setPocTarget({ client: cl.name, div: d.name })}
+                            >
+                              <Icon name="plus" size={13} />
+                              {d.pocs.length ? "Add another POC" : "Add POC"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="div-empty">
+                    No divisions yet — use <b>+ Division</b> to add one.
+                  </div>
+                )}
+              </section>
             </div>
           </div>
         );
@@ -351,6 +353,15 @@ export function Clients() {
           divName={pocTarget.div}
           poc={pocTarget.poc}
           onClose={() => setPocTarget(null)}
+          onDelete={
+            pocTarget.poc
+              ? () => {
+                  const { client, div, poc } = pocTarget;
+                  setPocTarget(null);
+                  if (poc) setConfirm({ kind: "poc", client, div, poc });
+                }
+              : undefined
+          }
         />
       )}
       {leadTarget && (
@@ -359,6 +370,11 @@ export function Clients() {
           divName=""
           poc={leadTarget.poc}
           onClose={() => setLeadTarget(null)}
+          onDelete={() => {
+            const { client, poc } = leadTarget;
+            setLeadTarget(null);
+            setConfirm({ kind: "lead", client, poc });
+          }}
         />
       )}
       {divTarget && <AddDivisionModal clientName={divTarget} onClose={() => setDivTarget(null)} />}
@@ -367,6 +383,12 @@ export function Clients() {
           clientName={divEditTarget.client}
           division={divEditTarget.division}
           onClose={() => setDivEditTarget(null)}
+          onDelete={() => {
+            const { client, division } = divEditTarget;
+            setDivEditTarget(null);
+            // Keeps the guard: a division holding tickets is refused with a toast.
+            onDeleteDivision(client, division.name);
+          }}
         />
       )}
       {productTarget && (
@@ -374,9 +396,30 @@ export function Clients() {
           clientName={productTarget.client}
           existing={productTarget.product}
           onClose={() => setProductTarget(null)}
+          onDelete={
+            productTarget.product
+              ? () => {
+                  const { client, product } = productTarget;
+                  setProductTarget(null);
+                  if (product) setConfirm({ kind: "product", client, product });
+                }
+              : undefined
+          }
         />
       )}
-      {editClient && <EditClientModal client={editClient} onClose={() => setEditClient(null)} />}
+      {editClient && (
+        <EditClientModal
+          client={editClient}
+          onClose={() => setEditClient(null)}
+          onDelete={() => {
+            const target = editClient.name;
+            setEditClient(null);
+            // Keeps the existing guard: a client with tickets is refused with a toast
+            // rather than opening a confirm that cannot succeed.
+            onDeleteClient(target);
+          }}
+        />
+      )}
       {confirm?.kind === "client" && (
         <ConfirmDialog
           title="Delete client"

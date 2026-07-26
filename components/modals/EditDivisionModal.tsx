@@ -4,6 +4,7 @@ import { Modal } from "../ui/Modal";
 import { Icon } from "../ui/Icon";
 import { TextField } from "../ui/Field";
 import { ModalFooter } from "../ui/ModalFooter";
+import { Button } from "../ui/Button";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
@@ -15,10 +16,14 @@ export function EditDivisionModal({
   clientName,
   division,
   onClose,
+  onDelete,
 }: {
   clientName: string;
   division: Division;
   onClose: () => void;
+  /** Rendered as Delete in the footer. This is the manage view, so removing happens here
+   *  — while looking at the record — rather than from a bare ✕ in a row. */
+  onDelete?: () => void;
 }) {
   const clients = useStore((s) => s.clients);
   const updateDivision = useStore((s) => s.updateDivision);
@@ -26,6 +31,7 @@ export function EditDivisionModal({
   const { busy, run } = useSubmit();
   const [name, setName] = useState(division.name);
   const [err, setErr] = useState(false);
+  const dirty = name.trim() !== division.name;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +63,22 @@ export function EditDivisionModal({
       title={`Edit division — ${clientName}`}
       onClose={onClose}
       onSubmit={submit}
-      footer={<ModalFooter submitLabel="Save changes" busyLabel="Saving…" busy={busy} onCancel={onClose} />}
+      footer={
+        <ModalFooter
+          submitLabel="Save changes"
+          busyLabel="Saving…"
+          busy={busy}
+          submitDisabled={!dirty}
+          onCancel={onClose}
+          left={
+            onDelete ? (
+              <Button variant="ghost" danger onClick={onDelete} disabled={busy}>
+                Delete division
+              </Button>
+            ) : undefined
+          }
+        />
+      }
     >
       <div className="modal-body">
         <TextField

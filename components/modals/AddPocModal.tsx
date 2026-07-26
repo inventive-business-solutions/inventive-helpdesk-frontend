@@ -4,6 +4,7 @@ import { Modal } from "../ui/Modal";
 import { TextField, CheckboxField } from "../ui/Field";
 import { CheckList } from "../ui/CheckList";
 import { ModalFooter } from "../ui/ModalFooter";
+import { Button } from "../ui/Button";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
@@ -15,12 +16,16 @@ export function AddPocModal({
   divName,
   poc,
   onClose,
+  onDelete,
 }: {
   clientName: string;
   divName: string;
   /** When provided (with an id), the modal edits this POC instead of adding one. */
   poc?: Poc;
   onClose: () => void;
+  /** Rendered as Remove in the footer when editing. This is the manage view for a
+   *  contact, so removing one happens here rather than from a bare ✕ in a row. */
+  onDelete?: () => void;
 }) {
   const addPoc = useStore((s) => s.addPoc);
   const updatePoc = useStore((s) => s.updatePoc);
@@ -84,6 +89,13 @@ export function AddPocModal({
           busyLabel="Saving…"
           busy={busy}
           onCancel={onClose}
+          left={
+            onDelete ? (
+              <Button variant="ghost" danger onClick={onDelete} disabled={busy}>
+                Remove contact
+              </Button>
+            ) : undefined
+          }
         />
       }
     >

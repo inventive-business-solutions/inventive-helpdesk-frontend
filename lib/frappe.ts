@@ -23,7 +23,7 @@ import type {
   TicketType,
   WorkNote,
 } from "../types";
-import { fmtDateTime } from "./helpers";
+import { fmtDateTime, relativeAge } from "./helpers";
 
 const BASE = "/api/frappe";
 
@@ -354,7 +354,6 @@ export function updateClient(
     client_code?: string;
     since?: string;
     status?: ClientStatus;
-    product?: string;
   },
 ) {
   return call<string>("inventive_helpdesk_backend.api.update_client", { name, ...patch });
@@ -516,6 +515,7 @@ export interface RawTicket {
   status: Status;
   client?: string;
   division?: string;
+  product?: string;
   raised_by?: string;
   assignee?: string;
   assignment_group?: string;
@@ -620,6 +620,9 @@ export function toTicket(r: RawTicket, divName: (docname?: string) => string): T
     title: r.title,
     client: r.client || "—",
     div: r.division ? divName(r.division) : "—",
+    // Left undefined rather than the em-dash placeholder: this one IS read as data (the
+    // Product filter tests it), so a display string here would become a phantom product.
+    product: r.product || undefined,
     raisedBy: r.raised_by || "—",
     assignee: r.assignee || "Unassigned",
     group: r.assignment_group || undefined,
@@ -636,6 +639,7 @@ export function toTicket(r: RawTicket, divName: (docname?: string) => string): T
     createdISO: r.creation,
     updated: fmtStamp(r.modified),
     updatedISO: r.modified,
+    updatedAgo: relativeAge(r.modified),
     due: fmtDay(r.due_date),
     age: ageFrom(r.creation),
     slaRisk: !!r.sla_risk,
@@ -675,7 +679,6 @@ export interface RawClient {
   client_code: string;
   status?: ClientStatus;
   since?: string;
-  product?: string;
 }
 export interface RawClientProduct {
   name: string;
@@ -781,7 +784,6 @@ export function assembleClients(
       code: c.client_code,
       status: c.status ?? "Active",
       since: c.since,
-      product: c.product || undefined,
       products: clientProducts
         .filter((cp) => cp.client === c.name)
         .map<ClientProduct>((cp) => ({

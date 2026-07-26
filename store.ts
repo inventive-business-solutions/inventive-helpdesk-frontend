@@ -51,7 +51,9 @@ const resolver = (divIndex: DivRef[]) => (docname?: string) =>
 async function fetchMasters(role: Role) {
   const [rawClients, rawDivs] = await Promise.all([
     api.getList<api.RawClient>("Client", {
-      fields: ["name", "client_code", "status", "since", "product"],
+      // No `product`: the legacy single-product column is no longer read anywhere. A
+      // client's products come from the Client Product engagements fetched below.
+      fields: ["name", "client_code", "status", "since"],
       limit: 0,
     }),
     api.getList<api.RawDivision>("Division", {
@@ -191,6 +193,7 @@ const TICKET_LIST_FIELDS = [
   "status",
   "client",
   "division",
+  "product",
   "raised_by",
   "assignee",
   "assignment_group",
@@ -278,6 +281,9 @@ export interface TicketDraft {
   assignee: string;
   priority: Priority;
   status: Status;
+  /** "" = not classified. Staged like the rest so tagging an emailed-in ticket at triage
+   *  saves with the other edits rather than on every keystroke of the dropdown. */
+  product: string;
   collaborators: Collaborator[];
 }
 
@@ -305,6 +311,7 @@ export function mergeTicketDraft(
     assignee: draft.assignee === last.assignee ? server.assignee : draft.assignee,
     priority: draft.priority === last.priority ? server.priority : draft.priority,
     status: draft.status === last.status ? server.status : draft.status,
+    product: draft.product === last.product ? server.product : draft.product,
     collaborators:
       collabKey(draft.collaborators) === collabKey(last.collaborators)
         ? server.collaborators
@@ -312,8 +319,9 @@ export function mergeTicketDraft(
   };
 }
 
-/** Client.product is a Link to the Product doctype, so a typed name must resolve
- *  to a real Product. Return the existing Product's docname, creating it if new. */
+/** `Client Product.product` is a Link to the Product doctype, so a name typed into a
+ *  dialog must resolve to a real Product. Return the existing Product's docname, creating
+ *  it if new — which is what lets the engagement dialogs accept a new product inline. */
 async function resolveProduct(name: string): Promise<string> {
   const found = await api.getList<{ name: string }>("Product", {
     fields: ["name"],
@@ -354,6 +362,10 @@ interface Store {
 
   setStatus: (id: string, status: Status) => Promise<void>;
   setPriority: (id: string, priority: Priority) => Promise<void>;
+  /** Tag (or re-tag) a ticket's product — the triage path for emailed-in tickets, which
+   *  arrive with none. "" clears it. The backend rejects a product the client doesn't run
+   *  at that division, so the picker must be built from availableProducts. */
+  setTicketProduct: (id: string, product: string) => Promise<void>;
   setAssignment: (id: string, group: string, assignee: string) => Promise<void>;
   /** Agent self-assigns a ticket from their team's queue (team-first, server-enforced). */
   claimTicket: (id: string) => Promise<void>;
@@ -406,11 +418,11 @@ interface Store {
     input: { product?: string; devStart?: string; expectedCompletion?: string; divisions?: string[] },
   ) => Promise<void>;
   removeClientProduct: (id: string) => Promise<void>;
-  addProduct: (name: string, client?: string) => Promise<void>;
+  /** Add to the product CATALOGUE. Putting a product into service is an engagement —
+   *  addClientProduct — not a field on the client. */
+  createProduct: (name: string) => Promise<void>;
   renameProduct: (oldName: string, newName: string) => Promise<void>;
   deleteProduct: (name: string) => Promise<void>;
-  setProduct: (clientName: string, product: string) => Promise<void>;
-  assignProductToClient: (product: string, client: string, keepExisting: boolean) => Promise<void>;
   updatePoc: (
     pocId: string,
     patch: { name: string; email: string; phone?: string; divisions?: string[] },
@@ -630,6 +642,9 @@ export const useStore = create<Store>()((set, get) => {
     setPriority: async (id, priority) => {
       upsertTicket(await api.updateDoc<api.RawTicket>("Support Ticket", id, { priority }));
     },
+    setTicketProduct: async (id, product) => {
+      upsertTicket(await api.updateDoc<api.RawTicket>("Support Ticket", id, { product: product || null }));
+    },
     // Team + member in one write — a member only exists within a team, so the two
     // fields must move together (the backend rejects a member with no team).
     setAssignment: async (id, group, assignee) => {
@@ -684,6 +699,7 @@ export const useStore = create<Store>()((set, get) => {
         status: "New",
         client: input.client,
         division: divDocname(input.client, input.div) || null,
+        product: input.product || null,
         raised_by: input.raisedBy,
         description: input.desc || "—",
         // "Portal" means the client raised it themselves. An agent logging a ticket on a
@@ -909,30 +925,13 @@ export const useStore = create<Store>()((set, get) => {
       await api.updateDoc("Division", dName, { division_name: patch.name.trim() });
       await get().reload();
     },
-    setProduct: async (clientName, product) => {
-      const resolved = product ? await resolveProduct(product) : null;
-      await api.updateDoc("Client", clientName, { product: resolved });
-      await get().reloadMasters();
-    },
-    // Create a Product (reusing an existing one of the same name) and, when a client
-    // is given, set it as that client's product. No client => an unassigned product.
-    addProduct: async (name, client) => {
-      const product = await resolveProduct(name);
-      if (client) await api.updateDoc("Client", client, { product });
-      await get().reloadMasters();
-    },
-    // Assign an existing product to `client`. keepExisting=true leaves any other
-    // clients running it (the product becomes common to all of them); false MOVES it
-    // (clears it from every other client). Ticket IDs are unaffected either way —
-    // they're autonamed from each client+division code, never the product.
-    assignProductToClient: async (product, client, keepExisting) => {
-      const resolved = await resolveProduct(product);
-      if (!keepExisting) {
-        for (const c of get().clients.filter((x) => x.product === product && x.name !== client)) {
-          await api.updateDoc("Client", c.name, { product: null });
-        }
-      }
-      await api.updateDoc("Client", client, { product: resolved });
+    // Add to the catalogue only. `setProduct` / `addProduct(name, client)` /
+    // `assignProductToClient` used to live here and wrote `Client.product`, the legacy
+    // one-product-per-client Link — which is why a product assigned from the Products page
+    // never showed on the client card, and vice versa. Attaching a product to a client is
+    // `addClientProduct` (an engagement, with dates and the divisions it covers).
+    createProduct: async (name) => {
+      await resolveProduct(name);
       await get().reloadMasters();
     },
     // Rename a product — cascades to every client running it (see update_product).

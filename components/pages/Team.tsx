@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useStore } from "../../store";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
-import { IconButton } from "../ui/IconButton";
+import { ManageButton } from "../ui/ManageButton";
 import { Badge } from "../ui/Chips";
 import { EmptyState } from "../ui/EmptyState";
 import { AddMemberModal } from "../modals/AddMemberModal";
@@ -134,16 +134,7 @@ export function Team() {
                         >
                           {m.status === "Invited" ? "Resend invite" : "Send invite"}
                         </Button>
-                        <IconButton
-                          icon={<Icon name="pencil" />}
-                          label="Edit member"
-                          onClick={() => setEditTarget(m)}
-                        />
-                        <IconButton
-                          icon={<Icon name="x" />}
-                          label="Remove member"
-                          onClick={() => setRemoveTarget(m.name)}
-                        />
+                        <ManageButton subject={m.name} onClick={() => setEditTarget(m)} />
                       </div>
                     </td>
                   </tr>
@@ -172,7 +163,17 @@ export function Team() {
       </div>
 
       {showAdd && <AddMemberModal onClose={() => setShowAdd(false)} />}
-      {editTarget && <EditMemberModal member={editTarget} onClose={() => setEditTarget(null)} />}
+      {editTarget && (
+        <EditMemberModal
+          member={editTarget}
+          onClose={() => setEditTarget(null)}
+          onDelete={() => {
+            const target = editTarget.name;
+            setEditTarget(null);
+            setRemoveTarget(target);
+          }}
+        />
+      )}
       {removeTarget && (
         <ConfirmDialog
           title="Remove member"

@@ -11,7 +11,17 @@ import { useSubmit } from "../ui/useSubmit";
 import { isEmail, memberStatusTone } from "../../lib/helpers";
 import type { TeamMember } from "../../types";
 
-export function EditMemberModal({ member, onClose }: { member: TeamMember; onClose: () => void }) {
+export function EditMemberModal({
+  member,
+  onClose,
+  onDelete,
+}: {
+  member: TeamMember;
+  onClose: () => void;
+  /** Rendered as Delete in the footer. This is the manage view, so removing happens here
+   *  — while looking at the record — rather than from a bare ✕ in a row. */
+  onDelete?: () => void;
+}) {
   const members = useStore((s) => s.members);
   const updateMember = useStore((s) => s.updateMember);
   const sendInvite = useStore((s) => s.sendInvite);
@@ -22,6 +32,10 @@ export function EditMemberModal({ member, onClose }: { member: TeamMember; onClo
   const [title, setTitle] = useState(member.title ?? "");
   const [email, setEmail] = useState(member.email === "—" ? "" : member.email);
   const [err, setErr] = useState<{ name?: boolean; email?: boolean }>({});
+  const dirty =
+    name !== member.name ||
+    title !== (member.title ?? "") ||
+    email !== (member.email === "—" ? "" : member.email);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +65,22 @@ export function EditMemberModal({ member, onClose }: { member: TeamMember; onClo
       title={`Edit ${member.name}`}
       onClose={onClose}
       onSubmit={submit}
-      footer={<ModalFooter submitLabel="Save changes" busyLabel="Saving…" busy={busy} onCancel={onClose} />}
+      footer={
+        <ModalFooter
+          submitLabel="Save changes"
+          busyLabel="Saving…"
+          busy={busy}
+          submitDisabled={!dirty}
+          onCancel={onClose}
+          left={
+            onDelete ? (
+              <Button variant="ghost" danger onClick={onDelete} disabled={busy}>
+                Remove member
+              </Button>
+            ) : undefined
+          }
+        />
+      }
     >
       <div className="modal-body">
         <div className="field-2">

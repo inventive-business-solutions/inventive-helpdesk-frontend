@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { IconButton } from "@/components/ui/IconButton";
+import { ManageButton } from "@/components/ui/ManageButton";
 import { Badge } from "@/components/ui/Chips";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Select, type SelectOption } from "@/components/ui/Select";
@@ -51,12 +51,19 @@ export function Contacts() {
   const [confirm, setConfirm] = useState<Row | null>(null);
 
   // Every POC across every client/division, sorted for a stable directory order.
+  //
+  // A contact holding several divisions appears once per division — that is what the
+  // Division column is for. But a Lead holding NONE appeared nowhere at all: they exist,
+  // the Clients page shows them, and this directory silently omitted them, so the one
+  // place you would go to find and fix an unassigned contact was the one place that hid
+  // them. They are listed here with an empty division.
   const allRows = useMemo<Row[]>(
     () =>
       clients
-        .flatMap((c) =>
-          c.divisions.flatMap((d) => d.pocs.map((poc) => ({ poc, client: c.name, div: d.name }))),
-        )
+        .flatMap((c) => [
+          ...c.divisions.flatMap((d) => d.pocs.map((poc) => ({ poc, client: c.name, div: d.name }))),
+          ...c.leads.filter((l) => !l.divisions.length).map((poc) => ({ poc, client: c.name, div: "" })),
+        ])
         .sort(
           (a, b) =>
             a.client.localeCompare(b.client) ||
@@ -240,8 +247,10 @@ export function Contacts() {
                     <td className="t-cd left" title={r.client}>
                       {r.client}
                     </td>
-                    <td className="t-cd left" title={r.div}>
-                      {r.div}
+                    {/* An unassigned Lead has no division and no ticket access — say so
+                        rather than leaving the cell blank, which reads as a rendering fault. */}
+                    <td className="t-cd left" title={r.div || "No division assigned yet"}>
+                      {r.div || <span className="muted">No division</span>}
                     </td>
                     <td className="center">
                       {p.isLead ? <Badge tone="accent">Lead</Badge> : <span className="muted">POC</span>}
@@ -266,16 +275,9 @@ export function Contacts() {
                             </button>
                           )}
                         </span>
-                        <IconButton
-                          icon={<Icon name="pencil" />}
-                          label="Edit contact"
+                        <ManageButton
+                          subject={p.name}
                           onClick={() => setPocTarget({ client: r.client, div: r.div, poc: p })}
-                        />
-                        <IconButton
-                          tone="danger"
-                          icon={<Icon name="x" />}
-                          label="Remove contact"
-                          onClick={() => setConfirm(r)}
                         />
                       </div>
                     </td>
@@ -316,6 +318,15 @@ export function Contacts() {
           divName={pocTarget.div}
           poc={pocTarget.poc}
           onClose={() => setPocTarget(null)}
+          onDelete={
+            pocTarget.poc
+              ? () => {
+                  const t = pocTarget;
+                  setPocTarget(null);
+                  if (t.poc) setConfirm({ poc: t.poc, client: t.client, div: t.div });
+                }
+              : undefined
+          }
         />
       )}
       {confirm && (

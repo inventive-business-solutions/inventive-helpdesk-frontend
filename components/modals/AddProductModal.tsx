@@ -2,90 +2,44 @@
 import { useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Icon } from "../ui/Icon";
-import { Select } from "../ui/Select";
-import { TextField, Field } from "../ui/Field";
+import { TextField } from "../ui/Field";
 import { ModalFooter } from "../ui/ModalFooter";
-import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useStore } from "../../store";
-import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
 
-/**
- * Add a product (optionally assigning it to a client), or — when `presetName` is
- * given — assign an existing (unassigned) product to a client. A product with no
- * client is created as "unassigned"; creating without a client asks to confirm.
- */
-export function AddProductModal({ presetName, onClose }: { presetName?: string; onClose: () => void }) {
-  const clients = useStore((s) => s.clients);
+/** Add a product to the catalogue.
+ *
+ *  Catalogue only — it no longer assigns the product to a client. Attaching a product is
+ *  creating an *engagement* (client + product + dates + the divisions it covers), which
+ *  `AddClientProductModal` owns and both the Products page and the client card now use.
+ *  This modal used to write the legacy `Client.product` single Link, which is why a
+ *  product assigned here never appeared on the client card. */
+export function AddProductModal({ onClose }: { onClose: () => void }) {
   const products = useStore((s) => s.products);
-  const addProduct = useStore((s) => s.addProduct);
-  const toast = useToast();
+  const createProduct = useStore((s) => s.createProduct);
   const { busy, run } = useSubmit();
-  const assignMode = !!presetName;
 
-  const [name, setName] = useState(presetName ?? "");
-  const [client, setClient] = useState("");
+  const [name, setName] = useState("");
   const [nameErr, setNameErr] = useState(false);
-  const [confirmNoClient, setConfirmNoClient] = useState(false);
 
-  const dup = !assignMode && products.some((p) => p.toLowerCase() === name.trim().toLowerCase());
-  const selected = clients.find((c) => c.name === client);
-
-  const save = () =>
-    run(() => addProduct(name.trim(), client || undefined), {
-      success: client ? `${name.trim()} assigned to ${client}` : `${name.trim()} added`,
-      onSuccess: onClose,
-    });
+  const trimmed = name.trim();
+  const dup = products.some((p) => p.toLowerCase() === trimmed.toLowerCase());
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!trimmed || dup) {
       setNameErr(true);
       return;
     }
-    if (assignMode && !client) {
-      toast("Choose a client to assign this product to");
-      return;
-    }
-    if (dup && !client) {
-      toast("That product already exists");
-      return;
-    }
-    if (!client) {
-      // "continue without a client?" — the product becomes unassigned
-      setConfirmNoClient(true);
-      return;
-    }
-    save();
+    run(() => createProduct(trimmed), { success: `${trimmed} added`, onSuccess: onClose });
   };
-
-  if (confirmNoClient) {
-    return (
-      <ConfirmDialog
-        title="Add without a client?"
-        message={`"${name.trim()}" won't be assigned to any client yet — it will appear under Unassigned until you assign it. Continue?`}
-        confirmLabel="Add as unassigned"
-        danger={false}
-        busy={busy}
-        onConfirm={save}
-        onClose={() => setConfirmNoClient(false)}
-      />
-    );
-  }
 
   return (
     <Modal
-      title={assignMode ? `Assign product — ${presetName}` : "Add product"}
+      title="Add product"
       onClose={onClose}
       onSubmit={submit}
-      footer={
-        <ModalFooter
-          submitLabel={assignMode ? "Assign product" : "Add product"}
-          busyLabel="Saving…"
-          busy={busy}
-          onCancel={onClose}
-        />
-      }
+      footer={<ModalFooter submitLabel="Add product" busyLabel="Saving…" busy={busy} onCancel={onClose} />}
     >
       <div className="modal-body">
         <TextField
@@ -93,49 +47,19 @@ export function AddProductModal({ presetName, onClose }: { presetName?: string; 
           required
           value={name}
           error={nameErr}
-          autoFocus={!assignMode}
-          readOnly={assignMode}
+          autoFocus
           placeholder="e.g. EniMAX"
           onChange={(v) => {
             setName(v);
             if (nameErr) setNameErr(false);
           }}
-          hint={
-            dup ? "A product with this name already exists — pick a client below to assign it." : undefined
-          }
+          hint={dup && trimmed ? "A product with this name already exists." : undefined}
         />
-        <Field label="Assign to client" required={assignMode} optional={!assignMode}>
-          {(id) => (
-            <>
-              <Select
-                id={id}
-                block
-                autoFocus={assignMode}
-                label={assignMode ? "— Choose a client —" : "— No client (unassigned) —"}
-                ariaLabel="Assign to client"
-                value={client}
-                options={[
-                  { value: "", label: assignMode ? "— Choose a client —" : "— No client (unassigned) —" },
-                  ...clients.map((c) => ({
-                    value: c.name,
-                    label: c.name + (c.product ? ` — currently runs ${c.product}` : ""),
-                  })),
-                ]}
-                onChange={setClient}
-              />
-              {selected?.product && selected.product !== name.trim() && (
-                <div className="field-hint">
-                  This replaces {selected.name}&rsquo;s current product ({selected.product}).
-                </div>
-              )}
-            </>
-          )}
-        </Field>
         <div className="auth-note">
           <Icon name="info" size={14} />
           <div>
-            A product can be run by more than one client. Leave the client blank to create it now and assign
-            it later from the Unassigned tab.
+            This adds the product to the catalogue. To put it into service, assign it to a client from the
+            Unassigned tab — you can set its go-live dates and the divisions it covers there.
           </div>
         </div>
       </div>

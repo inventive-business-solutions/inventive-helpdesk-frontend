@@ -24,23 +24,26 @@ CSS = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
 
 # The elements my component actually renders, as (class, html-tag).
 TARGETS = [
-    ("checklist", "div"), ("checklist-head", "div"), ("checklist-body", "div"),
-    ("checklist-row", "label"), ("checklist-label", "span"), ("checklist-meta", "span"),
-    ("checklist-input", "input"), ("switch", "span"),
-    # everything else this change introduced
-    ("cc-section", "section"), ("cc-section-head", "div"),
-    ("prod-list", "div"), ("prod-row", "div"), ("prod-ic", "span"), ("prod-id", "div"),
+    # Ticket table: the wrapped title, the stacked client/div cell, the product cell.
+    ("ticket-cell", "div"), ("tc-title", "div"), ("tc-subject", "span"),
+    ("tc-meta", "div"), ("tc-meta-text", "span"), ("col-grip", "span"),
+    ("t-title", "td"), ("t-cd", "td"),
+    ("stack-cell", "div"), ("stack-top", "span"), ("stack-bottom", "span"),
+    # The row-list restructure: Products and Divisions as bordered row lists.
+    ("row-list", "div"), ("row-item", "div"), ("row-link", "button"), ("row-manage", "button"),
+    ("prod-row", "div"), ("prod-ic", "span"), ("prod-id", "div"),
     ("prod-name", "div"), ("prod-meta", "div"), ("prod-actions", "div"),
+    ("div-row", "div"), ("dv-head", "div"), ("dv-open", "button"), ("dv-name", "span"),
+    ("cc-section", "section"), ("cc-section-head", "div"),
+    ("poc-list", "div"), ("poc-row", "div"), ("add-poc", "button"),
     ("chip-group", "span"), ("chip", "span"), ("chip-more", "span"), ("chip-empty", "span"),
-    ("lead-section", "div"), ("lead-section-head", "div"), ("lead-card", "div"),
-    ("lead-card-head", "div"), ("lead-card-title", "span"), ("lead-count", "span"),
-    ("add-lead", "button"), ("poc-name-text", "span"),
-    ("date-wrap", "span"), ("date-ph", "span"),
 ]
 # Ancestors present on every one of them.
-ANCESTORS = {"field", "checklist", "checklist-body", "checklist-row", "modal-body",
-             "client-card", "cc-body", "cc-section", "prod-row", "prod-id", "poc-row",
-             "poc-id", "poc-name", "lead-section", "lead-card", "div-card", "modal", "date-wrap"}
+ANCESTORS = {"field", "modal-body", "modal", "client-card", "cc-body", "cc-section",
+             "tk", "tk-tickets", "staff", "client", "trow", "stack-cell", "ticket-cell",
+             "tc-title", "tc-meta",
+             "row-list", "row-item", "prod-row", "prod-id", "div-row", "dv-head",
+             "poc-list", "poc-row", "poc-id", "poc-name", "lead-section", "lead-card"}
 
 
 def specificity(sel):
@@ -98,6 +101,11 @@ for i, sel, spec, props, cls in mine:
         for prop in clash:
             wins_by_spec = ospec > spec
             wins_by_order = ospec == spec and j > i
+            # Same declared value cannot change rendering, whoever wins. Reporting those
+            # buries the real clashes in noise — and this check is only useful if every
+            # line it prints is worth reading.
+            if oprops[prop].strip() == props[prop].strip():
+                continue
             if wins_by_spec or wins_by_order:
                 found = True
                 print(f"  .{cls}: `{prop}` — `{osel}` {ospec} beats `{sel}` {spec}")

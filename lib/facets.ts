@@ -94,6 +94,8 @@ const monthFmt = (v: string) => MONTH_NAMES[Number(v) - 1] ?? v;
 const sourceFmt = (v: string) =>
   v === "Email" ? "Raised by email" : v === "Portal" ? "Raised in portal" : v;
 const teamFmt = (v: string) => (v === "none" ? "No team" : v);
+// Matches the team sentinel: `none` is the Untagged bucket, not a product called "none".
+const productFmt = (v: string) => (v === "none" ? "Untagged" : v);
 
 const MINE_LABELS: Record<string, string> = {
   me: "Assigned to me",
@@ -129,6 +131,7 @@ export function buildFacets(ctx: BuildCtx): { facets: Facet[]; context: ContextC
         label: "Product",
         group: "hier",
         options: vals(opts.product),
+        formatValue: productFmt,
         onPick: handlers?.onProductPick,
       });
 

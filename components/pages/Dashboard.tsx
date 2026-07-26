@@ -14,7 +14,7 @@ import { BreakdownModal } from "@/components/modals/BreakdownModal";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { AgentDashboard } from "@/components/pages/AgentDashboard";
 import { WelcomeHeader } from "@/components/ui/WelcomeHeader";
-import { RESOLVED, enc, isActive, needsAttention, parseISO } from "@/lib/helpers";
+import { RESOLVED, countClients, enc, isActive, needsAttention, parseISO, plural } from "@/lib/helpers";
 import type { Priority, Status, TicketType } from "@/types";
 
 const RANGES: { key: string; weeks: number }[] = [
@@ -237,7 +237,7 @@ function ManagerDashboard() {
         <Kpi
           label="Open tickets"
           value={active.length}
-          sub={`Across ${new Set(active.map((t) => t.client)).size} clients`}
+          sub={`Across ${plural(countClients(active), "client")}`}
           color="var(--accent)"
           onClick={() => go("/tickets?active=1")}
         />

@@ -4,17 +4,18 @@ import { useRouter } from "next/navigation";
 import { useStore } from "../../store";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
-import { IconButton } from "../ui/IconButton";
+import { ManageButton } from "../ui/ManageButton";
 import { Segmented } from "../ui/Segmented";
 import { StatTile } from "../ui/StatTile";
 import { Badge } from "../ui/Chips";
 import { EmptyState } from "../ui/EmptyState";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { AddProductModal } from "../modals/AddProductModal";
+import { AddClientProductModal } from "../modals/AddClientProductModal";
 import { EditProductModal } from "../modals/EditProductModal";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
-import { RESOLVED, enc, isActive } from "../../lib/helpers";
+import { RESOLVED, divDisplayName, enc, isActive, plural } from "../../lib/helpers";
 import type { Client } from "../../types";
 
 const PALETTE = ["var(--cat-1)", "var(--cat-2)", "var(--cat-3)", "var(--cat-4)", "var(--accent)"];
@@ -24,7 +25,7 @@ export function Products() {
   const clients = useStore((s) => s.clients);
   const tickets = useStore((s) => s.tickets);
   const products = useStore((s) => s.products);
-  const setProduct = useStore((s) => s.setProduct);
+  const removeClientProduct = useStore((s) => s.removeClientProduct);
   const deleteProduct = useStore((s) => s.deleteProduct);
   const toast = useToast();
   const { busy, run } = useSubmit();
@@ -36,25 +37,39 @@ export function Products() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [unassignTarget, setUnassignTarget] = useState<{ product: string; client: string } | null>(null);
 
-  // Group clients by the product they run — a product can be run by several.
+  // Group clients by the products they run. Driven by `client.products` — the Client
+  // Product engagements — which is the same source the client card and the portal read.
+  // It used to read the legacy `Client.product` single Link, so anything added from the
+  // Clients page simply never appeared here.
   const clientsByProduct = new Map<string, Client[]>();
   for (const c of clients) {
-    if (!c.product) continue;
-    const arr = clientsByProduct.get(c.product) ?? [];
-    arr.push(c);
-    clientsByProduct.set(c.product, arr);
+    for (const name of new Set(c.products.map((p) => p.product))) {
+      const arr = clientsByProduct.get(name) ?? [];
+      arr.push(c);
+      clientsByProduct.set(name, arr);
+    }
   }
   const assigned = products.filter((p) => clientsByProduct.has(p));
   const unassigned = products.filter((p) => !clientsByProduct.has(p));
 
-  // A product still assigned to a client can't be deleted (Frappe blocks removing a
+  /** The engagements one client holds for this product, and the divisions they cover.
+   *  An engagement with no divisions covers the client as a whole, so it contributes
+   *  every division the client has. */
+  const engagementsFor = (cl: Client, product: string) => {
+    const engs = cl.products.filter((p) => p.product === product);
+    const clientWide = engs.some((e) => !e.divisions.length);
+    const covered = clientWide
+      ? cl.divisions.map((d) => d.name)
+      : [...new Set(engs.flatMap((e) => e.divisions.map((dn) => divDisplayName(cl, dn))))];
+    return { engs, clientWide, covered };
+  };
+
+  // A product still attached to a client can't be deleted (Frappe blocks removing a
   // linked doc) — steer the admin to unassign it everywhere first.
   const onDeleteProduct = (product: string) => {
     const running = clientsByProduct.get(product) ?? [];
     if (running.length) {
-      toast(
-        `${product} is run by ${running.length} client${running.length > 1 ? "s" : ""} — unassign it everywhere first.`,
-      );
+      toast(`${product} is run by ${plural(running.length, "client")} — unassign it everywhere first.`);
       return;
     }
     setDeleteTarget(product);
@@ -94,11 +109,16 @@ export function Products() {
           assigned.map((product, i) => {
             const color = PALETTE[i % PALETTE.length];
             const runningClients = clientsByProduct.get(product) ?? [];
-            const names = new Set(runningClients.map((c) => c.name));
-            const scoped = tickets.filter((t) => names.has(t.client));
+            // Counted from the ticket's own product field. This used to infer scope from
+            // client + division, which could not tell two products in one division apart —
+            // the ticket now says which one it is about.
+            const scoped = tickets.filter((t) => t.product === product);
             const open = scoped.filter((t) => isActive(t.status)).length;
             const resolved = scoped.filter((t) => RESOLVED.includes(t.status)).length;
-            const divCount = runningClients.reduce((n, c) => n + c.divisions.length, 0);
+            const divCount = runningClients.reduce(
+              (n, c) => n + engagementsFor(c, product).covered.length,
+              0,
+            );
             const stats = [
               { v: open, l: "Open" },
               { v: resolved, l: "Resolved" },
@@ -128,19 +148,7 @@ export function Products() {
                       <Icon name="clients" size={13} />
                       <span className="clip">Used by {runningClients.map((c) => c.name).join(", ")}</span>
                     </Badge>
-                    <IconButton
-                      size="sm"
-                      icon={<Icon name="pencil" />}
-                      label="Edit product & assignment"
-                      onClick={() => setRenameTarget(product)}
-                    />
-                    <IconButton
-                      size="sm"
-                      tone="danger"
-                      icon={<Icon name="x" />}
-                      label="Delete product"
-                      onClick={() => onDeleteProduct(product)}
-                    />
+                    <ManageButton subject={product} onClick={() => setRenameTarget(product)} />
                   </div>
                 </div>
 
@@ -164,43 +172,52 @@ export function Products() {
 
                 <div className="product-divs">
                   {runningClients.map((cl) => {
+                    // Only the divisions THIS engagement covers. Listing every division the
+                    // client has implied the product ran everywhere, which is exactly what
+                    // the divisions on an engagement exist to contradict.
+                    const { clientWide, covered } = engagementsFor(cl, product);
                     return (
                       <div className="pdiv" key={cl.name}>
                         <div className="pdiv-top">
                           <span className="pdiv-name">{cl.name}</span>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            {clientWide && (
+                              <Badge sm title={`${product} covers all of ${cl.name}`}>
+                                Client-wide
+                              </Badge>
+                            )}
                             <span className="pdiv-code mono">{cl.code}</span>
-                            <IconButton
-                              size="sm"
-                              tone="danger"
-                              icon={<Icon name="x" />}
-                              label={`Unassign ${product} from ${cl.name}`}
+                            {/* One action today, but the same trigger as every other row —
+                                a bare ✕ here would be the only unlabelled destructive
+                                control left, and it sits next to a client name. */}
+                            <ManageButton
+                              subject={`${product} at ${cl.name}`}
                               onClick={() => setUnassignTarget({ product, client: cl.name })}
                             />
                           </span>
                         </div>
-                        {cl.divisions.length ? (
+                        {covered.length ? (
                           <div className="pdiv-divs">
                             <div className="pdd-head eyebrow">
                               <span>Division</span>
                               <span>Open</span>
                             </div>
-                            {cl.divisions.map((d) => {
+                            {covered.map((dName) => {
                               const dOpen = tickets.filter(
-                                (t) => t.client === cl.name && t.div === d.name && isActive(t.status),
+                                (t) => t.client === cl.name && t.div === dName && isActive(t.status),
                               ).length;
                               return (
                                 <button
                                   className="pdd"
-                                  key={d.name}
-                                  title={`${dOpen} active ticket${dOpen === 1 ? "" : "s"} — open ${cl.name} · ${d.name}`}
+                                  key={dName}
+                                  title={`${plural(dOpen, "active ticket")} — open ${cl.name} · ${dName}`}
                                   onClick={() =>
                                     router.push(
-                                      `/tickets?product=${enc(product)}&client=${enc(cl.name)}&div=${enc(d.name)}`,
+                                      `/tickets?product=${enc(product)}&client=${enc(cl.name)}&div=${enc(dName)}`,
                                     )
                                   }
                                 >
-                                  <span className="pdd-name">{d.name}</span>
+                                  <span className="pdd-name">{dName}</span>
                                   <Badge count tone={dOpen ? "accent" : "neutral"} className="pdd-count">
                                     {dOpen || "—"}
                                   </Badge>
@@ -209,7 +226,9 @@ export function Products() {
                             })}
                           </div>
                         ) : (
-                          <div className="pdiv-empty">No divisions yet</div>
+                          <div className="pdiv-empty">
+                            {clientWide ? "Runs client-wide — no divisions yet" : "No divisions yet"}
+                          </div>
                         )}
                       </div>
                     );
@@ -245,19 +264,7 @@ export function Products() {
                     <Button variant="ghost" onClick={() => setAssignTarget(product)}>
                       Assign to a client
                     </Button>
-                    <IconButton
-                      size="sm"
-                      icon={<Icon name="pencil" />}
-                      label="Rename product"
-                      onClick={() => setRenameTarget(product)}
-                    />
-                    <IconButton
-                      size="sm"
-                      tone="danger"
-                      icon={<Icon name="x" />}
-                      label="Delete product"
-                      onClick={() => onDeleteProduct(product)}
-                    />
+                    <ManageButton subject={product} onClick={() => setRenameTarget(product)} />
                   </div>
                 </div>
                 <div className="uprod-empty">
@@ -273,8 +280,22 @@ export function Products() {
         ))}
 
       {showAdd && <AddProductModal onClose={() => setShowAdd(false)} />}
-      {assignTarget && <AddProductModal presetName={assignTarget} onClose={() => setAssignTarget(null)} />}
-      {renameTarget && <EditProductModal product={renameTarget} onClose={() => setRenameTarget(null)} />}
+      {/* Same dialog the client card uses, so an engagement created here is identical to
+          one created there — dates, divisions and all. */}
+      {assignTarget && (
+        <AddClientProductModal presetProduct={assignTarget} onClose={() => setAssignTarget(null)} />
+      )}
+      {renameTarget && (
+        <EditProductModal
+          product={renameTarget}
+          onClose={() => setRenameTarget(null)}
+          onDelete={() => {
+            const target = renameTarget;
+            setRenameTarget(null);
+            onDeleteProduct(target);
+          }}
+        />
+      )}
       {deleteTarget && (
         <ConfirmDialog
           title="Delete product"
@@ -293,14 +314,25 @@ export function Products() {
       {unassignTarget && (
         <ConfirmDialog
           title="Unassign product"
-          message={`Remove ${unassignTarget.product} from ${unassignTarget.client}? The client will have no product until you assign one.`}
+          message={`Remove ${unassignTarget.product} from ${unassignTarget.client}? Its dates and division scoping are removed with it. Tickets already raised are not affected.`}
           confirmLabel="Unassign"
           busy={busy}
           onConfirm={() =>
-            run(() => setProduct(unassignTarget.client, ""), {
-              success: `${unassignTarget.product} unassigned from ${unassignTarget.client}`,
-              onSuccess: () => setUnassignTarget(null),
-            })
+            run(
+              async () => {
+                // A client can hold several engagements of one product (different
+                // divisions), so unassigning removes every one of them — otherwise the
+                // product would stay on the card via the engagements left behind.
+                const cl = clients.find((c) => c.name === unassignTarget.client);
+                for (const eng of cl?.products.filter((p) => p.product === unassignTarget.product) ?? []) {
+                  await removeClientProduct(eng.id);
+                }
+              },
+              {
+                success: `${unassignTarget.product} unassigned from ${unassignTarget.client}`,
+                onSuccess: () => setUnassignTarget(null),
+              },
+            )
           }
           onClose={() => setUnassignTarget(null)}
         />

@@ -4,7 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useStore } from "@/store";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Chips";
-import { initials, isActive } from "@/lib/helpers";
+import { clientContacts, initials, isActive } from "@/lib/helpers";
 
 // `mine` marks an agent "my work" view (a /tickets link scoped by ?mine=<key>); `teamq`
 // marks a single team's queue (?teamq=<team name>). Both make active state query-aware.
@@ -29,6 +29,7 @@ export function Sidebar() {
   const clients = useStore((s) => s.clients);
   const members = useStore((s) => s.members);
   const groups = useStore((s) => s.groups);
+  const products = useStore((s) => s.products);
 
   if (!session) return null;
   const admin = session.role === "admin";
@@ -64,7 +65,12 @@ export function Sidebar() {
       isActive(t.status),
   ).length;
 
-  const pocCount = clients.reduce((n, c) => n + c.divisions.reduce((m, d) => m + d.pocs.length, 0), 0);
+  // Distinct people, not a sum over divisions — a Lead on several divisions appears once
+  // per division in the tree, and one with none appears in no division at all, so the sum
+  // over-counted the first and lost the second. Note the Contacts page deliberately shows
+  // one ROW per (contact, division) because it has a Division column, so its row count can
+  // legitimately exceed this badge. This counts people.
+  const pocCount = clients.reduce((n, c) => n + clientContacts(c).length, 0);
   const managerItems: NavItem[] = [
     { to: "/", label: "Dashboard", icon: "dashboard", end: true },
     { to: "/tickets", label: "Tickets", icon: "tickets", end: false, count: activeCount },
@@ -75,7 +81,10 @@ export function Sidebar() {
       label: "Products",
       icon: "projects",
       end: false,
-      count: clients.filter((c) => c.product).length,
+      // The catalogue size, which is what the Products page lists. It counted CLIENTS
+      // holding the legacy single product — so the badge beside "Products" was neither a
+      // product count nor correct once products moved to engagements.
+      count: products.length,
       manage: true,
     },
     { to: "/members", label: "Members", icon: "user", end: false, count: members.length, manage: true },

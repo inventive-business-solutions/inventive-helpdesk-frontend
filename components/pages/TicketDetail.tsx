@@ -14,7 +14,7 @@ import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
 import { useSubmit } from "@/components/ui/useSubmit";
 import { StagedFileChips } from "@/components/modals/StagedFiles";
-import { fmtDateTime, fmtShortDate, fmtTime, initials, isResolved } from "@/lib/helpers";
+import { availableProducts, fmtDateTime, fmtShortDate, fmtTime, initials, isResolved } from "@/lib/helpers";
 
 /** Short, compact ticket timestamp for the rail: "12/07/2026, 9:00 AM". */
 const stamp = (iso?: string) => (iso ? `${fmtShortDate(iso)}, ${fmtTime(iso)}` : "—");
@@ -183,6 +183,7 @@ export function TicketDetail({ id }: { id: string }) {
   const markRead = useStore((s) => s.markRead);
   const setStatus = useStore((s) => s.setStatus);
   const setPriority = useStore((s) => s.setPriority);
+  const setTicketProduct = useStore((s) => s.setTicketProduct);
   const setAssignment = useStore((s) => s.setAssignment);
   const claimTicket = useStore((s) => s.claimTicket);
   const addCollaborator = useStore((s) => s.addCollaborator);
@@ -227,6 +228,9 @@ export function TicketDetail({ id }: { id: string }) {
     assignee: ticket?.assignee ?? "Unassigned",
     priority: (ticket?.priority ?? "Medium") as Priority,
     status: (ticket?.status ?? "New") as Status,
+    // Emailed-in tickets arrive with no product; tagging one is a triage action, so it
+    // stages with the other edits rather than saving on change.
+    product: ticket?.product ?? "",
     collaborators: (ticket?.collaborators ?? []) as Collaborator[],
   });
   // Pending navigation held while we ask whether to save/discard unsaved edits
@@ -275,6 +279,7 @@ export function TicketDetail({ id }: { id: string }) {
       assignee: ticket.assignee,
       priority: ticket.priority,
       status: ticket.status,
+      product: ticket.product ?? "",
       collaborators: ticket.collaborators,
     };
     const last = syncedRef.current?.id === id ? syncedRef.current.vals : null;
@@ -430,11 +435,16 @@ export function TicketDetail({ id }: { id: string }) {
       collaborators: d.collaborators.filter((x) => !(x.partyType === c.partyType && x.party === c.party)),
     }));
 
+  // What this ticket may legitimately be tagged with — the same set the raise dialog
+  // offers, and the same the backend validates against.
+  const productChoices = availableProducts(clients, ticket);
+
   const serverVals = {
     group: ticket.group ?? "",
     assignee: ticket.assignee,
     priority: ticket.priority,
     status: ticket.status,
+    product: ticket.product ?? "",
     collaborators: ticket.collaborators,
   };
   // The writes needed to persist the staged draft (only the changed fields + collaborator
@@ -445,6 +455,7 @@ export function TicketDetail({ id }: { id: string }) {
       calls.push(() => setAssignment(ticket.id, draft.group, draft.assignee));
     if (draft.priority !== serverVals.priority) calls.push(() => setPriority(ticket.id, draft.priority));
     if (draft.status !== serverVals.status) calls.push(() => setStatus(ticket.id, draft.status));
+    if (draft.product !== serverVals.product) calls.push(() => setTicketProduct(ticket.id, draft.product));
     const serverKeys = new Set(ticket.collaborators.map((c) => `${c.partyType}:${c.party}`));
     const draftKeys = new Set(draft.collaborators.map((c) => `${c.partyType}:${c.party}`));
     for (const c of draft.collaborators)
@@ -795,7 +806,28 @@ export function TicketDetail({ id }: { id: string }) {
                 </div>
                 <div className="meta-row">
                   <span className="mk">Product</span>
-                  <span className="mv">{clients.find((c) => c.name === ticket.client)?.product || "—"}</span>
+                  {/* Staff can tag an emailed-in ticket here — it arrives with none, and
+                      this is the triage step. Options are only what the client runs at this
+                      division, which is exactly what the backend will accept. Read-only for
+                      a client: they chose it when raising, and it is not theirs to reassign. */}
+                  {isAdmin && productChoices.length ? (
+                    <span className="mv">
+                      <Select
+                        label="Set product"
+                        ariaLabel="Product"
+                        value={draft.product}
+                        options={[
+                          { value: "", label: "— Not classified —" },
+                          ...productChoices.map((p) => ({ value: p, label: p })),
+                        ]}
+                        onChange={(v) => setDraft({ ...draft, product: v })}
+                      />
+                    </span>
+                  ) : (
+                    <span className="mv" title={ticket.product || undefined}>
+                      {ticket.product || "—"}
+                    </span>
+                  )}
                 </div>
                 <div className="meta-row">
                   <span className="mk">Raised by</span>

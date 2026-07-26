@@ -1,7 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { IconButton } from "@/components/ui/IconButton";
+import { ManageButton } from "@/components/ui/ManageButton";
 import { Badge } from "@/components/ui/Chips";
 import { fmtDate, initials } from "@/lib/helpers";
 import type { Client, ClientProduct, Poc } from "@/types";
@@ -10,10 +10,20 @@ import type { Client, ClientProduct, Poc } from "@/types";
  *  A lead on twelve divisions must not make its row taller than the card. */
 const CHIP_LIMIT = 3;
 
-/** Division chips, wrapping and capped. `names` are display names, already resolved. */
-function DivisionChips({ names, empty }: { names: string[]; empty: string }) {
+/** Division chips, capped. `names` are display names, already resolved.
+ *  `limit` is lower inside a row list, where the chips sit in a fixed-width column and
+ *  wrapping would make one row taller than its neighbours. */
+function DivisionChips({
+  names,
+  empty,
+  limit = CHIP_LIMIT,
+}: {
+  names: string[];
+  empty: string;
+  limit?: number;
+}) {
   if (!names.length) return <span className="chip-empty">{empty}</span>;
-  const shown = names.slice(0, CHIP_LIMIT);
+  const shown = names.slice(0, limit);
   const rest = names.length - shown.length;
   return (
     <span className="chip-group">
@@ -39,14 +49,19 @@ function divNames(client: Client, docnames: string[]) {
 
 export function ClientProducts({
   client,
+  openCount,
   onAdd,
   onEdit,
   onRemove,
+  onShowTickets,
 }: {
   client: Client;
+  /** Open tickets tagged with this product, for this client. */
+  openCount: (product: string) => number;
   onAdd: () => void;
   onEdit: (p: ClientProduct) => void;
   onRemove: (p: ClientProduct) => void;
+  onShowTickets: (p: ClientProduct) => void;
 }) {
   return (
     <section className="cc-section">
@@ -57,40 +72,56 @@ export function ClientProducts({
         </Button>
       </div>
       {client.products.length ? (
-        <div className="prod-list">
-          {client.products.map((p) => (
-            <div className="prod-row" key={p.id}>
-              <span className="prod-ic">
-                <Icon name="box" size={14} />
-              </span>
-              <div className="prod-id">
-                <div className="prod-name" title={p.product}>
-                  {p.product}
+        <div className="row-list">
+          {client.products.map((p) => {
+            const open = openCount(p.product);
+            return (
+              // The row opens this product's tickets on click, but deliberately carries no
+              // role="button"/tabIndex: it contains real buttons, and interactive elements
+              // must not nest. "Show tickets" inside it IS the accessible control — it is
+              // focusable, announced, and does the same thing.
+              <div
+                className="row-item prod-row"
+                key={p.id}
+                title={`View ${p.product} tickets`}
+                onClick={() => onShowTickets(p)}
+              >
+                <div className="cell-id">
+                  <span className="prod-ic">
+                    <Icon name="box" size={14} />
+                  </span>
+                  <div className="prod-id">
+                    <div className="prod-name" title={p.product}>
+                      {p.product}
+                    </div>
+                    <div className="prod-meta">
+                      {p.devStart && <span>Start {fmtDate(p.devStart)}</span>}
+                      {p.expectedCompletion && <span>Due {fmtDate(p.expectedCompletion)}</span>}
+                      {!p.devStart && !p.expectedCompletion && <span>No dates set</span>}
+                    </div>
+                  </div>
                 </div>
-                <div className="prod-meta">
-                  {p.devStart && <span>Start {fmtDate(p.devStart)}</span>}
-                  {p.expectedCompletion && <span>Due {fmtDate(p.expectedCompletion)}</span>}
-                  {!p.devStart && !p.expectedCompletion && <span>No dates set</span>}
+                <div className="cell-tag">
+                  <DivisionChips names={divNames(client, p.divisions)} empty="Client-wide" limit={2} />
                 </div>
+                <div className="cell-count">
+                  <Badge count tone={open ? "accent" : "neutral"} title={`${open} open`}>
+                    {open || "—"}
+                  </Badge>
+                </div>
+                <button
+                  className="row-link cell-link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShowTickets(p);
+                  }}
+                >
+                  Show tickets
+                </button>
+                <ManageButton subject={p.product} onClick={() => onEdit(p)} />
               </div>
-              <DivisionChips names={divNames(client, p.divisions)} empty="Client-wide" />
-              <div className="prod-actions">
-                <IconButton
-                  size="sm"
-                  icon={<Icon name="pencil" />}
-                  label="Edit product"
-                  onClick={() => onEdit(p)}
-                />
-                <IconButton
-                  size="sm"
-                  tone="danger"
-                  icon={<Icon name="x" />}
-                  label="Remove product"
-                  onClick={() => onRemove(p)}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="div-empty">
@@ -161,19 +192,7 @@ export function ClientLeads({
                   {p.portal === "invited" ? "Resend" : "Invite"}
                 </button>
               )}
-              <IconButton
-                size="sm"
-                icon={<Icon name="pencil" />}
-                label="Edit lead"
-                onClick={() => onEdit(p)}
-              />
-              <IconButton
-                size="sm"
-                tone="danger"
-                icon={<Icon name="x" />}
-                label="Remove lead"
-                onClick={() => onRemove(p)}
-              />
+              <ManageButton subject={p.name} onClick={() => onEdit(p)} />
             </div>
           </div>
         ))}

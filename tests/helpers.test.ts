@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
+  clientContacts,
+  clientsRunning,
+  divDisplayName,
+  availableProducts,
+  productsForDivisions,
+  productsOf,
+  relativeAge,
+  countClients,
+  isUnmatched,
+  plural,
+  NO_VALUE,
   makeCode,
   fmtDate,
   fmtDateTime,
@@ -111,5 +122,136 @@ describe("isEmail", () => {
     expect(isEmail("@nolocal.com")).toBe(false);
     expect(isEmail("has space@x.com")).toBe(false);
     expect(isEmail("two@@at.com")).toBe(false);
+  });
+});
+
+describe("countClients", () => {
+  // The bug this replaced: `new Set(tickets.map(t => t.client)).size` counted the
+  // em-dash placeholder toTicket substitutes for an unattributed inbound email, so a
+  // single message from an unknown sender rendered "Across 1 clients".
+  it("does not count unattributed tickets as a client", () => {
+    expect(countClients([{ client: NO_VALUE }])).toBe(0);
+    expect(countClients([{ client: "" }, { client: undefined }])).toBe(0);
+  });
+  it("counts distinct real clients", () => {
+    expect(countClients([{ client: "Thermax" }, { client: "Thermax" }, { client: "Saipem" }])).toBe(2);
+  });
+  it("ignores the placeholder while still counting the real ones", () => {
+    expect(countClients([{ client: "Thermax" }, { client: NO_VALUE }, { client: "Saipem" }])).toBe(2);
+  });
+  it("is zero for no tickets", () => {
+    expect(countClients([])).toBe(0);
+  });
+});
+
+describe("isUnmatched / plural", () => {
+  it("treats empty and the placeholder alike", () => {
+    expect(isUnmatched(NO_VALUE)).toBe(true);
+    expect(isUnmatched("")).toBe(true);
+    expect(isUnmatched(undefined)).toBe(true);
+    expect(isUnmatched("Thermax")).toBe(false);
+  });
+  it("pluralises only when it should", () => {
+    expect(plural(0, "client")).toBe("0 clients");
+    expect(plural(1, "client")).toBe("1 client");
+    expect(plural(2, "client")).toBe("2 clients");
+  });
+});
+
+describe("clientContacts", () => {
+  // The bug this replaced: `divisions.reduce((n, d) => n + d.pocs.length, 0)` on the
+  // client card and in the sidebar. The tree lists a contact under every division they
+  // hold AND lists Leads at client level, so a Lead on three divisions counted as three
+  // people while an unassigned one counted as none.
+  const lead = { id: "ravi@x.com", email: "ravi@x.com" };
+  const anita = { id: "anita@x.com", email: "anita@x.com" };
+
+  it("counts a multi-division lead once, not once per division", () => {
+    const client = {
+      leads: [lead],
+      divisions: [{ pocs: [lead] }, { pocs: [lead] }, { pocs: [lead, anita] }],
+    };
+    expect(clientContacts(client)).toHaveLength(2);
+  });
+  it("includes a lead who holds no divisions at all", () => {
+    expect(clientContacts({ leads: [lead], divisions: [] })).toHaveLength(1);
+    expect(clientContacts({ leads: [lead], divisions: [{ pocs: [] }] })).toHaveLength(1);
+  });
+  it("matches case-insensitively on email", () => {
+    const client = { leads: [{ email: "Ravi@X.com" }], divisions: [{ pocs: [{ email: "ravi@x.com" }] }] };
+    expect(clientContacts(client)).toHaveLength(1);
+  });
+  it("handles a client with nothing", () => {
+    expect(clientContacts({})).toHaveLength(0);
+    expect(clientContacts({ leads: [], divisions: [] })).toHaveLength(0);
+  });
+});
+
+describe("availableProducts / productsForDivisions", () => {
+  const thermax = {
+    name: "Thermax",
+    divisions: [
+      { name: "Boiler", docname: "Thermax-BOI" },
+      { name: "Chemical", docname: "Thermax-CHM" },
+    ],
+    products: [
+      { product: "SmartFlow", divisions: ["Thermax-BOI"] },
+      { product: "Analytics Hub", divisions: [] }, // client-wide
+    ],
+  };
+  const clients = [thermax];
+
+  it("offers the products live at a client + division", () => {
+    // Boiler offers both: SmartFlow is scoped there, Analytics Hub is client-wide. These
+    // are exactly the values the backend's validate will accept for such a ticket.
+    expect(availableProducts(clients, { client: "Thermax", div: "Boiler" }).sort()).toEqual([
+      "Analytics Hub",
+      "SmartFlow",
+    ]);
+    // Chemical sees only the client-wide one.
+    expect(availableProducts(clients, { client: "Thermax", div: "Chemical" })).toEqual(["Analytics Hub"]);
+  });
+
+  it("offers nothing for an unmatched ticket", () => {
+    expect(availableProducts(clients, { client: "—", div: "—" })).toEqual([]);
+    expect(availableProducts([], { client: "Thermax", div: "Boiler" })).toEqual([]);
+  });
+
+  it("productsForDivisions matches on DOCNAMES, not display names", () => {
+    // session.divisions and ClientProduct.divisions are both docnames.
+    expect(productsForDivisions(thermax, ["Thermax-BOI"]).sort()).toEqual(["Analytics Hub", "SmartFlow"]);
+    expect(productsForDivisions(thermax, ["Thermax-CHM"])).toEqual(["Analytics Hub"]);
+    // Passing a display name by mistake finds only the client-wide one — proving the
+    // two namespaces are not interchangeable.
+    expect(productsForDivisions(thermax, ["Boiler"])).toEqual(["Analytics Hub"]);
+  });
+
+  it("a contact with no divisions still sees client-wide products", () => {
+    expect(productsForDivisions(thermax, [])).toEqual(["Analytics Hub"]);
+  });
+});
+
+describe("relativeAge", () => {
+  // `now` is injectable precisely so this is testable — and so callers can map a whole
+  // page of tickets against one timestamp rather than a drifting Date.now().
+  const now = new Date("2026-07-24T12:00:00").getTime();
+  const at = (s: string) => relativeAge(s, now);
+
+  it("counts up through the units", () => {
+    expect(at("2026-07-24 11:59:40")).toBe("just now");
+    expect(at("2026-07-24 11:48:00")).toBe("12m");
+    expect(at("2026-07-24 10:00:00")).toBe("2h");
+    expect(at("2026-07-21 12:00:00")).toBe("3d");
+    expect(at("2026-06-19 12:00:00")).toBe("5w");
+  });
+  it("switches unit at each boundary rather than overflowing", () => {
+    expect(at("2026-07-24 11:00:00")).toBe("1h"); // 60m -> hours
+    expect(at("2026-07-23 12:00:00")).toBe("1d"); // 24h -> days
+    expect(at("2026-07-17 12:00:00")).toBe("1w"); // 7d  -> weeks
+  });
+  it("handles a missing or unparseable timestamp", () => {
+    expect(at("")).toBe("—");
+    expect(relativeAge(undefined, now)).toBe("—");
+    expect(at("not a date")).toBe("—");
   });
 });

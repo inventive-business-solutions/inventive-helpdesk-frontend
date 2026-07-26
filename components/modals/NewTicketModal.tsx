@@ -9,7 +9,7 @@ import { ModalFooter } from "../ui/ModalFooter";
 import { StagedFiles } from "./StagedFiles";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
-import { initials } from "../../lib/helpers";
+import { availableProducts, initials, productsForDivisions } from "../../lib/helpers";
 import type { Priority, TicketType } from "../../types";
 
 const TYPE_OPTIONS: { type: TicketType; hint: string; icon: IconName; color: string }[] = [
@@ -38,11 +38,13 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
   const [divName, setDivName] = useState(
     isClient ? (session?.div ?? "") : (clients[0]?.divisions[0]?.name ?? ""),
   );
+  const [product, setProduct] = useState("");
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [priority, setPriority] = useState<Priority>("Medium");
   const [files, setFiles] = useState<File[]>([]);
   const [titleErr, setTitleErr] = useState(false);
+  const [productErr, setProductErr] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Admin logs on behalf of a client; with no clients yet there's nothing to log against.
@@ -51,14 +53,33 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
   // Admin picked a client that has no divisions — a division-scoped ticket can't be
   // logged until one exists, so block submit rather than send an empty division.
   const divisionless = !isClient && !!activeClient && activeClient.divisions.length === 0;
-  // The product a POC reports against is wired via their division's client (product is
-  // client-level, common to the client's divisions). Shown read-only in the context card.
-  const ctxProduct = activeClient?.product;
+  // The products this contact reports against: the ones live at the divisions they hold,
+  // plus any attached client-wide. Shown in the context card.
+  const ctxProducts = productsForDivisions(activeClient, session?.divisions ?? []);
+
+  // The last step of the cascade: client -> division -> product. Only the products
+  // actually running at the chosen division (plus any attached client-wide), because those
+  // are exactly what the backend's validate will accept.
+  const effectiveDiv = isClient ? (session?.div ?? "") : divName;
+  const productOptions = availableProducts(clients, { client: clientName, div: effectiveDiv });
+  // Required when there is something to choose. A division running nothing hides the field
+  // entirely rather than blocking submit — the dead end the old `divisionless` flag created.
+  const productRequired = productOptions.length > 0;
 
   const onClientChange = (name: string) => {
     setClientName(name);
     const c = clients.find((x) => x.name === name);
     setDivName(c?.divisions[0]?.name ?? "");
+    // Products belong to the previous client's divisions; keeping one would send a value
+    // this client doesn't run and the backend would reject it.
+    setProduct("");
+    setProductErr(false);
+  };
+
+  const onDivisionChange = (name: string) => {
+    setDivName(name);
+    setProduct("");
+    setProductErr(false);
   };
 
   // The modal only opens for an authenticated user; bail defensively if not.
@@ -75,6 +96,11 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
       toast(`${clientName || "This client"} has no divisions yet — add one on the Clients page first.`);
       return;
     }
+    if (productRequired && !product) {
+      setProductErr(true);
+      toast("Choose the product you're reporting against");
+      return;
+    }
     setSaving(true);
     try {
       const id = await raiseTicket({
@@ -84,6 +110,7 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
         desc: desc.trim(),
         client: isClient ? (session.client ?? "") : clientName,
         div: isClient ? (session.div ?? "") : divName,
+        product: product || undefined,
         raisedBy: isClient ? session.name : "Admin",
         files,
       });
@@ -162,10 +189,17 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
                 <div className="nt-ctx-c">{session.client}</div>
                 <div className="nt-ctx-d">{session.div} division</div>
               </div>
-              {ctxProduct && (
-                <Badge round tone="accent" className="nt-ctx-prod" title={`Reporting against ${ctxProduct}`}>
+              {/* A division can run several products, so this is a list. Capped, with the
+                  full set in the tooltip, so a client running many doesn't stretch the row. */}
+              {ctxProducts.slice(0, 2).map((p) => (
+                <Badge round tone="accent" className="nt-ctx-prod" key={p} title={`Reporting against ${p}`}>
                   <Icon name="box" size={13} />
-                  {ctxProduct}
+                  {p}
+                </Badge>
+              ))}
+              {ctxProducts.length > 2 && (
+                <Badge round className="nt-ctx-prod" title={ctxProducts.join(", ")}>
+                  +{ctxProducts.length - 2}
                 </Badge>
               )}
             </div>
@@ -195,7 +229,7 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
                     ariaLabel="Division"
                     value={divName}
                     options={(activeClient?.divisions ?? []).map((d) => ({ value: d.name, label: d.name }))}
-                    onChange={setDivName}
+                    onChange={onDivisionChange}
                   />
                   {divisionless && (
                     <div className="field-hint">This client has no divisions — add one first.</div>
@@ -204,6 +238,39 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
               )}
             </Field>
           </div>
+        )}
+
+        {/* The last step of the cascade, and the same control for staff and clients: one
+            product per ticket, so a single-choice Select — never a multi-select. Hidden
+            entirely when the division runs nothing, so a client with no engagements can
+            still raise a ticket. */}
+        {productRequired && (
+          <Field label="Product" required error={productErr}>
+            {(id) => (
+              <>
+                <Select
+                  id={id}
+                  block
+                  label="Select product"
+                  ariaLabel="Product"
+                  value={product}
+                  options={[
+                    { value: "", label: "— Choose a product —" },
+                    ...productOptions.map((p) => ({ value: p, label: p })),
+                  ]}
+                  onChange={(v) => {
+                    setProduct(v);
+                    if (productErr) setProductErr(false);
+                  }}
+                />
+                <div className="field-hint">
+                  {isClient
+                    ? "What the issue is about — only the products running in your division are listed."
+                    : `Products running at ${effectiveDiv || "this division"}.`}
+                </div>
+              </>
+            )}
+          </Field>
         )}
 
         <TextField

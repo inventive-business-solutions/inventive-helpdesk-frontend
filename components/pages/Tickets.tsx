@@ -11,7 +11,15 @@ import { TicketTable } from "@/components/ui/TicketTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { buildFacets, type FacetOpts } from "@/lib/facets";
-import { MONTHS, RESOLVED, isActive, needsAttention, parseISO } from "@/lib/helpers";
+import {
+  MONTHS,
+  RESOLVED,
+  clientsRunning,
+  isActive,
+  needsAttention,
+  parseISO,
+  productsOf,
+} from "@/lib/helpers";
 import type { Priority, Status, TicketType } from "@/types";
 
 // Canonical option sets so every value is filterable even when no ticket is in that state.
@@ -88,10 +96,10 @@ export function Tickets() {
   // Apply every active filter to the ticket list (predicates unchanged from before).
   const rows = useMemo(() => {
     let r = tickets.slice();
-    if (product) {
-      const productClients = new Set(clients.filter((c) => c.product === product).map((c) => c.name));
-      r = r.filter((t) => productClients.has(t.client));
-    }
+    // Exact, on the ticket's own field. `none` is the Untagged bucket — emailed-in
+    // tickets nobody has classified yet — using the same sentinel convention as the team
+    // filter below. Inference is gone: the ticket now says which product it is about.
+    if (product) r = r.filter((t) => (product === "none" ? !t.product : t.product === product));
     if (active) r = r.filter((t) => isActive(t.status));
     if (resolved) r = r.filter((t) => RESOLVED.includes(t.status));
     if (type) r = r.filter((t) => t.type === type);
@@ -134,7 +142,6 @@ export function Tickets() {
     return r;
   }, [
     tickets,
-    clients,
     product,
     active,
     resolved,
@@ -176,10 +183,12 @@ export function Tickets() {
 
   // ---- cascading Product → Client → Division → POC (managers) ----
   const clientByName = (n: string) => clients.find((c) => c.name === n);
-  const productOf = (cn: string) => clientByName(cn)?.product ?? "";
+  // A client can run several products now, so this is a list. It replaced productOf(),
+  // which returned the single legacy Client.product.
+  const productsFor = (cn: string) => productsOf(clientByName(cn));
   const clientHasDiv = (cn: string, dn: string) => !!clientByName(cn)?.divisions.some((d) => d.name === dn);
   const clientsWithDiv = (dn: string) => clients.filter((c) => c.divisions.some((d) => d.name === dn));
-  const clientInProduct = (cn: string, p: string) => !p || productOf(cn) === p;
+  const clientInProduct = (cn: string, p: string) => !p || productsFor(cn).includes(p);
   const pocRefs = useMemo(
     () =>
       clients.flatMap((c) =>
@@ -194,9 +203,18 @@ export function Tickets() {
     return ms.find((r) => (!cn || r.client === cn) && (!dn || r.div === dn)) ?? ms[0];
   };
 
-  const impliedProduct = product || (client ? productOf(client) : "");
-  const scopedClients = product ? clients.filter((c) => c.product === product) : clients;
+  // Only imply a product from the chosen client when there is no ambiguity. A client
+  // running two products has no single implied one, and picking the first would silently
+  // filter the list by something the user never chose.
+  const clientProducts = client ? productsFor(client) : [];
+  const impliedProduct = product || (clientProducts.length === 1 ? clientProducts[0] : "");
+  // "none" is the Untagged bucket, not a product — narrowing the client list by it would
+  // find no client that "runs" it and empty every downstream dropdown.
+  const realProduct = product && product !== "none" ? product : "";
+  const scopedClients = realProduct ? clientsRunning(clients, realProduct) : clients;
   const divScopeClients = client ? clients.filter((c) => c.name === client) : scopedClients;
+  // Not narrowed by the product filter: product is now an exact field on the ticket, so
+  // Product and Division compose like any other pair of filters.
   const divNames = Array.from(new Set(divScopeClients.flatMap((c) => c.divisions.map((d) => d.name)))).sort(
     (a, b) => a.localeCompare(b),
   );
@@ -205,7 +223,7 @@ export function Tickets() {
       pocRefs
         .filter(
           (r) =>
-            (!product || productOf(r.client) === product) &&
+            (!realProduct || clientInProduct(r.client, realProduct)) &&
             (!client || r.client === client) &&
             (!div || r.div === div),
         )
@@ -216,6 +234,10 @@ export function Tickets() {
   // Option lists (each leads with an "All …" row that buildFacets strips for the pills).
   const productOpts: SelectOption[] = [
     { value: "", label: "All products" },
+    // Emailed-in tickets arrive with no product and are tagged at triage. Without this
+    // they'd be reachable by no product filter at all — invisible rather than a number
+    // someone can work through. Same sentinel convention as "No team".
+    { value: "none", label: "Untagged" },
     ...products.map((p) => ({ value: p, label: p })),
   ];
   const clientOpts: SelectOption[] = [
@@ -281,7 +303,7 @@ export function Tickets() {
   const onDivisionPick = (v: string) => {
     let nextClient = client ?? "";
     if (v && !nextClient) {
-      const owners = clientsWithDiv(v).filter((c) => clientInProduct(c.name, product ?? ""));
+      const owners = clientsWithDiv(v).filter((c) => clientInProduct(c.name, realProduct));
       if (owners.length === 1) nextClient = owners[0].name;
     }
     const nextPoc = poc && pocValid(poc, nextClient, v) ? poc : "";

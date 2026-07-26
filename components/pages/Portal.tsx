@@ -13,7 +13,7 @@ import { Kpi } from "@/components/ui/Kpi";
 import { WelcomeHeader } from "@/components/ui/WelcomeHeader";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { buildFacets, type FacetOpts } from "@/lib/facets";
-import { MONTHS, RESOLVED, isActive, parseISO } from "@/lib/helpers";
+import { MONTHS, RESOLVED, isActive, parseISO, productsForDivisions } from "@/lib/helpers";
 import type { Status, TicketType } from "@/types";
 
 type PortalFilter = "all" | "open" | "pending" | "resolved";
@@ -76,15 +76,15 @@ export function Portal() {
   // different product per division, so show the ones covering the divisions they hold
   // plus any attached client-wide (an empty division list).
   const myClient = clients.find((c) => c.name === session.client);
-  const myProducts = [
-    ...new Set(
-      (myClient?.products ?? [])
-        .filter(
-          (p) => p.divisions.length === 0 || p.divisions.some((d) => (session.divisions ?? []).includes(d)),
-        )
-        .map((p) => p.product),
-    ),
-  ];
+  // Was inlined here; extracted so the staff-side views apply the identical rule — this
+  // page was already correct while they were still reading the legacy Client.product.
+  const myProducts = productsForDivisions(myClient, session.divisions ?? []);
+  // How many of my tickets each product accounts for — the "see my products and their
+  // ticket count" view. Counted from the ticket's own field, so it is exact.
+  const productCounts = myProducts
+    .map((p) => ({ product: p, total: mine.filter((t) => t.product === p).length }))
+    .sort((a, b) => b.total - a.total || a.product.localeCompare(b.product));
+  const untagged = mine.filter((t) => !t.product).length;
 
   // Option lists. Status/Type are the full canonical sets; the rest are data-driven.
   const years = Array.from(
@@ -105,7 +105,11 @@ export function Portal() {
   ];
   const productOpts: SelectOption[] = [
     { value: "", label: "All products" },
-    ...myProducts.map((p) => ({ value: p, label: p })),
+    // Each product carries its own count, so the dropdown answers "how many on SmartFlow?"
+    // without leaving it. Untagged only appears when there is something in it — a client
+    // has no way to tag a ticket, so an always-present empty bucket would just puzzle them.
+    ...productCounts.map(({ product, total }) => ({ value: product, label: `${product} (${total})` })),
+    ...(untagged ? [{ value: "none", label: `Not yet classified (${untagged})` }] : []),
   ];
   const monthOpts: SelectOption[] = [
     { value: "", label: "All months" },
@@ -123,7 +127,10 @@ export function Portal() {
     if (statusF && t.status !== statusF) return false;
     if (typeF && t.type !== typeF) return false;
     if (sourceF && (t.source ?? "Portal") !== sourceF) return false;
-    if (productF && !myProducts.includes(productF)) return false;
+    // Was `!myProducts.includes(productF)` — which tested the SELECTED value against the
+    // user's own product list, never the ticket, and so was always true. The filter looked
+    // present and filtered nothing. It could not work until a ticket carried a product.
+    if (productF && (productF === "none" ? !!t.product : t.product !== productF)) return false;
     if (monthF && (parseISO(t.createdISO)?.getMonth() ?? -1) + 1 !== Number(monthF)) return false;
     if (yearF && parseISO(t.createdISO)?.getFullYear() !== Number(yearF)) return false;
     return true;

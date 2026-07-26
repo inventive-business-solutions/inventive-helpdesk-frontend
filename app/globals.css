@@ -2386,13 +2386,17 @@ table.tk .t-cd {
 }
 /* stacked two-line cells (Client/Div, Group/Member): top line primary, bottom muted,
    both left-aligned and truncated so the columns stay aligned row-to-row. */
+/* max-width was 200px while the column is 168px, so with table-layout:fixed the cell
+   could not grow and the content simply drew over the next column — a long client name
+   sat on top of Team / Member. 100% is the only value that cannot exceed its column. */
 .stack-cell {
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 1px;
   line-height: 1.3;
-  max-width: 200px;
+  min-width: 0;
+  max-width: 100%;
 }
 .stack-top {
   font-size: 12.5px;
@@ -3370,51 +3374,54 @@ button.stat:not(:disabled):hover {
 .cc-body {
   padding: 16px 20px 18px;
 }
-/* auto-FIT, not auto-fill: auto-fill keeps the empty tracks it created, so three cards in
-   a five-column row sit at minimum width with dead space to their right. auto-fit collapses
-   the unused tracks, and the 1fr max lets the cards that DO exist share the row equally —
-   they widen to fill and wrap only when they would drop below the 280px minimum. */
-.div-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 12px;
-}
 @media (max-width: 720px) {
-  .div-grid {
-    grid-template-columns: 1fr;
-  }
   .cc-metrics {
     grid-template-columns: repeat(2, 1fr);
   }
 }
-.div-card {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 14px;
-  background: var(--surface);
+/* Separates the expanded POC details from the row that opened them. */
+.row-item[data-open] > .poc-list {
+  border-top: 1px solid var(--line-2);
+  padding-top: 10px;
 }
-.div-card:hover {
-  border-color: color-mix(in srgb, var(--cc, var(--accent)) 40%, var(--line));
+/* The division name is its own button (it opens that division's tickets) but must read
+   as text, not a control — the row-link beside it is the visible affordance. */
+.dv-open {
+  background: none;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
 }
-.dv-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line-2);
+.dv-open:hover .dv-name {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
+.dv-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* display:block is load-bearing: text-overflow only applies to a block box, and this is an
+   inline span inside the .dv-open button. Without it the ellipsis silently does nothing and
+   a long division name pushes the row wide instead of truncating. */
 .dv-name {
+  display: block;
   font-weight: 700;
   font-size: 14px;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The badge + edit/delete cluster must keep its size; only the name gives way. */
-.dv-head > span:last-child {
-  flex: none;
+.dv-open {
+  display: block;
+  max-width: 100%;
+  flex: 1 1 auto;
 }
 .poc-list {
   display: flex;
@@ -4396,21 +4403,209 @@ button.stat:not(:disabled):hover {
   margin-bottom: 8px;
 }
 
+/* ---- row lists (Products and Divisions) -----------------------------------
+   One bordered container per section, rows divided by hairlines rather than each row
+   being its own floating card.
+
+   A real column grid, not a flex row: laid out by content, every row put its chip, count
+   and actions at a different x, so the trailing controls zig-zagged down the list. The
+   track sizes are FIXED and declared on a shared custom-property block, so Products and
+   Divisions resolve identically and their columns line up with each other too — the two
+   sections read as one table split by a heading, which is what they are.
+
+   Each ROW carries the track list rather than the list using subgrid: the tracks are all
+   fixed except the identity column, and every row is the same width, so `1fr` resolves
+   identically and the columns line up without it. That also avoids subgrid's support
+   floor — where it is missing the declaration is simply dropped and every cell stacks
+   vertically, which is a far worse failure than the problem it solves. */
+.row-list {
+  --rl-tag: 132px;
+  --rl-count: 40px;
+  /* Wide enough for the longest label plus its chevron ("Hide details ⌄"), so the text
+     never has to shrink or wrap to fit its track. */
+  --rl-link: 132px;
+  --rl-manage: 108px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.row-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rl-tag) var(--rl-count) var(--rl-link) var(--rl-manage);
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 6px;
+  padding: 10px 12px;
+  transition: background 0.12s ease;
+}
+.row-item + .row-item {
+  border-top: 1px solid var(--line-2);
+}
+
+/* The single row action, replacing a pencil + ✕ pair. One fixed-width control means one
+   column, so the trailing edge of every list is straight by construction rather than by
+   matching two icon widths. */
+.row-manage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  /* A FIXED width, not 100%. Filling its container made it 104px inside the row grid's
+     track and content-width in the client header's flex row, so the same control appeared
+     at two different sizes on one screen. Fixed here means every Manage button in the app
+     is identical, whatever it sits in — and the grid track below is set to match. */
+  width: 108px;
+  flex: none;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.row-manage:hover,
+.row-manage.on {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.row-manage:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.row-manage svg {
+  transition: transform 0.15s ease;
+}
+.row-manage.on svg {
+  transform: rotate(180deg);
+}
+
+/* Menu rows here lead with an icon, so they read left-to-right — the base .ui-select-opt
+   is space-between, which is right for a label + tick but would fling the icon and label
+   to opposite edges. */
+.manage-opt {
+  justify-content: flex-start;
+  gap: 9px;
+}
+.manage-opt.danger {
+  color: var(--critical);
+}
+.manage-opt.danger:hover {
+  background: color-mix(in srgb, var(--critical) 10%, transparent);
+}
+
+/* Cells. Only the identity column may shrink; the rest hold their track so the columns
+   stay straight whatever the content is. */
+.cell-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.cell-tag {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.cell-count {
+  display: flex;
+  justify-content: center;
+}
+/* Left-aligned, not right. Right-aligning made the labels end at the same x but START at
+   different ones — "Show details" carries a chevron and is wider than "Show tickets", so
+   its text hung further left and the column read as crooked. The eye tracks where text
+   begins, so that is what has to line up. */
+.cell-link {
+  justify-self: stretch;
+  justify-content: flex-start;
+}
+/* Chips sit in a fixed track, so they must not wrap — DivisionChips caps them at 2 here
+   and collapses the rest into "+N", whose tooltip carries the full list. */
+.cell-tag .chip-group {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+/* The expanded division details span the whole row rather than sitting in column 1. */
+.row-item > .poc-list,
+.row-item > .add-poc {
+  grid-column: 1 / -1;
+}
+
+/* Below this the six columns stop fitting; rows fall back to wrapping flex so nothing is
+   clipped or squeezed to nothing. */
+@media (max-width: 860px) {
+  .row-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .cell-id {
+    flex: 1 1 100%;
+  }
+  .cell-tag,
+  .cell-count {
+    justify-content: flex-start;
+  }
+  .cell-link {
+    margin-left: auto;
+  }
+}
+.row-item:hover {
+  background: var(--surface-2);
+}
+/* The expanded division keeps its tint while open, so the details visually belong to the
+   row that opened them rather than floating under the next one. */
+.row-item[data-open] {
+  background: var(--surface-2);
+}
+.row-item[data-open]:hover {
+  background: var(--surface-2);
+}
+
+/* A quiet inline action ("Show tickets" / "Show details"). Reads as a link, sized to sit
+   inside a row without competing with the icon buttons beside it. */
+.row-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.row-link:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.row-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.row-link svg {
+  transition: transform 0.15s ease;
+}
+.row-item[data-open] .row-link svg {
+  transform: rotate(180deg);
+}
+
 .prod-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+/* The row is a mouse shortcut to the product's tickets. It gets the pointer but no focus
+   ring: it is not focusable by design (see ClientSections) — the "Show tickets" button it
+   contains is the keyboard path. */
 .prod-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 4px;
-  border-radius: 8px;
-  flex-wrap: wrap;
-}
-.prod-row:hover {
-  background: var(--surface-2);
+  cursor: pointer;
 }
 .prod-ic {
   width: 28px;
@@ -4687,26 +4882,3 @@ button.stat:not(:disabled):hover {
 .checklist-empty {
   font-style: italic;
 }
-
-/* Division cards are clickable — the whole card opens that division's tickets. Interactive
-   children (edit/delete/invite/add-POC) stop propagation, so the card click never fires
-   behind them. Focusable and Enter/Space-activated, because a click target that only works
-   with a mouse is not a control. */
-.div-card {
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
-}
-.div-card:hover {
-  box-shadow: var(--shadow-1);
-  transform: translateY(-1px);
-}
-.div-card:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-/* No cursor resets for nested controls: `button` already carries cursor:pointer globally,
-   and `cursor` inherits, so the card's own pointer over its text is correct — the text IS
-   part of the click target. */
