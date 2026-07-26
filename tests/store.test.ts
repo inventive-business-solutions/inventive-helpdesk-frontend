@@ -387,6 +387,28 @@ describe("keepHydratedDetail — the 30s list poll must not blank an open ticket
     expect(keepHydratedDetail([listRow("T-2")], [listRow("T-2")])[0].activity).toEqual([]);
     expect(keepHydratedDetail([listRow("T-3")], [])[0].id).toBe("T-3");
   });
+
+  it("keeps a loaded description, which the list fetch no longer returns", () => {
+    // `description` was removed from TICKET_LIST_FIELDS, so every list row carries the
+    // placeholder. Without this the open detail view reverts to "—" once per poll.
+    const loaded: Ticket = { ...hydrated("T-1"), desc: "The boiler report exports blank." };
+    const [merged] = keepHydratedDetail([listRow("T-1")], [loaded]);
+    expect(merged.desc).toBe("The boiler report exports blank.");
+  });
+
+  it("keeps it for a portal read too, where every child table comes back empty", () => {
+    // Notes and activity sit at permlevel 1 and are stripped for a client POC, and a
+    // ticket with no reply yet has an empty conversation yet. So `hydrated` is false for
+    // them — gating the description on it would restore it for staff and not the portal.
+    const portalView: Ticket = { ...listRow("T-4"), desc: "P&ID import fails." };
+    const [merged] = keepHydratedDetail([listRow("T-4")], [portalView]);
+    expect(merged.desc).toBe("P&ID import fails.");
+  });
+
+  it("does not resurrect a description for a ticket that genuinely has none", () => {
+    const [merged] = keepHydratedDetail([listRow("T-5")], [listRow("T-5")]);
+    expect(merged.desc).toBe("—");
+  });
 });
 
 describe("mergeTicketDraft — a background refresh must not discard staged edits", () => {

@@ -16,7 +16,7 @@ import type {
   WorkNote,
 } from "./types";
 import * as api from "./lib/frappe";
-import { makeCode } from "./lib/helpers";
+import { NO_VALUE, makeCode } from "./lib/helpers";
 
 // Marks that an app session is live in THIS browser tab. sessionStorage survives
 // in-tab reloads (F5) but not a tab close or a new tab — so a fresh open of the
@@ -210,7 +210,17 @@ const TICKET_LIST_FIELDS = [
   "owner",
   "due_date",
   "sla_risk",
-  "description",
+  // `description` is deliberately NOT here. It is rendered in exactly one place — the
+  // detail view — which loads the full document anyway, while the list fetched it for
+  // every ticket on every 30-second poll. No filter, sort or column reads it: every
+  // predicate in Tickets.tsx tests a scalar field.
+  //
+  // It is also the largest field on the doctype by a wide margin. Email intake stores up
+  // to 100,000 characters of message body (email.py:466), so on an inbox-heavy site this
+  // was most of the payload, repeated per poll per agent, to render nothing.
+  //
+  // Dropping it means every list row now carries the "—" placeholder, which is why
+  // keepHydratedDetail has to preserve a real one — see there.
   "source",
   "from_email",
   "sender_kind",
@@ -265,8 +275,21 @@ export function keepHydratedDetail(fresh: Ticket[], prev: Ticket[]): Ticket[] {
   return fresh.map((t) => {
     const old = byId.get(t.id);
     if (!old) return t;
+    // `description` is not in the list fetch, so every list row arrives with the "—"
+    // placeholder. Without this an open detail view would revert to "—" on each poll
+    // while the user was reading it — the same defect this helper exists to prevent,
+    // arriving by a different route.
+    //
+    // Kept separate from the child-table check below rather than folded into it: a client
+    // POC reads notes and activity at permlevel 1, so both come back empty for them, and
+    // a ticket with no reply yet has an empty conversation too. Gating the description on
+    // `hydrated` would therefore restore it for staff and not for the portal, which is
+    // the harder bug to notice of the two.
+    const desc = t.desc === NO_VALUE && old.desc !== NO_VALUE ? old.desc : t.desc;
     const hydrated = old.conversation.length || old.notes.length || old.activity.length;
-    return hydrated ? { ...t, conversation: old.conversation, notes: old.notes, activity: old.activity } : t;
+    return hydrated
+      ? { ...t, desc, conversation: old.conversation, notes: old.notes, activity: old.activity }
+      : { ...t, desc };
   });
 }
 

@@ -23,7 +23,7 @@ import type {
   TicketType,
   WorkNote,
 } from "../types";
-import { fmtDateTime, relativeAge } from "./helpers";
+import { NO_VALUE, fmtDateTime, relativeAge } from "./helpers";
 
 const BASE = "/api/frappe";
 
@@ -643,7 +643,10 @@ export function toTicket(r: RawTicket, divName: (docname?: string) => string): T
     due: fmtDay(r.due_date),
     age: ageFrom(r.creation),
     slaRisk: !!r.sla_risk,
-    desc: r.description || "—",
+    // NO_VALUE, not a bare "—": keepHydratedDetail compares against this exact constant to
+    // tell "the list did not fetch a description" from "there genuinely isn't one", and a
+    // second literal that drifted would silently stop that working.
+    desc: r.description || NO_VALUE,
     attachments: unpackAttachments(r.attachments) || [],
     conversation: (r.conversation || []).map<Message>((m) => ({
       kind: m.kind,
