@@ -46,6 +46,51 @@ type DivRef = { docname: string; name: string; code: string; client: string };
 const resolver = (divIndex: DivRef[]) => (docname?: string) =>
   divIndex.find((x) => x.docname === docname)?.name ?? docname ?? "—";
 
+/** Team Members and Assignment Groups — the "who works here" half of master data.
+ *
+ *  Split out because it is genuinely independent: assembleClients takes clients,
+ *  divisions, POCs and products, and touches neither of these. So a purely-team mutation
+ *  (adding a member, moving someone between groups) can refresh just this instead of
+ *  refetching every client, division, contact, linked User and engagement along with it.
+ *
+ *  That mattered because reloadMasters() runs after almost every mutation in this store —
+ *  22 call sites — and each one was ~11 queries regardless of what actually changed. */
+async function fetchTeam() {
+  const [members, groups] = await Promise.all([
+    api
+      .getList<{ member_name: string; email?: string; title?: string; status?: TeamMember["status"] }>(
+        "Team Member",
+        {
+          fields: ["name", "member_name", "email", "title", "status"],
+          limit: 0,
+          orderBy: "member_name asc",
+        },
+      )
+      .then((rows) => rows.map(api.toMember)),
+    // Two list calls, not 1 + N. This used to fetch the group names and then a full
+    // getDoc per group purely to read its members child table.
+    (async () => {
+      const [gnames, memberRows] = await Promise.all([
+        api.getList<{ name: string; group_name: string }>("Assignment Group", {
+          fields: ["name", "group_name"],
+          limit: 0,
+        }),
+        // `idx asc` preserves the order the child table stores them in, which is what
+        // the per-group getDoc used to return; grouping by parent keeps that order
+        // within each group.
+        api.getList<api.RawGroupMember>("Assignment Group Member", {
+          fields: ["parent", "member"],
+          parent: "Assignment Group",
+          limit: 0,
+          orderBy: "idx asc",
+        }),
+      ]);
+      return api.assembleGroups(gnames, memberRows);
+    })(),
+  ]);
+  return { members, groups };
+}
+
 /** Load master data (clients/divisions/pocs + team/groups for admins) for the
  *  role. The backend scopes everything, so a client only receives their own. */
 async function fetchMasters(role: Role) {
@@ -73,7 +118,7 @@ async function fetchMasters(role: Role) {
   if (role === "admin") {
     // POCs, products, members and groups are mutually independent — fetch them
     // concurrently so login/reload latency is the slowest call, not their sum.
-    const [pocData, productNames, memberList, groupList, productData] = await Promise.all([
+    const [pocData, productNames, team, productData] = await Promise.all([
       // POCs plus each linked User's portal-login state. Best-effort on the User
       // list: if it isn't readable the page still loads, POCs just show no account.
       (async () => {
@@ -113,38 +158,7 @@ async function fetchMasters(role: Role) {
       api
         .getList<{ name: string }>("Product", { fields: ["name"], limit: 0, orderBy: "product_name asc" })
         .then((prod) => prod.map((p) => p.name)),
-      api
-        .getList<{ member_name: string; email?: string; title?: string; status?: TeamMember["status"] }>(
-          "Team Member",
-          {
-            fields: ["name", "member_name", "email", "title", "status"],
-            limit: 0,
-            orderBy: "member_name asc",
-          },
-        )
-        .then((rows) => rows.map(api.toMember)),
-      // Two list calls, not 1 + N. This used to fetch the group names and then a full
-      // getDoc per group purely to read its members child table — and reloadMasters()
-      // runs after almost every mutation here, so the fan-out was paid on adding a team
-      // member, renaming a client, inviting a POC, not just at login.
-      (async () => {
-        const [gnames, memberRows] = await Promise.all([
-          api.getList<{ name: string; group_name: string }>("Assignment Group", {
-            fields: ["name", "group_name"],
-            limit: 0,
-          }),
-          // `idx asc` preserves the order the child table stores them in, which is what
-          // the per-group getDoc used to return; grouping by parent keeps that order
-          // within each group.
-          api.getList<api.RawGroupMember>("Assignment Group Member", {
-            fields: ["parent", "member"],
-            parent: "Assignment Group",
-            limit: 0,
-            orderBy: "idx asc",
-          }),
-        ]);
-        return api.assembleGroups(gnames, memberRows);
-      })(),
+      fetchTeam(),
       // Client products (the engagements) plus the divisions each is attached to.
       (async () => {
         const rows = await api.getList<api.RawClientProduct>("Client Product", {
@@ -168,8 +182,8 @@ async function fetchMasters(role: Role) {
     users = pocData.users;
     pocDivisions = pocData.divRows;
     products = productNames;
-    members = memberList;
-    groups = groupList;
+    members = team.members;
+    groups = team.groups;
     clientProducts = productData.rows;
     productDivisions = productData.divRows;
   }
@@ -431,6 +445,10 @@ interface Store {
   signOut: () => Promise<void>;
   reload: () => Promise<void>;
   reloadMasters: () => Promise<void>;
+  /** Refresh ONLY Team Members and Assignment Groups. Correct for a mutation that touches
+   *  neither clients nor tickets — assembleClients does not read either of them — and
+   *  costs two queries instead of the eleven reloadMasters issues. */
+  reloadTeam: () => Promise<void>;
   /** Lightweight background refresh: re-fetch just the ticket list (one call), no
    *  masters — used by the auto-refresh poller. */
   refreshTickets: () => Promise<void>;
@@ -674,6 +692,12 @@ export const useStore = create<Store>()((set, get) => {
       if (!role) return;
       set(await fetchMasters(role));
     },
+    reloadTeam: async () => {
+      // Staff only: fetchMasters never loads the team for a portal session, so a client
+      // calling this would ask for doctypes it cannot read.
+      if (get().session?.role !== "admin") return;
+      set(await fetchTeam());
+    },
     refreshTickets: async () => {
       const { session, divIndex } = get();
       // Never refresh mid-mutation, and if a save completes while this fetch is in flight,
@@ -821,7 +845,7 @@ export const useStore = create<Store>()((set, get) => {
       // member stays Invited until their first sign-in, when the backend flips them to
       // Active. Without invite they're a directory-only assignee (no login).
       if (invite && email) await api.inviteMember(name);
-      await get().reloadMasters();
+      await get().reloadTeam();
     },
     updateMember: async (name, patch) => {
       // Title/email are plain field updates; a name change goes through the backend
@@ -854,7 +878,7 @@ export const useStore = create<Store>()((set, get) => {
       // Real invite/resend: provisions (or re-notifies) the member's staff login and
       // resets them to Invited. They flip back to Active on their next sign-in.
       await api.inviteMember(name);
-      await get().reloadMasters();
+      await get().reloadTeam();
     },
 
     // ---- groups ----
@@ -862,7 +886,7 @@ export const useStore = create<Store>()((set, get) => {
       if (get().groups.some((g) => g.name.toLowerCase() === name.toLowerCase()))
         throw new api.UserError("A team with that name already exists.");
       await api.createDoc("Assignment Group", { group_name: name });
-      await get().reloadMasters();
+      await get().reloadTeam();
     },
     removeGroup: async (name) => {
       await Promise.all(
@@ -878,14 +902,14 @@ export const useStore = create<Store>()((set, get) => {
       if ((gdoc.members || []).some((m) => m.member === member))
         throw new api.UserError(`${member} is already in ${group}.`);
       await api.updateDoc("Assignment Group", group, { members: [...(gdoc.members || []), { member }] });
-      await get().reloadMasters();
+      await get().reloadTeam();
     },
     removeGroupMember: async (group, member) => {
       const gdoc = await api.getDoc<{ members?: { member: string }[] }>("Assignment Group", group);
       await api.updateDoc("Assignment Group", group, {
         members: (gdoc.members || []).filter((m) => m.member !== member),
       });
-      await get().reloadMasters();
+      await get().reloadTeam();
     },
 
     // ---- clients / divisions / pocs ----
