@@ -234,8 +234,30 @@ const TICKET_LIST_FIELDS = [
 const scopeFor = (session: Session | null) =>
   session?.role === "client" ? { client: session.client, divisions: session.divisions ?? [] } : undefined;
 
+/** Ceiling on one ticket fetch.
+ *
+ *  This was `limit: 0` — Frappe's "no limit" — so the browser pulled every ticket the user
+ *  could see, on login and on every 30-second poll. For a manager, whose scope is the whole
+ *  site, that grows without bound for the life of the deployment, and every filter, sort and
+ *  dashboard count then runs over that array in memory.
+ *
+ *  A cap is NOT the same as server-side pagination, and is not pretending to be. Filtering
+ *  and aggregation still happen client-side, so the honest description is that this bounds
+ *  the worst case rather than fixing the design. It is set well above any plausible current
+ *  volume so nothing changes in practice today; the point is that the failure mode at ten
+ *  times the volume becomes "the oldest tickets are not in this view", which is visible and
+ *  survivable, rather than a page that gets slower every month until it stops loading.
+ *
+ *  Ordered `creation desc`, so what falls off the end is the oldest — and `truncated` is
+ *  reported to the UI rather than swallowed, because a list quietly missing rows is worse
+ *  than a slow one. Proper pagination is the real fix; see the note in the store. */
+export const TICKET_FETCH_CAP = 2000;
+
 /** Load the (scoped) tickets in a single list call. Kept separate so
- *  master-data edits don't refetch the whole ticket set. */
+ *  master-data edits don't refetch the whole ticket set.
+ *
+ *  Returns `truncated` when the fetch came back full, i.e. there are older tickets this
+ *  view is not showing. */
 async function fetchTickets(divIndex: DivRef[], scope?: { client?: string; divisions?: string[] }) {
   const resolve = resolver(divIndex);
   // Defense-in-depth: a client session asks only for its own client's tickets, and only
@@ -254,10 +276,16 @@ async function fetchTickets(divIndex: DivRef[], scope?: { client?: string; divis
   const rows = await api.getList<api.RawTicket>("Support Ticket", {
     fields: TICKET_LIST_FIELDS,
     orderBy: "creation desc",
-    limit: 0,
+    limit: TICKET_FETCH_CAP,
     ...(filters.length ? { filters } : {}),
   });
-  return rows.map((d) => api.toTicket(d, resolve));
+  return {
+    tickets: rows.map((d) => api.toTicket(d, resolve)),
+    // `>=` rather than `===`: a server-side default could return fewer than asked for
+    // without meaning the set is complete, and under-reporting truncation is the failure
+    // this flag exists to prevent.
+    truncated: rows.length >= TICKET_FETCH_CAP,
+  };
 }
 
 /** Carry already-hydrated detail across a LIST refresh.
@@ -376,6 +404,10 @@ interface Store {
    *  so a teammate opening a ticket doesn't clear your marker. Empty for client sessions —
    *  the endpoint is staff-only. */
   unread: string[];
+  /** True when the ticket fetch came back at its cap, i.e. there are older tickets this
+   *  session is not holding. Surfaced in the list rather than kept internal: a view that
+   *  is quietly missing rows is worse than one that admits it. */
+  ticketsTruncated: boolean;
   session: Session | null;
   divIndex: DivRef[];
   booted: boolean;
@@ -514,6 +546,7 @@ export const useStore = create<Store>()((set, get) => {
     products: [],
     tickets: [],
     unread: [],
+    ticketsTruncated: false,
     session: null,
     divIndex: [],
     booted: false,
@@ -532,9 +565,9 @@ export const useStore = create<Store>()((set, get) => {
       api.setCsrfToken(ctx.csrf_token);
       const session = sessionFromCtx(ctx);
       const masters = await fetchMasters(session.role);
-      const tickets = await fetchTickets(masters.divIndex, scopeFor(session));
+      const { tickets, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
       markTabSession(true); // this tab now holds a live session (survives F5, not tab close)
-      set({ session, ...masters, tickets, booted: true });
+      set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
       void refreshUnread();
       return session;
     },
@@ -562,9 +595,9 @@ export const useStore = create<Store>()((set, get) => {
       api.setCsrfToken(ctx.csrf_token);
       const session = sessionFromCtx(ctx);
       const masters = await fetchMasters(session.role);
-      const tickets = await fetchTickets(masters.divIndex, scopeFor(session));
+      const { tickets, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
       markTabSession(true);
-      set({ session, ...masters, tickets, booted: true });
+      set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
       void refreshUnread();
       return session;
     },
@@ -585,8 +618,8 @@ export const useStore = create<Store>()((set, get) => {
         api.setCsrfToken(ctx.csrf_token);
         const session = sessionFromCtx(ctx);
         const masters = await fetchMasters(session.role);
-        const tickets = await fetchTickets(masters.divIndex, scopeFor(session));
-        set({ session, ...masters, tickets, booted: true });
+        const { tickets, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
+        set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
         void refreshUnread();
       } catch {
         set({ session: null, booted: true });
@@ -609,6 +642,7 @@ export const useStore = create<Store>()((set, get) => {
         groups: [],
         products: [],
         tickets: [],
+        ticketsTruncated: false,
         divIndex: [],
         booted: true,
       });
@@ -617,10 +651,10 @@ export const useStore = create<Store>()((set, get) => {
       const session = get().session;
       if (!session) return;
       const masters = await fetchMasters(session.role);
-      const fresh = await fetchTickets(masters.divIndex, scopeFor(session));
+      const { tickets: fresh, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
       // Keep hydrated child tables so an open ticket detail doesn't blank out when a
       // member/group change triggers this reload.
-      set({ ...masters, tickets: keepHydratedDetail(fresh, get().tickets) });
+      set({ ...masters, tickets: keepHydratedDetail(fresh, get().tickets), ticketsTruncated: truncated });
     },
     reloadMasters: async () => {
       const role = get().session?.role;
@@ -633,11 +667,11 @@ export const useStore = create<Store>()((set, get) => {
       // discard the (now possibly stale) result rather than clobber the user's change.
       if (!session || api.isMutating()) return;
       const ver = api.mutationVersion();
-      const fresh = await fetchTickets(divIndex, scopeFor(session));
+      const { tickets: fresh, truncated } = await fetchTickets(divIndex, scopeFor(session));
       if (api.isMutating() || api.mutationVersion() !== ver) return;
       // Same merge as reload(), but tickets-only: this is the 30s background poll, so
       // it is the one most likely to be running with a ticket detail open on screen.
-      set({ tickets: keepHydratedDetail(fresh, get().tickets) });
+      set({ tickets: keepHydratedDetail(fresh, get().tickets), ticketsTruncated: truncated });
       void refreshUnread();
     },
     markRead: async (id) => {
