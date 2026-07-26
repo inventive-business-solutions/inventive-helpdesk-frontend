@@ -734,14 +734,19 @@ export function pocPortalStatus(poc: RawPoc, users: Map<string, RawUser>): Porta
   return "active";
 }
 
-/** Group child rows by their parent docname. */
-function byParent(rows: RawChildDivision[]): Map<string, string[]> {
+/** Group child rows by their parent docname, taking `key` as the value.
+ *
+ *  Generic because three child tables need exactly this shape now — POC Division, Client
+ *  Product Division and Assignment Group Member — and they differ only in which column
+ *  carries the value. */
+function byParent<T extends { parent: string }>(rows: T[], key: keyof T): Map<string, string[]> {
   const m = new Map<string, string[]>();
   for (const r of rows) {
-    if (!r.division) continue;
+    const value = r[key];
+    if (typeof value !== "string" || !value) continue;
     const list = m.get(r.parent);
-    if (list) list.push(r.division);
-    else m.set(r.parent, [r.division]);
+    if (list) list.push(value);
+    else m.set(r.parent, [value]);
   }
   return m;
 }
@@ -764,8 +769,8 @@ export function assembleClients(
   clientProducts: RawClientProduct[] = [],
   productDivisions: RawChildDivision[] = [],
 ): Client[] {
-  const pocDivs = byParent(pocDivisions);
-  const prodDivs = byParent(productDivisions);
+  const pocDivs = byParent(pocDivisions, "division");
+  const prodDivs = byParent(productDivisions, "division");
 
   const toPoc = (p: RawPoc): Poc => ({
     id: p.name,
@@ -822,6 +827,30 @@ export function toMember(r: {
     status: r.status || "Not Invited",
   };
 }
-export function toGroup(r: { group_name: string; members?: { member: string }[] }): Group {
-  return { name: r.group_name, members: (r.members || []).map((m) => m.member) };
+/** A row of the Assignment Group Member child table. */
+export interface RawGroupMember {
+  parent: string;
+  member: string;
+}
+
+/** Assemble Group[] from the group list plus ONE flat read of the members child table.
+ *
+ *  Replaces a getDoc per group. Loading teams cost 1 + N requests, and `reloadMasters()`
+ *  runs after almost every mutation in the store — adding a member, renaming a client,
+ *  inviting a POC — so the N was paid on each of them, not just at login.
+ *
+ *  The `parent` option on the list endpoint is what makes the single read possible: child
+ *  rows are permission-checked through their parent, so Frappe needs telling which parent
+ *  doctype to check against. Same technique already used for POC Division above. */
+export function assembleGroups(
+  groups: { name: string; group_name?: string }[],
+  memberRows: RawGroupMember[] = [],
+): Group[] {
+  const members = byParent(memberRows, "member");
+  return groups.map((g) => ({
+    // Assignment Group is autonamed by group_name, so these agree — but read the field
+    // rather than relying on that, since the docname is what the child rows join on.
+    name: g.group_name || g.name,
+    members: members.get(g.name) ?? [],
+  }));
 }

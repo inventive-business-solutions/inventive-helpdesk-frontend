@@ -123,17 +123,27 @@ async function fetchMasters(role: Role) {
           },
         )
         .then((rows) => rows.map(api.toMember)),
+      // Two list calls, not 1 + N. This used to fetch the group names and then a full
+      // getDoc per group purely to read its members child table — and reloadMasters()
+      // runs after almost every mutation here, so the fan-out was paid on adding a team
+      // member, renaming a client, inviting a POC, not just at login.
       (async () => {
-        const gnames = await api.getList<{ name: string }>("Assignment Group", {
-          fields: ["name"],
-          limit: 0,
-        });
-        const gdocs = await Promise.all(
-          gnames.map((g) =>
-            api.getDoc<{ group_name: string; members?: { member: string }[] }>("Assignment Group", g.name),
-          ),
-        );
-        return gdocs.map(api.toGroup);
+        const [gnames, memberRows] = await Promise.all([
+          api.getList<{ name: string; group_name: string }>("Assignment Group", {
+            fields: ["name", "group_name"],
+            limit: 0,
+          }),
+          // `idx asc` preserves the order the child table stores them in, which is what
+          // the per-group getDoc used to return; grouping by parent keeps that order
+          // within each group.
+          api.getList<api.RawGroupMember>("Assignment Group Member", {
+            fields: ["parent", "member"],
+            parent: "Assignment Group",
+            limit: 0,
+            orderBy: "idx asc",
+          }),
+        ]);
+        return api.assembleGroups(gnames, memberRows);
       })(),
       // Client products (the engagements) plus the divisions each is attached to.
       (async () => {

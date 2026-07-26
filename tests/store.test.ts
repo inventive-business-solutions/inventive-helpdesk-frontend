@@ -4,7 +4,7 @@ import {
   assembleClients,
   pocPortalStatus,
   toMember,
-  toGroup,
+  assembleGroups,
   type RawTicket,
   type RawClient,
   type RawDivision,
@@ -307,7 +307,7 @@ describe("pocPortalStatus", () => {
   });
 });
 
-describe("toMember / toGroup", () => {
+describe("toMember / assembleGroups", () => {
   it("maps a Team Member", () => {
     expect(
       toMember({ member_name: "Kiran Jaware", email: "k@x.com", title: "Support", status: "Active" }),
@@ -315,11 +315,41 @@ describe("toMember / toGroup", () => {
   });
   it("maps an Assignment Group with its child members", () => {
     expect(
-      toGroup({
-        group_name: "IT Team",
-        members: [{ member: "Kiran Jaware" }, { member: "Abhishek Bankar" }],
-      }),
-    ).toEqual({ name: "IT Team", members: ["Kiran Jaware", "Abhishek Bankar"] });
+      assembleGroups(
+        [{ name: "IT Team", group_name: "IT Team" }],
+        [
+          { parent: "IT Team", member: "Kiran Jaware" },
+          { parent: "IT Team", member: "Abhishek Bankar" },
+        ],
+      ),
+    ).toEqual([{ name: "IT Team", members: ["Kiran Jaware", "Abhishek Bankar"] }]);
+  });
+  it("keeps each group's members to itself", () => {
+    // The whole point of the flat read: one query returns every group's rows at once, so
+    // the grouping by parent is what stops IT Team showing Finance's members.
+    expect(
+      assembleGroups(
+        [
+          { name: "IT Team", group_name: "IT Team" },
+          { name: "Finance", group_name: "Finance" },
+        ],
+        [
+          { parent: "IT Team", member: "Kiran Jaware" },
+          { parent: "Finance", member: "Priya Sharma" },
+          { parent: "IT Team", member: "Abhishek Bankar" },
+        ],
+      ),
+    ).toEqual([
+      { name: "IT Team", members: ["Kiran Jaware", "Abhishek Bankar"] },
+      { name: "Finance", members: ["Priya Sharma"] },
+    ]);
+  });
+  it("gives a group with no members an empty list, not undefined", () => {
+    // A newly created team has no rows in the child table at all, so it is absent from the
+    // grouped map entirely — distinct from having an empty one.
+    expect(assembleGroups([{ name: "Empty", group_name: "Empty" }], [])).toEqual([
+      { name: "Empty", members: [] },
+    ]);
   });
 });
 
