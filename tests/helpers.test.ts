@@ -7,7 +7,6 @@ import {
   productsForDivisions,
   productsOf,
   relativeAge,
-  countClients,
   isUnmatched,
   plural,
   NO_VALUE,
@@ -122,25 +121,6 @@ describe("isEmail", () => {
     expect(isEmail("@nolocal.com")).toBe(false);
     expect(isEmail("has space@x.com")).toBe(false);
     expect(isEmail("two@@at.com")).toBe(false);
-  });
-});
-
-describe("countClients", () => {
-  // The bug this replaced: `new Set(tickets.map(t => t.client)).size` counted the
-  // em-dash placeholder toTicket substitutes for an unattributed inbound email, so a
-  // single message from an unknown sender rendered "Across 1 clients".
-  it("does not count unattributed tickets as a client", () => {
-    expect(countClients([{ client: NO_VALUE }])).toBe(0);
-    expect(countClients([{ client: "" }, { client: undefined }])).toBe(0);
-  });
-  it("counts distinct real clients", () => {
-    expect(countClients([{ client: "Thermax" }, { client: "Thermax" }, { client: "Saipem" }])).toBe(2);
-  });
-  it("ignores the placeholder while still counting the real ones", () => {
-    expect(countClients([{ client: "Thermax" }, { client: NO_VALUE }, { client: "Saipem" }])).toBe(2);
-  });
-  it("is zero for no tickets", () => {
-    expect(countClients([])).toBe(0);
   });
 });
 

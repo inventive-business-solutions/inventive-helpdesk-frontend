@@ -18,16 +18,6 @@ export const NO_VALUE = "—";
  *  replaced the empty value by the time any view sees it. */
 export const isUnmatched = (client?: string) => !client || client === NO_VALUE;
 
-/** How many distinct REAL clients these tickets belong to.
- *
- *  Not `new Set(tickets.map(t => t.client)).size`. The mapper substitutes NO_VALUE for
- *  an unattributed inbound ticket, so the raw set counts that placeholder as though it
- *  were a client — one email from an unknown sender reported "Across 1 clients", and
- *  with real clients present it inflated the count by one. */
-export function countClients(tickets: { client?: string }[]): number {
-  return new Set(tickets.map((t) => t.client).filter((c) => !isUnmatched(c))).size;
-}
-
 /** "1 client" / "2 clients" / "0 clients". */
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 

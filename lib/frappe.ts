@@ -305,6 +305,38 @@ export function claimTicket(ticket: string) {
 export function unreadTickets() {
   return call<string[]>("inventive_helpdesk_backend.api.unread_tickets");
 }
+/** Dashboard figures counted server-side (api.ticket_stats).
+ *
+ *  Scoped to the caller by the same permission_query_conditions as every list read, so a
+ *  portal contact receives their own divisions' numbers and a manager receives the site's.
+ *  Breakdown keys are docnames (or "" for an empty Link), values are counts. */
+export interface TicketStats {
+  counts: {
+    total: number;
+    active: number;
+    resolved: number;
+    needs_attention: number;
+    sla_risk: number;
+    email: number;
+    to_system: number;
+    to_member: number;
+  };
+  by_status: Record<string, number>;
+  by_priority: Record<string, number>;
+  by_type: Record<string, number>;
+  by_client: Record<string, number>;
+  by_assignee: Record<string, number>;
+  by_team: Record<string, number>;
+  trend: { week: string; created: number; resolved: number }[];
+}
+
+/** Fetch the dashboard aggregates. `weeks` sizes the trend window; the server clamps it. */
+export function ticketStats(weeks?: number) {
+  return call<TicketStats>("inventive_helpdesk_backend.api.ticket_stats", {
+    ...(weeks === undefined ? {} : { trend_weeks: weeks }),
+  });
+}
+
 /** Called when an agent opens a ticket, clearing their own unread marker for it. */
 export function markTicketRead(ticket: string) {
   return call<string>("inventive_helpdesk_backend.api.mark_ticket_read", { ticket });

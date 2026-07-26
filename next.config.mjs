@@ -129,6 +129,10 @@ const proxyRewrites = [
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.unread_tickets`,
   },
   {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.ticket_stats",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.ticket_stats`,
+  },
+  {
     source: "/api/frappe/method/inventive_helpdesk_backend.api.mark_ticket_read",
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.mark_ticket_read`,
   },

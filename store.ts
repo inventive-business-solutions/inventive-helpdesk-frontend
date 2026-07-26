@@ -435,6 +435,10 @@ interface Store {
    *  session is not holding. Surfaced in the list rather than kept internal: a view that
    *  is quietly missing rows is worse than one that admits it. */
   ticketsTruncated: boolean;
+  /** Dashboard figures counted server-side, or null before the first load. Kept separate
+   *  from `tickets` because it is the whole point: these numbers are complete even when
+   *  the ticket array is capped. */
+  stats: api.TicketStats | null;
   session: Session | null;
   divIndex: DivRef[];
   booted: boolean;
@@ -452,6 +456,8 @@ interface Store {
   /** Lightweight background refresh: re-fetch just the ticket list (one call), no
    *  masters — used by the auto-refresh poller. */
   refreshTickets: () => Promise<void>;
+  /** Re-count the dashboard figures. `weeks` sizes the trend window. */
+  refreshStats: (weeks?: number) => Promise<void>;
   loadTicket: (id: string, guarded?: boolean) => Promise<void>;
   /** Clear this agent's unread marker for a ticket (called when they open it). */
   markRead: (id: string) => Promise<void>;
@@ -578,6 +584,7 @@ export const useStore = create<Store>()((set, get) => {
     tickets: [],
     unread: [],
     ticketsTruncated: false,
+    stats: null,
     session: null,
     divIndex: [],
     booted: false,
@@ -674,6 +681,7 @@ export const useStore = create<Store>()((set, get) => {
         products: [],
         tickets: [],
         ticketsTruncated: false,
+        stats: null,
         divIndex: [],
         booted: true,
       });
@@ -710,6 +718,15 @@ export const useStore = create<Store>()((set, get) => {
       // it is the one most likely to be running with a ticket detail open on screen.
       set({ tickets: keepHydratedDetail(fresh, get().tickets), ticketsTruncated: truncated });
       void refreshUnread();
+    },
+    refreshStats: async (weeks) => {
+      if (!get().session) return;
+      try {
+        set({ stats: await api.ticketStats(weeks) });
+      } catch {
+        // Figures are a read-only view; a failed refresh leaves the previous ones on
+        // screen rather than blanking the dashboard, and the next poll retries.
+      }
     },
     markRead: async (id) => {
       if (get().session?.role !== "admin") return;

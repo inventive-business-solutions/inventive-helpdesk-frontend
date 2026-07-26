@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Segmented } from "@/components/ui/Segmented";
@@ -14,8 +15,7 @@ import { BreakdownModal } from "@/components/modals/BreakdownModal";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { AgentDashboard } from "@/components/pages/AgentDashboard";
 import { WelcomeHeader } from "@/components/ui/WelcomeHeader";
-import { TruncationNotice } from "@/components/ui/TruncationNotice";
-import { RESOLVED, countClients, enc, isActive, needsAttention, parseISO, plural } from "@/lib/helpers";
+import { enc, needsAttention, plural } from "@/lib/helpers";
 import type { Priority, Status, TicketType } from "@/types";
 
 const RANGES: { key: string; weeks: number }[] = [
@@ -67,31 +67,6 @@ const PALETTE = [
 
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** Real created-vs-resolved weekly trend from the loaded tickets (resolved =
- *  created that week and now in a resolved state). Keyed off the raw ISO
- *  timestamp, not a re-parsed display string. */
-function buildTrend(tickets: { createdISO?: string; status: Status }[], weeks: number) {
-  const dated = tickets
-    .map((t) => ({ d: parseISO(t.createdISO), resolved: RESOLVED.includes(t.status) }))
-    .filter((x): x is { d: Date; resolved: boolean } => !!x.d);
-  if (!dated.length) return [];
-  const latest = new Date(Math.max(...dated.map((x) => x.d.getTime())));
-  const out: { week: string; created: number; resolved: number }[] = [];
-  for (let i = weeks - 1; i >= 0; i--) {
-    const end = new Date(latest);
-    end.setDate(end.getDate() - i * 7);
-    const start = new Date(end);
-    start.setDate(start.getDate() - 6);
-    const inWeek = dated.filter((x) => x.d >= start && x.d <= end);
-    out.push({
-      week: `${MONTHS_SHORT[start.getMonth()]} ${start.getDate()}`,
-      created: inWeek.length,
-      resolved: inWeek.filter((x) => x.resolved).length,
-    });
-  }
-  return out;
-}
-
 // Members (staff agents) get a focused "my work" cockpit; managers/System Manager get the
 // org dashboard below. Split at the top so hooks stay unconditional in each component.
 export function Dashboard() {
@@ -120,54 +95,75 @@ function ManagerDashboard() {
   const [range, setRange] = useState("8w");
   const [tab, setTab] = useState("Priority"); // selected Ticket-breakdown dimension
 
-  // KPI/table slices — recomputed only when the ticket set changes.
-  const { active, resolved, pendingAction, slaRisk, emailTickets, toSystem, toMember } = useMemo(() => {
-    const active = tickets.filter((t) => isActive(t.status));
-    return {
-      active,
-      resolved: tickets.filter((t) => RESOLVED.includes(t.status)),
-      pendingAction: tickets.filter(needsAttention),
-      slaRisk: tickets.filter((t) => t.slaRisk && isActive(t.status)),
-      emailTickets: tickets.filter((t) => t.source === "Email"),
-      // Assignment gaps among open tickets: no team at all (To System — where new
-      // email tickets land) vs assigned to a team but no member yet (To Member).
-      toSystem: active.filter((t) => !t.group && t.assignee === "Unassigned").length,
-      toMember: active.filter((t) => t.group && t.assignee === "Unassigned").length,
-    };
-  }, [tickets]);
+  // FIGURES come from the server (api.ticket_stats), counted over every ticket this user
+  // may see. The ticket fetch is capped, so counting the loaded array here would silently
+  // report smaller numbers on a busy site — the cap and the wrong figures were the same
+  // problem seen from two ends.
+  //
+  // ROWS still come from the loaded array, and correctly: both tables below show the six
+  // most recent of something, and the cap keeps the most recent (it orders creation desc).
+  const stats = useStore((s) => s.stats);
+  const refreshStats = useStore((s) => s.refreshStats);
+  const weeks = RANGES.find((r) => r.key === range)?.weeks ?? 8;
+  useEffect(() => {
+    void refreshStats(weeks);
+  }, [refreshStats, weeks]);
+  // Re-count on the same cadence as the ticket poll, so a figure and the list beneath it
+  // do not drift apart on screen.
+  useAutoRefresh(() => refreshStats(weeks));
 
-  const trendData = useMemo(
-    () => buildTrend(tickets, RANGES.find((r) => r.key === range)?.weeks ?? 8),
-    [tickets, range],
+  const counts = stats?.counts;
+  // by_client only contains clients that HAVE open tickets — a GROUP BY returns existing
+  // groups only — so its key count is the distinct-client figure, counted server-side like
+  // everything else here. The empty key is the unscoped bucket and is not a client.
+  const openClientCount = Object.keys(stats?.by_client ?? {}).filter(Boolean).length;
+  const trendData = stats?.trend ?? [];
+  const toSystem = counts?.to_system ?? 0;
+  const toMember = counts?.to_member ?? 0;
+
+  // The two tables, and only the tables.
+  const { pendingAction, emailTickets } = useMemo(
+    () => ({
+      pendingAction: tickets.filter(needsAttention),
+      emailTickets: tickets.filter((t) => t.source === "Email"),
+    }),
+    [tickets],
   );
 
   // Each breakdown is one tab of the Ticket-breakdown chart. `dynamic` lists grow with
   // the data (clients/members/teams) and cap at 8 rows with a "+N more" → full-list popup.
+  //
+  // Every value is a server count now. The fixed dimensions still iterate their canonical
+  // order rather than the response keys, so a priority nobody currently has still shows as
+  // a zero row instead of vanishing from the chart.
   const breakdowns: { tab: string; title: string; rows: BarRow[]; dynamic?: boolean }[] = useMemo(() => {
+    const n = (group: Record<string, number> | undefined, key: string) => group?.[key] ?? 0;
     const priorityRows: BarRow[] = PRIORITY_ORDER.map((p) => ({
       label: p,
-      value: active.filter((t) => t.priority === p).length,
+      value: n(stats?.by_priority, p),
       color: PRIORITY_COLOR[p],
       href: `/tickets?priority=${enc(p)}&active=1`,
     }));
     const statusRows: BarRow[] = STATUS_ORDER.map((st) => ({
       label: st,
-      value: tickets.filter((t) => t.status === st).length,
+      value: n(stats?.by_status, st),
       color: STATUS_COLOR[st],
       href: `/tickets?status=${enc(st)}`,
     }));
     const typeRows: BarRow[] = TYPES.map((t) => ({
       label: t,
-      value: active.filter((x) => x.type === t).length,
+      value: n(stats?.by_type, t),
       color: TYPE_COLOR[t],
       href: `/tickets?type=${enc(t)}&active=1`,
     }));
     // The growing lists rank by load (busiest first); ties keep source order (stable sort).
     const byCount = (a: BarRow, b: BarRow) => b.value - a.value;
+    // Driven by the master lists, not the response keys, so a client or team with no open
+    // work keeps its place in the ranking at zero rather than disappearing.
     const clientRows: BarRow[] = clients
       .map((cl, i) => ({
         label: cl.name,
-        value: active.filter((t) => t.client === cl.name).length,
+        value: n(stats?.by_client, cl.name),
         color: PALETTE[i % PALETTE.length],
         href: `/tickets?client=${enc(cl.name)}&active=1`,
       }))
@@ -177,7 +173,7 @@ function ManagerDashboard() {
     const workloadRows: BarRow[] = members
       .map((m, i) => ({
         label: m.name,
-        value: active.filter((t) => t.assignee === m.name).length,
+        value: n(stats?.by_assignee, m.name),
         color: PALETTE[i % PALETTE.length],
         href: `/tickets?assignee=${enc(m.name)}&active=1`,
       }))
@@ -188,7 +184,7 @@ function ManagerDashboard() {
     const groupRows: BarRow[] = groups
       .map((g, i) => ({
         label: g.name,
-        value: active.filter((t) => t.group === g.name).length,
+        value: n(stats?.by_team, g.name),
         color: PALETTE[i % PALETTE.length],
         href: `/tickets?group=${enc(g.name)}&active=1`,
       }))
@@ -201,7 +197,7 @@ function ManagerDashboard() {
       { tab: "Member", title: "Member workload", rows: workloadRows, dynamic: true },
       { tab: "Team", title: "Team workload", rows: groupRows, dynamic: true },
     ];
-  }, [active, tickets, clients, members, groups]);
+  }, [stats, clients, members, groups]);
 
   // The dimension currently shown in the Ticket-breakdown chart (tab defaults to Priority).
   const activeDim = breakdowns.find((b) => b.tab === tab) ?? breakdowns[0];
@@ -217,7 +213,6 @@ function ManagerDashboard() {
 
   return (
     <>
-      <TruncationNotice what="these figures cover only those" />
       <WelcomeHeader
         name={session?.name || ""}
         eyebrow="Dashboard"
@@ -238,28 +233,28 @@ function ManagerDashboard() {
       <div className="kpi-grid">
         <Kpi
           label="Open tickets"
-          value={active.length}
-          sub={`Across ${plural(countClients(active), "client")}`}
+          value={counts?.active ?? 0}
+          sub={`Across ${plural(openClientCount, "client")}`}
           color="var(--accent)"
           onClick={() => go("/tickets?active=1")}
         />
         <Kpi
           label="Resolved"
-          value={resolved.length}
+          value={counts?.resolved ?? 0}
           sub="This cycle"
           color="var(--good)"
           onClick={() => go("/tickets?resolved=1")}
         />
         <Kpi
           label="Needs attention"
-          value={pendingAction.length}
+          value={counts?.needs_attention ?? 0}
           sub="Unassigned or stale"
           color="var(--warning)"
           onClick={() => go("/tickets?attention=1")}
         />
         <Kpi
           label="SLA at risk"
-          value={slaRisk.length}
+          value={counts?.sla_risk ?? 0}
           sub="Overdue or due soon"
           color="var(--critical)"
           onClick={() => go("/tickets?sla=1")}
