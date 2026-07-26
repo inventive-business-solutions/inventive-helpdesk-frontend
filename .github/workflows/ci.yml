@@ -124,6 +124,7 @@ jobs:
             FRAPPE_URL=${{ vars.FRAPPE_URL }}
             SOCKETIO_URL=${{ vars.SOCKETIO_URL }}
             BUILD_SHA=${{ github.sha }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
 
       # The stack's VERSION must be "latest" (not a pinned SHA). This webhook only
       # redeploys the stack — it does not set environment variables, and a ?VERSION=

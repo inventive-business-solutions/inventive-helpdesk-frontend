@@ -40,6 +40,16 @@ COPY . .
 ARG FRAPPE_URL
 ARG SOCKETIO_URL
 ARG BUILD_SHA=dev
+# Sentry DSN. Build-time for the SAME reason as the two above, in two places at once: a
+# NEXT_PUBLIC_ variable is inlined into the client bundle during `next build`, and the DSN's
+# origin is compiled into the Content-Security-Policy that next.config.mjs freezes into
+# routes-manifest.json. Set only on the running container it would do nothing twice over —
+# the browser bundle would carry no DSN, and even a server-side one would be reporting to a
+# host the CSP does not allow.
+#
+# Optional, unlike FRAPPE_URL: an image built without it simply has error reporting off,
+# which is a working image. So this gets no guard below.
+ARG NEXT_PUBLIC_SENTRY_DSN=
 
 RUN if [ -z "$FRAPPE_URL" ] || [ -z "$SOCKETIO_URL" ]; then \
       echo "ERROR: FRAPPE_URL and SOCKETIO_URL are required build args." >&2; \
@@ -50,6 +60,7 @@ RUN if [ -z "$FRAPPE_URL" ] || [ -z "$SOCKETIO_URL" ]; then \
 ENV FRAPPE_URL=${FRAPPE_URL} \
     SOCKETIO_URL=${SOCKETIO_URL} \
     BUILD_SHA=${BUILD_SHA} \
+    NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN} \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build

@@ -1,3 +1,5 @@
+import { withSentryConfig } from "@sentry/nextjs";
+
 /** @type {import('next').NextConfig} */
 
 // The frontend never talks to Frappe cross-origin. It calls same-origin
@@ -17,6 +19,27 @@ const FRAPPE_URL = process.env.FRAPPE_URL || "http://127.0.0.1:8000";
 const SOCKETIO_URL = process.env.SOCKETIO_URL || "http://127.0.0.1:9000";
 const isProd = process.env.NODE_ENV === "production";
 
+// Sentry's ingest host, derived from the DSN so the CSP allowance below is exactly the one
+// host in use rather than a wildcard. Empty when Sentry is not configured, which is the
+// normal state locally — and in that case nothing here changes the config at all.
+//
+// This is the half of a Sentry integration that is easy to omit and impossible to notice.
+// `connect-src 'self'` below blocks every outbound request the app did not make to its own
+// origin, and an SDK that cannot POST its events fails SILENTLY: no error, no retry, just a
+// CSP violation in a console nobody has open, and a Sentry project that stays empty while
+// looking correctly installed.
+const SENTRY_ORIGIN = (() => {
+  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (!dsn) return "";
+  try {
+    return new URL(dsn).origin;
+  } catch {
+    // A malformed DSN must not take the build down — the SDK will decline it too.
+    console.warn("[next.config] NEXT_PUBLIC_SENTRY_DSN is not a valid URL; ignoring it.");
+    return "";
+  }
+})();
+
 // Content-Security-Policy locks the app to same-origin. 'unsafe-inline' is
 // required for Next's hydration payload / styled-jsx without per-request nonces;
 // script-injection risk is otherwise low (React escapes output, no
@@ -31,7 +54,7 @@ const csp = [
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self' 'unsafe-inline'" + (isProd ? "" : " 'unsafe-eval'"),
-  "connect-src 'self'" + (isProd ? "" : " ws: wss:"),
+  "connect-src 'self'" + (SENTRY_ORIGIN ? ` ${SENTRY_ORIGIN}` : "") + (isProd ? "" : " ws: wss:"),
 ].join("; ");
 
 // Baseline security headers for an authenticated internal tool.
@@ -217,5 +240,26 @@ export default (phase) => {
         "\n[next.config] talk to a real backend. Fine locally; broken if deployed.\n",
     );
   }
-  return nextConfig;
+  // Wrapped ONLY when a DSN is configured. With Sentry unset — local development, and any
+  // deploy that has not opted in — this returns the exact object it always did, so the
+  // build path stays byte-identical to before Sentry existed rather than merely equivalent.
+  // That matters here more than usual: the rewrite table above is frozen into
+  // routes-manifest.json at build time, and it is the app's entire route to its backend.
+  if (!SENTRY_ORIGIN) return nextConfig;
+  return withSentryConfig(nextConfig, {
+    // Source maps are uploaded only with an auth token, which CI supplies. Without one the
+    // plugin skips the upload instead of failing the build — relevant because this repo's
+    // npm blocks install scripts, so @sentry/cli may have no binary to run.
+    silent: true,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    // `tunnelRoute` is deliberately NOT set. Routing browser events through this origin
+    // sounds tidier, but the tunnel path would be matched by proxy.ts — whose matcher
+    // excludes only api, socket.io, frappe-files, _next and the favicon — so an error
+    // thrown while signed out would be answered with a 307 to /login and the event
+    // discarded. Errors on the sign-in page are precisely the ones worth keeping. Events
+    // go direct to the ingest host instead, which is what the connect-src entry allows.
+    disableLogger: true,
+  });
 };

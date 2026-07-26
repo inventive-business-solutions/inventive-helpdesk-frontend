@@ -159,17 +159,28 @@ Set on the **Production** environment of `inventive-helpdesk-frontend`.
 
 ### Variables
 
-| Name              | Value                                                                   |
-| ----------------- | ----------------------------------------------------------------------- |
-| `IMAGE_NAME`      | `ghcr.io/inventive-business-solutions/prod-inventive-helpdesk-frontend` |
-| `FRONTEND_DOMAIN` | `helpdesk.inventivebizsol.co.in`                                        |
-| `FRAPPE_URL`      | `https://helpdeskfrappe.inventivebizsol.co.in`                          |
-| `SOCKETIO_URL`    | `https://helpdeskfrappe.inventivebizsol.co.in`                          |
+| Name                     | Value                                                                   |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `IMAGE_NAME`             | `ghcr.io/inventive-business-solutions/prod-inventive-helpdesk-frontend` |
+| `FRONTEND_DOMAIN`        | `helpdesk.inventivebizsol.co.in`                                        |
+| `FRAPPE_URL`             | `https://helpdeskfrappe.inventivebizsol.co.in`                          |
+| `SOCKETIO_URL`           | `https://helpdeskfrappe.inventivebizsol.co.in`                          |
+| `NEXT_PUBLIC_SENTRY_DSN` | the Sentry project DSN — **optional**, empty disables error reporting   |
 
 `SOCKETIO_URL` is the backend host, not a separate port: Frappe's own nginx serves
 `/socket.io` on the same origin it serves the API from.
 
-The pipeline fails fast if any of these is missing, and rejects a non-HTTPS `FRAPPE_URL`.
+`NEXT_PUBLIC_SENTRY_DSN` is a **build arg**, like the two URLs above and for one more
+reason besides being inlined into the client bundle: `next.config.mjs` derives the ingest
+origin from it and writes that into the `connect-src` directive of the CSP, which is frozen
+into the routes manifest at build time. Set it on the running container instead and the SDK
+will capture errors, try to send them, and be blocked by the browser's own CSP — silently.
+It is optional, so unlike `FRAPPE_URL` the pipeline does not fail without it; an image built
+with it empty simply has error reporting off. The Frappe backend reports separately, through
+`FRAPPE_SENTRY_DSN` in its own Portainer stack.
+
+The pipeline fails fast if any of the required ones is missing, and rejects a non-HTTPS
+`FRAPPE_URL`.
 Without that check an unset `IMAGE_NAME` surfaces several steps later as
 `invalid tag ":<sha>": invalid reference format`, and an unset `FRAPPE_URL` produces a
 perfectly green run that ships an image pointing at localhost.
