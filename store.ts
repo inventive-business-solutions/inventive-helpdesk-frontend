@@ -230,8 +230,10 @@ const TICKET_LIST_FIELDS = [
   "modified",
 ];
 
-/** Client (portal) sessions fetch only their own scope; admins pass nothing (see all). */
-const scopeFor = (session: Session | null) =>
+/** The tenant scope a session may read, or undefined for staff (who are scoped per agent
+ *  by the server instead). Exported for tests: this and ticketScopeFilters below are the
+ *  browser half of tenant isolation, and both are silent when wrong. */
+export const scopeFor = (session: Session | null) =>
   session?.role === "client" ? { client: session.client, divisions: session.divisions ?? [] } : undefined;
 
 /** Ceiling on one ticket fetch.
@@ -253,6 +255,29 @@ const scopeFor = (session: Session | null) =>
  *  than a slow one. Proper pagination is the real fix; see the note in the store. */
 export const TICKET_FETCH_CAP = 2000;
 
+/** The list filters a session may query tickets with.
+ *
+ *  Defense-in-depth: a client session asks only for its own client's tickets, and only the
+ *  divisions it actually holds. The backend already scopes this server-side
+ *  (permission_query_conditions); these filters ensure a regression there cannot spill
+ *  another tenant's tickets into the browser store. Staff sessions pass no scope, because
+ *  the server scopes them per agent and the browser cannot know that scope.
+ *
+ *  A contact with NO divisions asks for NOTHING rather than everything — mirroring the
+ *  server, where an empty scope denies. Getting that inverted here would defeat the whole
+ *  point of the second layer: `["division", "in", []]` matches no row, while omitting the
+ *  filter matches every row the server is willing to return.
+ *
+ *  Extracted from fetchTickets so it can be tested without a network round trip. A second
+ *  layer that is wrong is worse than no second layer, because it reads as protection. */
+export function ticketScopeFilters(scope?: { client?: string; divisions?: string[] }): unknown[] {
+  if (!scope?.client) return [];
+  return [
+    ["client", "=", scope.client],
+    ["division", "in", scope.divisions ?? []],
+  ];
+}
+
 /** Load the (scoped) tickets in a single list call. Kept separate so
  *  master-data edits don't refetch the whole ticket set.
  *
@@ -260,19 +285,7 @@ export const TICKET_FETCH_CAP = 2000;
  *  view is not showing. */
 async function fetchTickets(divIndex: DivRef[], scope?: { client?: string; divisions?: string[] }) {
   const resolve = resolver(divIndex);
-  // Defense-in-depth: a client session asks only for its own client's tickets, and only
-  // the divisions it actually holds. The backend already scopes this server-side
-  // (permission_query_conditions); these filters ensure a regression there can't spill
-  // another tenant's tickets into the browser store. Admin sessions pass no scope.
-  //
-  // A contact with NO divisions asks for nothing rather than everything — mirroring the
-  // server, where an empty scope denies. Getting that inverted here would defeat the
-  // whole point of the second layer.
-  const filters: unknown[] = [];
-  if (scope?.client) {
-    filters.push(["client", "=", scope.client]);
-    filters.push(["division", "in", scope.divisions ?? []]);
-  }
+  const filters = ticketScopeFilters(scope);
   const rows = await api.getList<api.RawTicket>("Support Ticket", {
     fields: TICKET_LIST_FIELDS,
     orderBy: "creation desc",
