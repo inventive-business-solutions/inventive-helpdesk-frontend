@@ -13,6 +13,7 @@ import { IdChip } from "@/components/ui/Chips";
 import { WelcomeHeader } from "@/components/ui/WelcomeHeader";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { useSubmit } from "@/components/ui/useSubmit";
+import { TruncationNotice } from "@/components/ui/TruncationNotice";
 import { RESOLVED, enc, isActive, needsAttention } from "@/lib/helpers";
 import type { Priority, Status } from "@/types";
 
@@ -95,6 +96,7 @@ export function AgentDashboard() {
 
   return (
     <>
+      <TruncationNotice what="these figures cover only those" />
       <WelcomeHeader
         name={session?.name || ""}
         eyebrow="My work"

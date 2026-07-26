@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Kpi } from "@/components/ui/Kpi";
 import { WelcomeHeader } from "@/components/ui/WelcomeHeader";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
+import { TruncationNotice } from "@/components/ui/TruncationNotice";
 import { buildFacets, type FacetOpts } from "@/lib/facets";
 import { MONTHS, RESOLVED, isActive, parseISO, productsForDivisions } from "@/lib/helpers";
 import type { Status, TicketType } from "@/types";
@@ -188,6 +189,7 @@ export function Portal() {
 
   return (
     <>
+      <TruncationNotice what="this list and its counts cover only those" />
       <WelcomeHeader
         name={session.name}
         eyebrow="Support portal"

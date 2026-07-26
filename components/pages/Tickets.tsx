@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { TICKET_FETCH_CAP, useStore } from "@/store";
+import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { type SelectOption } from "@/components/ui/Select";
@@ -9,6 +9,7 @@ import { FacetBar } from "@/components/ui/FacetBar";
 import { Pagination } from "@/components/ui/Pagination";
 import { TicketTable } from "@/components/ui/TicketTable";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { TruncationNotice } from "@/components/ui/TruncationNotice";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { buildFacets, type FacetOpts } from "@/lib/facets";
 import {
@@ -39,7 +40,6 @@ export function Tickets() {
   const router = useRouter();
   const sp = useSearchParams();
   const tickets = useStore((s) => s.tickets);
-  const ticketsTruncated = useStore((s) => s.ticketsTruncated);
   const unread = useStore((s) => s.unread);
   const clients = useStore((s) => s.clients);
   const members = useStore((s) => s.members);
@@ -423,18 +423,9 @@ export function Tickets() {
         unit="ticket"
       />
 
-      {/* The ticket fetch is capped, so on a large enough site this view is not the whole
-          set. Saying so is the point of the flag: filters run over what was fetched, so a
-          silent cap would quietly narrow a search without the searcher knowing. */}
-      {ticketsTruncated && (
-        <div className="banner">
-          <Icon name="info" />
-          <span>
-            Showing the <b>most recent {TICKET_FETCH_CAP.toLocaleString()}</b> tickets. Older ones are not
-            loaded, and filters apply only to these.
-          </span>
-        </div>
-      )}
+      {/* Filters run over what was fetched, so a silent cap would quietly narrow a
+          search without the searcher knowing. */}
+      <TruncationNotice what="filters apply only to these" />
 
       <div className="card">
         <div className="table-wrap">

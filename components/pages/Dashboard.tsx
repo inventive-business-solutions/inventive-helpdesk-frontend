@@ -14,6 +14,7 @@ import { BreakdownModal } from "@/components/modals/BreakdownModal";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { AgentDashboard } from "@/components/pages/AgentDashboard";
 import { WelcomeHeader } from "@/components/ui/WelcomeHeader";
+import { TruncationNotice } from "@/components/ui/TruncationNotice";
 import { RESOLVED, countClients, enc, isActive, needsAttention, parseISO, plural } from "@/lib/helpers";
 import type { Priority, Status, TicketType } from "@/types";
 
@@ -216,6 +217,7 @@ function ManagerDashboard() {
 
   return (
     <>
+      <TruncationNotice what="these figures cover only those" />
       <WelcomeHeader
         name={session?.name || ""}
         eyebrow="Dashboard"
