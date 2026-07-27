@@ -395,6 +395,43 @@ a {
   font-size: 14px;
   margin-bottom: 22px;
 }
+/* The end of the road on a phone: the account is active, but the app behind it is not
+   rendered below the desktop cutoff, so this replaces the redirect. */
+.auth-done {
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 4px 0 0;
+}
+.auth-done b {
+  color: var(--ink);
+  overflow-wrap: anywhere; /* a hostname must never widen the card */
+}
+.auth-done-note {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+/* /set-password stays reachable below the desktop cutoff — invite and reset links are
+   opened wherever the email was read, which is usually a phone. So this card has to be
+   comfortable at 360-430px rather than merely shrink into it: the panel's 40/24 padding
+   eats a sixth of a 390px screen, and 23px headings wrap into three lines. */
+@media (max-width: 480px) {
+  .auth-panel {
+    padding: 26px 16px;
+    align-content: start;
+  }
+  .auth-card > .brand-mark {
+    margin-bottom: 22px;
+  }
+  .auth-card h2 {
+    font-size: 21px;
+  }
+  .auth-card .sub {
+    font-size: 13.5px;
+    margin-bottom: 18px;
+  }
+}
 .auth-form {
   display: flex;
   flex-direction: column;

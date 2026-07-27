@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { postAuthDest } from "@/lib/auth";
+import { isSmallScreen } from "@/lib/viewport";
 import { Icon } from "@/components/ui/Icon";
 
 export function SetPassword() {
@@ -26,6 +27,12 @@ export function SetPassword() {
   const [error, setError] = useState<string | null>(null);
   // A used/expired/missing link can't set a password — offer sign-in instead.
   const [deadLink, setDeadLink] = useState(false);
+  // Set on a phone once the password is saved. This page is reachable below the desktop
+  // cutoff on purpose (invites are opened wherever the email was read), but the app
+  // behind it is not — so the account is activated and the journey stops here, with the
+  // host captured for the instruction. Sending them onward would land them on the gate
+  // one route later, which reads as "the invite didn't work".
+  const [activatedHost, setActivatedHost] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +54,14 @@ export function SetPassword() {
     setSubmitting(true);
     try {
       const session = await setPassword(key!, pwd);
+      // Checked here, not during render: it reads the live viewport, which does not exist
+      // on the server. Doing it in an event handler keeps the markup identical on both
+      // sides of hydration.
+      if (isSmallScreen()) {
+        setActivatedHost(window.location.host);
+        setSubmitting(false);
+        return;
+      }
       router.replace(postAuthDest(session.role));
     } catch (err) {
       // Frappe returns 410 with a "reset password link…" message when the key is
@@ -98,7 +113,20 @@ export function SetPassword() {
           <h2>Set your password</h2>
           <div className="sub">Choose a password to activate your Inventive Helpdesk account.</div>
 
-          {ready && (deadLink || !key) ? (
+          {activatedHost ? (
+            <div className="auth-form">
+              <div className="auth-note" role="status">
+                <Icon name="check" size={14} />
+                <div>Your password is set and your account is now active.</div>
+              </div>
+              <p className="auth-done">
+                Inventive Helpdesk itself is built for a laptop or desktop — a ticket queue needs more width
+                than a phone has. Open <b>{activatedHost}</b> on a computer and sign in with the password you
+                just chose.
+              </p>
+              <p className="auth-done-note">Nothing else to do here. You can close this page.</p>
+            </div>
+          ) : ready && (deadLink || !key) ? (
             <div className="auth-form">
               <div className="auth-note" style={{ color: "var(--critical)" }} role="alert">
                 <Icon name="alert" size={14} />

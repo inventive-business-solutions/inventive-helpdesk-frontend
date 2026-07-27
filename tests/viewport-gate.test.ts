@@ -21,7 +21,10 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
+import { DESKTOP_MIN_WIDTH, SMALL_SCREEN_QUERY, isSmallScreen } from "../lib/viewport";
+
+const read = (...p: string[]) => readFileSync(join(__dirname, "..", ...p), "utf8");
+const css = read("app", "globals.css");
 
 /** The `@media (max-width: …)` block that hides the app, with its body. */
 function gateBlock() {
@@ -66,6 +69,15 @@ describe("viewport gate", () => {
     expect(body).toMatch(/\.viewport-gate \{\s*display: flex/);
   });
 
+  it("keeps the stylesheet and lib/viewport.ts on the same number", () => {
+    // The CSS cannot import the constant, so the two are written independently and only
+    // this holds them together. They diverging is silent: the gate would show at one
+    // width while isSmallScreen() answered for another, so a phone could be told to use a
+    // computer AND be redirected into the app.
+    expect(`(max-width: ${gateBlock().width}px)`).toBe(SMALL_SCREEN_QUERY);
+    expect(gateBlock().width).toBeLessThan(DESKTOP_MIN_WIDTH);
+  });
+
   it("defaults to showing the app, so a stylesheet that fails to load is not a blank page", () => {
     // Deliberately the reverse of mobile-first: the unconditional rules must leave the
     // app visible and the panel hidden, so the media query is the only thing that can
@@ -73,5 +85,58 @@ describe("viewport gate", () => {
     const base = css.slice(0, css.indexOf("@media (max-width: 899.98px)"));
     expect(base).toMatch(/\.app-root \{\s*(?:\/\*[\s\S]*?\*\/\s*)?display: contents/);
     expect(base).toMatch(/\.viewport-gate \{\s*display: none/);
+  });
+});
+
+describe("which routes the gate covers", () => {
+  // Placement is the whole feature here, and it is invisible in the CSS: the same
+  // stylesheet gates everything or nothing depending on where the wrapper is used.
+  //
+  // Comments are stripped before matching. The root layout explains in prose where the
+  // gate lives, naming the component — and a first version of this test read that
+  // sentence as usage and failed. An assertion about code must not be satisfiable by
+  // someone describing the code.
+  const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  const usesGate = (src: string) => /<DesktopOnly[\s>]/.test(stripComments(src));
+
+  it("gates the signed-in app and the sign-in page", () => {
+    expect(usesGate(read("app", "(app)", "layout.tsx"))).toBe(true);
+    expect(usesGate(read("app", "login", "page.tsx"))).toBe(true);
+  });
+
+  it("does NOT gate /set-password — invite and reset links are opened on phones", () => {
+    // Regression guard for a broken-invite trap: the key exists only inside that email,
+    // so gating this page leaves no route to activating the account at all. Someone
+    // reading the mail on their phone would be told to use a computer they cannot get
+    // the link onto.
+    expect(usesGate(read("app", "set-password", "page.tsx"))).toBe(false);
+  });
+
+  it("keeps the gate out of the root layout, where it would cover every route", () => {
+    // Its first home. Moving it out is what made /set-password reachable; putting it back
+    // for convenience would silently re-break the invite flow.
+    const root = read("app", "layout.tsx");
+    expect(usesGate(root)).toBe(false);
+    expect(root).not.toMatch(/className="viewport-gate"/);
+  });
+});
+
+describe("isSmallScreen", () => {
+  it("is false where there is no viewport to measure", () => {
+    // Server render. Must not throw and must not claim a small screen, or a prerender
+    // would bake in the phone-only branch for everyone.
+    expect(isSmallScreen()).toBe(false);
+  });
+
+  it("asks matchMedia for exactly the query the stylesheet enforces", () => {
+    const asked: string[] = [];
+    const g = globalThis as unknown as { window?: unknown };
+    g.window = { matchMedia: (q: string) => (asked.push(q), { matches: true }) };
+    try {
+      expect(isSmallScreen()).toBe(true);
+      expect(asked).toEqual([SMALL_SCREEN_QUERY]);
+    } finally {
+      delete g.window;
+    }
   });
 });
