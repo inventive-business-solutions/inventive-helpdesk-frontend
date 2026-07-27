@@ -135,12 +135,32 @@ export function Products() {
     return { engs, clientWide, covered };
   };
 
-  // A product still attached to a client can't be deleted (Frappe blocks removing a
-  // linked doc) — steer the admin to unassign it everywhere first.
+  // Tickets pin a product in place for good — the history has to keep making sense — so
+  // this is a different answer from "unassign it first", and saying which one applies is
+  // the whole point. Counted from the tickets already loaded; delete_product re-checks
+  // server-side and is the authority. This only decides what to offer.
+  const ticketsByProduct = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of tickets) if (t.product) m.set(t.product, (m.get(t.product) ?? 0) + 1);
+    return m;
+  }, [tickets]);
+
+  // Two different refusals, and they used to be one. A product with no engagements went
+  // straight to the confirm dialog and then failed on the server — for a while naming a
+  // client the page showed no link to at all, because the legacy `Client.product` field
+  // was still holding it. That field is gone; this keeps the page and the server saying
+  // the same thing rather than the page guessing a narrower rule.
   const onDeleteProduct = (product: string) => {
     const running = clientsByProduct.get(product) ?? [];
     if (running.length) {
       toast(`${product} is run by ${plural(running.length, "client")} — unassign it everywhere first.`);
+      return;
+    }
+    const onTickets = ticketsByProduct.get(product) ?? 0;
+    if (onTickets) {
+      toast(
+        `${product} is on ${plural(onTickets, "ticket")} and has to stay for that history to make sense.`,
+      );
       return;
     }
     setDeleteTarget(product);

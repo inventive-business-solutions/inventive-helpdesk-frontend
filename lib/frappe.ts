@@ -435,6 +435,14 @@ export function updateClient(
 export function updateProduct(name: string, patch: { product_name?: string }) {
   return call<string>("inventive_helpdesk_backend.api.update_product", { name, ...patch });
 }
+/** Delete a product. Not `deleteDoc("Product", …)`: Frappe's generic delete refuses on
+ *  ANY Link field pointing at Product and names whichever row it hit first, which is how
+ *  a product with no visible clients once reported "linked with Client Amazon" — a stale
+ *  legacy field no screen showed. This endpoint checks every source and says which one
+ *  applies, so the message is something the user can act on. */
+export function deleteProduct(name: string) {
+  return call<string>("inventive_helpdesk_backend.api.delete_product", { name });
+}
 export function updatePoc(
   name: string,
   patch: { poc_name?: string; email?: string; phone?: string; divisions?: string[] },

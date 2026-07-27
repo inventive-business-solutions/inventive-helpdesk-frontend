@@ -1147,7 +1147,7 @@ export const useStore = create<Store>()((set, get) => {
     // Delete a product. Callers guard against products still assigned to a client
     // (Frappe blocks deleting a linked doc), so this only runs on unassigned ones.
     deleteProduct: async (name) => {
-      await api.deleteDoc("Product", name);
+      await api.deleteProduct(name);
       await get().reloadMasters();
     },
     // Goes through update_poc (not a raw field write): POC is autonamed by email,
