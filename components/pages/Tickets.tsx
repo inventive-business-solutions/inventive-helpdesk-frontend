@@ -64,7 +64,12 @@ export function Tickets() {
     const next = new URLSearchParams(sp.toString());
     if (value) next.set(key, value);
     else next.delete(key);
-    router.push(`/tickets?${next.toString()}`);
+    // Guarded like setParams/setSearch below: clearing the LAST filter otherwise pushes
+    // "/tickets?", a trailing-? URL that differs from the clean "/tickets" every other
+    // path in this file produces. Same navigation, but it leaves a URL you would not want
+    // to copy out of the address bar or compare against.
+    const qs = next.toString();
+    router.push(qs ? `/tickets?${qs}` : "/tickets");
   };
   // Search writes straight to the URL rather than to local state, so the query stays
   // shareable and the "Search" chip below keeps reflecting it — but with `replace`, not

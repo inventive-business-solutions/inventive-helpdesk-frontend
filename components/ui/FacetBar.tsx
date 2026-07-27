@@ -204,7 +204,13 @@ export function FacetBar({
               <b>{count}</b> {count === 1 ? unit : `${unit}s`}
             </span>
           )}
-          {pills.length > 0 && (
+          {/* Context chips count too, not just pills. A dashboard funnel (`?attention=1`,
+              `?sla=1`) or a global search arrives as a context chip with NO pill, so this
+              used to hide "Clear all" in exactly the case where it is most needed: the bar
+              reads "All", the list is filtered to a subset, and the only way out is an
+              11px ✕. Reported from production as "filter isn't clearing" — the bucket does
+              not own these predicates, so nothing else in the bar could clear them. */}
+          {(pills.length > 0 || context.some((c) => c.onRemove)) && (
             <button type="button" className="fs-clear" onClick={onClearAll}>
               Clear all
             </button>
