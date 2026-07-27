@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useStore } from "@/store";
+import { TIER, tierLabel } from "@/lib/tiers";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Chips";
 import { clientContacts, initials, isActive } from "@/lib/helpers";
@@ -35,13 +36,14 @@ export function Sidebar() {
   const admin = session.role === "admin";
   const isAgent = admin && !session.manage;
   // Footer line under the signed-in user's name: a member's own job title (falling back
-  // to the generic team label when they have none), a fixed "Administrator" for managers
-  // regardless of any title on their Team Member record, and client · division for POCs.
+  // to the generic team label when they have none), their TIER for managers — which now
+  // distinguishes the Lead Admin who can delegate from the Administrators who cannot —
+  // and client · division for POCs.
   const subtitle = !admin
     ? `${session.client} · ${session.div}`
     : isAgent
       ? session.title || "Inventive Support"
-      : "Administrator";
+      : (tierLabel(session) ?? TIER.admin);
 
   const activeCount = tickets.filter((t) => isActive(t.status)).length;
   const mine = tickets.filter((t) => t.client === session.client && t.div === session.div);

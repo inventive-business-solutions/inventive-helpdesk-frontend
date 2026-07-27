@@ -513,6 +513,10 @@ export function listAdmins() {
   return call<AdminRow[]>("inventive_helpdesk_backend.api.list_admins");
 }
 
+export function adminCandidates() {
+  return call<AdminRow[]>("inventive_helpdesk_backend.api.admin_candidates");
+}
+
 export function setMemberAdmin(member: string, admin: boolean) {
   return call<{ member: string; is_admin: boolean; changed: boolean }>(
     "inventive_helpdesk_backend.api.set_member_admin",
