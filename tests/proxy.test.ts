@@ -89,14 +89,28 @@ describe("proxy — the matcher, which has caused two faults already", () => {
     ["/frappe-files/logo.png", "proxied file"],
     ["/_next/static/chunk.js", "build asset"],
     ["/favicon.ico", "favicon"],
+    ["/icon.svg", "App Router metadata route — served by the app, not from public/"],
   ])("excludes %s (%s)", (path) => {
     expect(matches(path)).toBe(false);
   });
 
-  it("escapes the dot in socket\\.io, so a lookalike path is still gated", () => {
-    // An unescaped dot is "any character", which also excluded /socketXio from the auth
-    // gate entirely. The file documents this; nothing asserted it until now.
-    expect(matches("/socketXio")).toBe(true);
+  it.each([
+    ["/socketXio", "socket\\.io"],
+    ["/faviconXico", "favicon\\.ico"],
+    ["/iconXsvg", "icon\\.svg"],
+  ])("gates %s — the dot in %s is escaped, so it is not a wildcard", (path) => {
+    // An unescaped dot is "any character", which excluded lookalike paths from the auth
+    // gate entirely. The file documented this for socket.io while the two icon entries
+    // had the same defect.
+    expect(matches(path)).toBe(true);
+  });
+
+  it("does not gate the tab icon, which would hide it from every signed-out visitor", () => {
+    // Regression: app/icon.svg is a ROUTE, so it went through the gate and came back
+    // 307 -> /login. The people who see the icon first are on the sign-in page, i.e.
+    // signed out — so it was missing precisely where it was first looked at. Any metadata
+    // file added later (apple-icon, opengraph-image, manifest) needs the same exclusion.
+    expect(matches("/icon.svg")).toBe(false);
   });
 
   it.each(["/tickets", "/portal/tickets/THX-HTG-0001", "/clients", "/"])(

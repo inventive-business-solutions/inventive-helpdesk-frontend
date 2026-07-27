@@ -122,6 +122,116 @@ a {
 /* `svh` rather than `vh`: on mobile browsers `vh` measures the viewport with the URL
    bar *hidden*, so a 100vh layout is always slightly taller than what is actually
    visible and the page picks up a scrollbar it doesn't need. */
+/* ---- Small-screen gate ---------------------------------------------------------
+   The app is desktop-only and does not attempt to reflow below 900px; it shows the
+   panel in layout.tsx instead.
+
+   900 is not a round number picked for looks. The document declares
+   `width=device-width`, so a phone lays out at ~390-430px and an upright tablet at
+   768-834 — all comfortably below. But when someone taps "Request desktop site" the
+   browser IGNORES width=device-width and lays out at ~980px, and the panel tells them
+   to do exactly that. Any cutoff at or above 980 would therefore re-block the screen
+   its own instructions just produced. Everything from 900 up is a small laptop window
+   or a tablet in landscape, where the shell genuinely works.
+
+   Written as "default visible, hidden by a max-width query" rather than the reverse so
+   that a stylesheet that fails to load degrades to showing the app, not to a blank
+   page. The .98 closes the fractional-width gap at fractional zoom levels. */
+.app-root {
+  /* Layout-neutral. .app-shell and .login size themselves against the viewport, and a
+     real block box between them and <body> would be an extra containing block for no
+     reason. `contents` makes the wrapper exist for the media query and nothing else. */
+  display: contents;
+}
+.viewport-gate {
+  display: none;
+}
+@media (max-width: 899.98px) {
+  .app-root {
+    display: none;
+  }
+  .viewport-gate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    /* Scrollable: the card must stay reachable on a short landscape phone, where the
+       viewport is under 400px tall and centred content would otherwise be clipped with
+       no way to reach the rest. */
+    overflow-y: auto;
+    padding: 28px 22px;
+    color: #fff;
+    /* The sign-in panel's field, so the first thing a phone visitor sees is recognisably
+       the same product they would meet on a desktop. */
+    background:
+      radial-gradient(120% 90% at 12% 30%, #4b53d6 0%, rgba(43, 47, 122, 0.72) 38%, transparent 72%),
+      linear-gradient(160deg, #14162b 0%, #0b0c14 100%);
+  }
+  .viewport-gate-card {
+    max-width: 30rem;
+    margin: auto;
+  }
+  .viewport-gate .brand-glyph {
+    background: var(--accent);
+    color: #fff;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 8px 26px rgba(75, 83, 214, 0.45);
+    margin-bottom: 20px;
+  }
+  .viewport-gate h1 {
+    font-size: clamp(21px, 5.4vw, 26px);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 0 0 12px;
+  }
+  .viewport-gate p {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.82);
+    margin: 0 0 14px;
+  }
+  .viewport-gate-lead {
+    margin-bottom: 8px !important;
+  }
+  .viewport-gate-steps {
+    list-style: none;
+    margin: 0 0 16px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .viewport-gate-steps li {
+    font-size: 14px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-sm);
+    padding: 11px 13px;
+  }
+  .viewport-gate-key {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 5px;
+    padding: 1px 6px;
+    white-space: nowrap;
+  }
+  .viewport-gate-note {
+    font-size: 13.5px !important;
+    color: rgba(255, 255, 255, 0.66) !important;
+  }
+  .viewport-gate-foot {
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 22px;
+  }
+}
+
 .login {
   min-height: 100vh; /* fallback for browsers without svh */
   min-height: 100svh;
