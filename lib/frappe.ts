@@ -279,6 +279,8 @@ export interface Me {
   role: "admin" | "client" | null;
   /** Staff sub-tier: managers manage the org; agents (false) only work tickets. */
   manage?: boolean;
+  /** Site owner: may grant/revoke manager access. The server enforces this regardless. */
+  is_owner?: boolean;
   /** Staff only: this user's Team Member docname (matches ticket.assignee). */
   member?: string | null;
   /** Staff only: the member's job title. Free text and often blank. */
@@ -491,6 +493,31 @@ export function inviteMember(member: string) {
   return call<{ user: string; email_sent: boolean }>("inventive_helpdesk_backend.api.invite_member", {
     member,
   });
+}
+
+/** One row of the admin console: a team member and which tier they hold. */
+export interface AdminRow {
+  name: string;
+  member_name: string;
+  email: string;
+  title?: string | null;
+  status: string;
+  user?: string | null;
+  /** False when the member has no linked account yet — nothing to grant a role to. */
+  can_delegate: boolean;
+  is_admin: boolean;
+  is_owner: boolean;
+}
+
+export function listAdmins() {
+  return call<AdminRow[]>("inventive_helpdesk_backend.api.list_admins");
+}
+
+export function setMemberAdmin(member: string, admin: boolean) {
+  return call<{ member: string; is_admin: boolean; changed: boolean }>(
+    "inventive_helpdesk_backend.api.set_member_admin",
+    { member, admin },
+  );
 }
 
 // ---- generic resource helpers --------------------------------------------

@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const inPortal = pathname.startsWith("/portal");
   // Org-management sections — staff "agents" (role admin, manage=false) can't reach these.
-  const inManagerArea = ["/clients", "/contacts", "/products", "/members", "/teams"].some((p) =>
+  const inManagerArea = ["/clients", "/contacts", "/products", "/members", "/teams", "/admin"].some((p) =>
     pathname.startsWith(p),
   );
 

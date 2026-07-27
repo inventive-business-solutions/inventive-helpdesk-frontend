@@ -197,6 +197,9 @@ export interface Session {
   role: Role;
   /** Staff only: true = manager (can manage the org), false = agent (tickets only). */
   manage: boolean;
+  /** May DELEGATE manager access to others. Narrower than `manage`: a delegated manager
+   *  runs the whole org but cannot promote anyone, so admin never spreads on its own. */
+  isOwner: boolean;
   name: string;
   /** The signed-in user's Frappe login (email) — identifies "tickets I raised". */
   user?: string;

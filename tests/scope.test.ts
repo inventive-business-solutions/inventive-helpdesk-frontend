@@ -16,6 +16,7 @@ import type { Session } from "../types";
 const client = (over: Partial<Session> = {}): Session => ({
   role: "client",
   manage: false,
+  isOwner: false,
   name: "R. Mehta",
   user: "r.mehta@thermax.test",
   teams: [],
@@ -27,6 +28,7 @@ const client = (over: Partial<Session> = {}): Session => ({
 const staff = (over: Partial<Session> = {}): Session => ({
   role: "admin",
   manage: true,
+  isOwner: false,
   name: "Arjun",
   user: "arjun@inventive.test",
   member: "Arjun Rao",

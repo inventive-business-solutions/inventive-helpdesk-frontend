@@ -646,6 +646,7 @@ export const useStore = create<Store>()((set, get) => {
   const sessionFromCtx = (ctx: api.Me): Session => ({
     role: ctx.role === "admin" ? "admin" : "client",
     manage: !!ctx.manage,
+    isOwner: !!ctx.is_owner,
     name: ctx.name || ctx.user,
     user: ctx.user,
     member: ctx.member || undefined,

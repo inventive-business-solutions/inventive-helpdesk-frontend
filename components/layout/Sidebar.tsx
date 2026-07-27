@@ -89,6 +89,11 @@ export function Sidebar() {
     },
     { to: "/members", label: "Members", icon: "user", end: false, count: members.length, manage: true },
     { to: "/teams", label: "Teams", icon: "grid", end: false, count: groups.length, manage: true },
+    // Owner-only, and the server refuses list_admins below that tier regardless — this
+    // hides a door that is already locked rather than being the lock.
+    ...(session?.isOwner
+      ? [{ to: "/admin", label: "Admin", icon: "lock", end: false, manage: true } as NavItem]
+      : []),
   ];
   // Agents get their personal "my work" queues as primary nav instead of the org sections.
   const agentItems: NavItem[] = [

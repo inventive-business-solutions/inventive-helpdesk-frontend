@@ -93,6 +93,14 @@ const proxyRewrites = [
     destination: `${FRAPPE_URL}/api/method/frappe.core.doctype.user.user.update_password`,
   },
   {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.list_admins",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.list_admins`,
+  },
+  {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.set_member_admin",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.set_member_admin`,
+  },
+  {
     source: "/api/frappe/method/inventive_helpdesk_backend.api.me",
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.me`,
   },
