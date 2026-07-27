@@ -7,6 +7,7 @@ import type {
   Message,
   Poc,
   Priority,
+  Product,
   RaiseTicketInput,
   Role,
   Session,
@@ -16,7 +17,8 @@ import type {
   WorkNote,
 } from "./types";
 import * as api from "./lib/frappe";
-import { NO_VALUE, makeCode } from "./lib/helpers";
+import { NO_VALUE, chunk, makeCode } from "./lib/helpers";
+import { clearStoredSorts } from "./lib/listview";
 
 // Marks that an app session is live in THIS browser tab. sessionStorage survives
 // in-tab reloads (F5) but not a tab close or a new tab — so a fresh open of the
@@ -61,8 +63,8 @@ async function fetchTeam() {
       .getList<{ member_name: string; email?: string; title?: string; status?: TeamMember["status"] }>(
         "Team Member",
         {
-          fields: ["name", "member_name", "email", "title", "status"],
-          limit: 0,
+          fields: ["name", "member_name", "email", "title", "status", "creation", "modified"],
+          limit: MASTER_FETCH_CAP,
           orderBy: "member_name asc",
         },
       )
@@ -71,9 +73,9 @@ async function fetchTeam() {
     // getDoc per group purely to read its members child table.
     (async () => {
       const [gnames, memberRows] = await Promise.all([
-        api.getList<{ name: string; group_name: string }>("Assignment Group", {
-          fields: ["name", "group_name"],
-          limit: 0,
+        api.getList<api.RawStamps & { name: string; group_name: string }>("Assignment Group", {
+          fields: ["name", "group_name", "creation", "modified"],
+          limit: MASTER_FETCH_CAP,
         }),
         // `idx asc` preserves the order the child table stores them in, which is what
         // the per-group getDoc used to return; grouping by parent keeps that order
@@ -81,7 +83,7 @@ async function fetchTeam() {
         api.getList<api.RawGroupMember>("Assignment Group Member", {
           fields: ["parent", "member"],
           parent: "Assignment Group",
-          limit: 0,
+          limit: CHILD_FETCH_CAP,
           orderBy: "idx asc",
         }),
       ]);
@@ -98,12 +100,14 @@ async function fetchMasters(role: Role) {
     api.getList<api.RawClient>("Client", {
       // No `product`: the legacy single-product column is no longer read anywhere. A
       // client's products come from the Client Product engagements fetched below.
-      fields: ["name", "client_code", "status", "since"],
-      limit: 0,
+      // `creation`/`modified` are not in Frappe's default field set and have to be asked
+      // for by name; the list toolbar sorts on them.
+      fields: ["name", "client_code", "status", "since", "creation", "modified"],
+      limit: MASTER_FETCH_CAP,
     }),
     api.getList<api.RawDivision>("Division", {
       fields: ["name", "division_name", "division_code", "client"],
-      limit: 0,
+      limit: MASTER_FETCH_CAP,
     }),
   ]);
 
@@ -113,7 +117,7 @@ async function fetchMasters(role: Role) {
   let productDivisions: api.RawChildDivision[] = [];
   let members: TeamMember[] = [];
   let groups: Group[] = [];
-  let products: string[] = [];
+  let products: Product[] = [];
   let users = new Map<string, api.RawUser>();
   if (role === "admin") {
     // POCs, products, members and groups are mutually independent — fetch them
@@ -123,22 +127,42 @@ async function fetchMasters(role: Role) {
       // list: if it isn't readable the page still loads, POCs just show no account.
       (async () => {
         const raw = await api.getList<api.RawPoc>("POC", {
-          fields: ["name", "poc_name", "email", "phone", "is_lead", "client", "user", "invited_on"],
-          limit: 0,
+          fields: [
+            "name",
+            "poc_name",
+            "email",
+            "phone",
+            "is_lead",
+            "client",
+            "user",
+            "invited_on",
+            "creation",
+            "modified",
+          ],
+          limit: MASTER_FETCH_CAP,
         });
         let map = new Map<string, api.RawUser>();
         const userEmails = [...new Set(raw.map((p) => p.user).filter(Boolean) as string[])];
         if (userEmails.length) {
-          try {
-            const rows = await api.getList<api.RawUser>("User", {
-              fields: ["name", "last_login", "enabled"],
-              filters: [["name", "in", userEmails]],
-              limit: 0,
-            });
-            map = new Map(rows.map((u) => [u.name, u]));
-          } catch {
-            /* User list not readable — leave portal status as "none" */
-          }
+          // Batched, not one request. This filter travels in the URL, and every contact's
+          // email went into it — past ~170 contacts the query string crossed the 8KB header
+          // buffer nginx and Traefik default to, the request 414'd, and the catch below
+          // turned that into "nobody has portal access". Wrong data, silently, with no
+          // error anywhere. Each batch is now a few hundred bytes.
+          const batches = await Promise.all(
+            chunk(userEmails, USER_LOOKUP_BATCH).map((emails) =>
+              api
+                .getList<api.RawUser>("User", {
+                  fields: ["name", "last_login", "enabled"],
+                  filters: [["name", "in", emails]],
+                  limit: MASTER_FETCH_CAP,
+                })
+                // Per batch, so one failure costs that batch's contacts rather than
+                // blanking the portal status of every contact on the page.
+                .catch(() => [] as api.RawUser[]),
+            ),
+          );
+          map = new Map(batches.flat().map((u) => [u.name, u]));
         }
         // One list call for every contact's divisions, not a getDoc per contact — the
         // `parent` option exists for exactly this. Best-effort like the User lookup: a
@@ -148,7 +172,7 @@ async function fetchMasters(role: Role) {
           divRows = await api.getList<api.RawChildDivision>("POC Division", {
             fields: ["parent", "division"],
             parent: "POC",
-            limit: 0,
+            limit: CHILD_FETCH_CAP,
           });
         } catch {
           /* leave contacts showing no divisions rather than failing the page */
@@ -156,21 +180,25 @@ async function fetchMasters(role: Role) {
         return { raw, users: map, divRows };
       })(),
       api
-        .getList<{ name: string }>("Product", { fields: ["name"], limit: 0, orderBy: "product_name asc" })
-        .then((prod) => prod.map((p) => p.name)),
+        .getList<api.RawStamps & { name: string }>("Product", {
+          fields: ["name", "creation", "modified"],
+          limit: MASTER_FETCH_CAP,
+          orderBy: "product_name asc",
+        })
+        .then((prod) => prod.map<Product>((p) => ({ name: p.name, ...api.toStamps(p) }))),
       fetchTeam(),
       // Client products (the engagements) plus the divisions each is attached to.
       (async () => {
         const rows = await api.getList<api.RawClientProduct>("Client Product", {
           fields: ["name", "client", "product", "dev_start", "expected_completion"],
-          limit: 0,
+          limit: MASTER_FETCH_CAP,
         });
         let divRows: api.RawChildDivision[] = [];
         try {
           divRows = await api.getList<api.RawChildDivision>("Client Product Division", {
             fields: ["parent", "division"],
             parent: "Client Product",
-            limit: 0,
+            limit: CHILD_FETCH_CAP,
           });
         } catch {
           /* products then read as client-wide, which is the safe default */
@@ -203,7 +231,18 @@ async function fetchMasters(role: Role) {
     code: d.division_code,
     client: d.client,
   }));
-  return { clients, members, groups, products, divIndex };
+  // Any list that came back exactly full is presumed cut short. Reported rather than
+  // swallowed: a silently truncated client list makes every count on the page wrong, and
+  // the only symptom would be a record someone swears exists not being there.
+  const mastersTruncated =
+    rawClients.length >= MASTER_FETCH_CAP ||
+    rawDivs.length >= MASTER_FETCH_CAP ||
+    rawPocs.length >= MASTER_FETCH_CAP ||
+    clientProducts.length >= MASTER_FETCH_CAP ||
+    products.length >= MASTER_FETCH_CAP ||
+    members.length >= MASTER_FETCH_CAP ||
+    groups.length >= MASTER_FETCH_CAP;
+  return { clients, members, groups, products, divIndex, mastersTruncated };
 }
 
 // Top-level ticket fields the list/dashboard views need. Child tables
@@ -268,6 +307,20 @@ export const scopeFor = (session: Session | null) =>
  *  reported to the UI rather than swallowed, because a list quietly missing rows is worse
  *  than a slow one. Proper pagination is the real fix; see the note in the store. */
 export const TICKET_FETCH_CAP = 2000;
+
+/** Ceiling on each master-data list. These were all `limit: 0` — Frappe's "no limit" — so
+ *  the browser pulled every client, division, contact, product and engagement on login AND
+ *  after almost every mutation, with nothing to stop it. A cap turns "eventually the app
+ *  stops loading" into a bounded payload plus a visible notice. */
+export const MASTER_FETCH_CAP = 2000;
+/** Child tables are rows-PER-parent — a division link per contact, per engagement — so they
+ *  legitimately outnumber their parents several times over and need more headroom. */
+export const CHILD_FETCH_CAP = 10000;
+
+/** Emails per `["name","in",…]` batch when resolving contacts' portal accounts. 100 keeps
+ *  the query string near 5KB — comfortably inside the 8KB header buffer nginx and Traefik
+ *  default to, with room for the rest of the URL. */
+const USER_LOOKUP_BATCH = 100;
 
 /** The list filters a session may query tickets with.
  *
@@ -425,7 +478,7 @@ interface Store {
   clients: Client[];
   members: TeamMember[];
   groups: Group[];
-  products: string[];
+  products: Product[];
   tickets: Ticket[];
   /** Ticket ids with a client message or internal note THIS agent hasn't seen. Per agent,
    *  so a teammate opening a ticket doesn't clear your marker. Empty for client sessions —
@@ -435,6 +488,9 @@ interface Store {
    *  session is not holding. Surfaced in the list rather than kept internal: a view that
    *  is quietly missing rows is worse than one that admits it. */
   ticketsTruncated: boolean;
+  /** A master list hit MASTER_FETCH_CAP, so the Clients/Products/Team pages are showing a
+   *  subset and every derived count on them is a floor, not a total. */
+  mastersTruncated: boolean;
   /** Dashboard figures counted server-side, or null before the first load. Kept separate
    *  from `tickets` because it is the whole point: these numbers are complete even when
    *  the ticket array is capped. */
@@ -498,6 +554,7 @@ interface Store {
   }) => Promise<void>;
   addPoc: (
     clientName: string,
+    /** Division display name, or "" to add the person as a client-level Lead. */
     divName: string,
     poc: { name: string; email: string; phone?: string; invite?: boolean },
   ) => Promise<void>;
@@ -584,6 +641,7 @@ export const useStore = create<Store>()((set, get) => {
     tickets: [],
     unread: [],
     ticketsTruncated: false,
+    mastersTruncated: false,
     stats: null,
     session: null,
     divIndex: [],
@@ -673,6 +731,9 @@ export const useStore = create<Store>()((set, get) => {
       }
       api.setCsrfToken("");
       markTabSession(false);
+      // List preferences are per-browser, not per-account, so on a shared machine the next
+      // person to sign in would inherit whatever sort the last one left behind.
+      clearStoredSorts();
       set({
         session: null,
         clients: [],
@@ -681,6 +742,7 @@ export const useStore = create<Store>()((set, get) => {
         products: [],
         tickets: [],
         ticketsTruncated: false,
+        mastersTruncated: false,
         stats: null,
         divIndex: [],
         booted: true,
@@ -959,13 +1021,18 @@ export const useStore = create<Store>()((set, get) => {
       await get().reloadMasters();
     },
     addPoc: async (clientName, divName, poc) => {
-      const div = divDocname(clientName, divName);
+      const div = divName ? divDocname(clientName, divName) : undefined;
       const id = await api.createContact({
         client: clientName,
         poc_name: poc.name,
         email: poc.email,
         phone: poc.phone,
-        is_lead: 0,
+        // No division means nobody scoped this person to one, and that IS a Lead: a
+        // client-level contact who can be given division sight later. Recording them as a
+        // division POC with an empty division list would instead produce someone who can
+        // see nothing and appears on no division card — present in the data, invisible in
+        // the UI. Every existing caller passes a real division, so they are unaffected.
+        is_lead: div ? 0 : 1,
         divisions: div ? [div] : [],
       });
       if (poc.invite) await api.invitePoc(id);

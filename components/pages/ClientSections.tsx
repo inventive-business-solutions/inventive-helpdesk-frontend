@@ -16,13 +16,26 @@ const CHIP_LIMIT = 3;
 function DivisionChips({
   names,
   empty,
+  emptyIsScope = false,
   limit = CHIP_LIMIT,
 }: {
   names: string[];
   empty: string;
+  /** The empty state is a real scope ("Client-wide"), not an absence ("No access yet").
+   *  Both render here, and they mean opposite things: one is the WIDEST possible coverage,
+   *  the other is none at all. Sharing the muted italic treatment made a product covering
+   *  the whole client read as a product missing its divisions. */
+  emptyIsScope?: boolean;
   limit?: number;
 }) {
-  if (!names.length) return <span className="chip-empty">{empty}</span>;
+  if (!names.length)
+    return emptyIsScope ? (
+      <span className="chip chip-scope" title={empty}>
+        {empty}
+      </span>
+    ) : (
+      <span className="chip-empty">{empty}</span>
+    );
   const shown = names.slice(0, limit);
   const rest = names.length - shown.length;
   return (
@@ -49,15 +62,12 @@ function divNames(client: Client, docnames: string[]) {
 
 export function ClientProducts({
   client,
-  openCount,
   onAdd,
   onEdit,
   onRemove,
   onShowTickets,
 }: {
   client: Client;
-  /** Open tickets tagged with this product, for this client. */
-  openCount: (product: string) => number;
   onAdd: () => void;
   onEdit: (p: ClientProduct) => void;
   onRemove: (p: ClientProduct) => void;
@@ -74,7 +84,6 @@ export function ClientProducts({
       {client.products.length ? (
         <div className="row-list">
           {client.products.map((p) => {
-            const open = openCount(p.product);
             return (
               // The row opens this product's tickets on click, but deliberately carries no
               // role="button"/tabIndex: it contains real buttons, and interactive elements
@@ -102,12 +111,12 @@ export function ClientProducts({
                   </div>
                 </div>
                 <div className="cell-tag">
-                  <DivisionChips names={divNames(client, p.divisions)} empty="Client-wide" limit={2} />
-                </div>
-                <div className="cell-count">
-                  <Badge count tone={open ? "accent" : "neutral"} title={`${open} open`}>
-                    {open || "—"}
-                  </Badge>
+                  <DivisionChips
+                    names={divNames(client, p.divisions)}
+                    empty="Client-wide"
+                    emptyIsScope
+                    limit={2}
+                  />
                 </div>
                 <button
                   className="row-link cell-link"

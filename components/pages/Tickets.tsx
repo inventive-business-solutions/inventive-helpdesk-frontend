@@ -3,9 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
+import { BackButton, withOrigin } from "@/components/ui/BackButton";
 import { Icon } from "@/components/ui/Icon";
 import { type SelectOption } from "@/components/ui/Select";
 import { FacetBar } from "@/components/ui/FacetBar";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { SortMenu } from "@/components/ui/SortMenu";
+import { applySort, commonSorts, useStoredSort } from "@/lib/listview";
 import { Pagination } from "@/components/ui/Pagination";
 import { TicketTable } from "@/components/ui/TicketTable";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -16,12 +20,13 @@ import {
   MONTHS,
   RESOLVED,
   clientsRunning,
+  enc,
   isActive,
   needsAttention,
   parseISO,
   productsOf,
 } from "@/lib/helpers";
-import type { Priority, Status, TicketType } from "@/types";
+import type { Priority, Status, Ticket, TicketType } from "@/types";
 
 // Canonical option sets so every value is filterable even when no ticket is in that state.
 const TYPES: TicketType[] = ["Bug", "Query", "Improvement", "New Feature"];
@@ -61,6 +66,18 @@ export function Tickets() {
     else next.delete(key);
     router.push(`/tickets?${next.toString()}`);
   };
+  // Search writes straight to the URL rather than to local state, so the query stays
+  // shareable and the "Search" chip below keeps reflecting it — but with `replace`, not
+  // `push`: typing eight characters must not bury the previous page under eight history
+  // entries that Back then has to walk through one at a time.
+  const setSearch = (value: string) => {
+    const next = new URLSearchParams(sp.toString());
+    if (value) next.set("q", value);
+    else next.delete("q");
+    const qs = next.toString();
+    router.replace(qs ? `/tickets?${qs}` : "/tickets");
+  };
+
   // Changes several params in one navigation — used by the cascade + bucket/status exclusivity.
   const setParams = (updates: Record<string, string>) => {
     const next = new URLSearchParams(sp.toString());
@@ -71,7 +88,10 @@ export function Tickets() {
     const qs = next.toString();
     router.push(qs ? `/tickets?${qs}` : "/tickets");
   };
-  const openTicket = (tid: string) => router.push(`/tickets/${tid}`);
+  // Carry the filtered list URL along, so the ticket's Back returns to the exact view you
+  // opened it from rather than to a bare, unfiltered /tickets.
+  const openTicket = (tid: string) =>
+    router.push(withOrigin(`/tickets/${tid}`, `/tickets${sp.toString() ? `?${sp.toString()}` : ""}`));
 
   const active = sp.get("active");
   const resolved = sp.get("resolved");
@@ -239,7 +259,7 @@ export function Tickets() {
     // they'd be reachable by no product filter at all — invisible rather than a number
     // someone can work through. Same sentinel convention as "No team".
     { value: "none", label: "Untagged" },
-    ...products.map((p) => ({ value: p, label: p })),
+    ...products.map((p) => ({ value: p.name, label: p.name })),
   ];
   const clientOpts: SelectOption[] = [
     { value: "", label: "All clients" },
@@ -250,7 +270,7 @@ export function Tickets() {
     ...divNames.map((d) => ({ value: d, label: d })),
   ];
   const pocOpts: SelectOption[] = [
-    { value: "", label: "All POCs" },
+    { value: "", label: "All contacts" },
     ...pocNames.map((p) => ({ value: p, label: p })),
   ];
   const typeOpts: SelectOption[] = [
@@ -316,9 +336,34 @@ export function Tickets() {
     setParams(ref ? { poc: v, client: ref.client, div: ref.div } : { poc: v });
   };
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  // The one list page that had no sort control. Its facets narrow WHICH tickets you see;
+  // none of them decide the order, so the newest ticket could sit anywhere on the page.
+  const sortOptions = useMemo(
+    () => [
+      ...commonSorts<Ticket>(
+        (t) => t.title,
+        (t) => t,
+      ),
+      {
+        key: "priority",
+        label: "Priority",
+        // By severity, not alphabetically — "Critical, High, Medium, Low" is the order that
+        // means something, and A-Z would put Critical after... nothing, but Low before
+        // Medium. Newest first within a band, so the top of the list is the freshest crisis.
+        compare: (a: Ticket, b: Ticket) =>
+          PRIORITIES.indexOf(a.priority) - PRIORITIES.indexOf(b.priority) ||
+          (b.createdISO ?? "").localeCompare(a.createdISO ?? ""),
+      },
+    ],
+    [],
+  );
+  const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
+  const [sort, setSort] = useStoredSort("tickets", sortKeys, "created");
+  const sorted = useMemo(() => applySort(rows, sortOptions, sort), [rows, sortOptions, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
-  const pageRows = rows.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
+  const pageRows = sorted.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
 
   // ---- faceted filter bar ----
   const facetOpts: FacetOpts = {
@@ -392,6 +437,7 @@ export function Tickets() {
   return (
     <>
       <div className="page-head">
+        <BackButton />
         <div>
           <h1>Tickets</h1>
           <p>
@@ -411,6 +457,19 @@ export function Tickets() {
         </div>
       </div>
 
+      {/* This page's own search. It used to live in the Topbar, where it was the only way
+          to set `q` — a single box that searched tickets no matter which section you were
+          looking at, and navigated you off that section to do it. */}
+      <div className="tickets-search">
+        <SearchInput
+          value={q ?? ""}
+          onChange={setSearch}
+          placeholder="Search tickets…"
+          ariaLabel="Search tickets by subject, client or contact"
+        />
+        <SortMenu options={sortOptions} value={sort} onChange={setSort} />
+      </div>
+
       <FacetBar
         bucket={bucket}
         context={context}
@@ -418,7 +477,7 @@ export function Tickets() {
         values={values}
         onChange={onFacetChange}
         onClear={onFacetClear}
-        onClearAll={() => router.push("/tickets")}
+        onClearAll={() => router.push(sp.get("from") ? `/tickets?from=${enc(sp.get("from")!)}` : "/tickets")}
         count={rows.length}
         unit="ticket"
       />

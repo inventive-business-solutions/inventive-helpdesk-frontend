@@ -1,10 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../../store";
 import { Button } from "../ui/Button";
+import { BackButton } from "../ui/BackButton";
+import { ListToolbar } from "../ui/ListToolbar";
+import { MasterTruncationNotice } from "../ui/TruncationNotice";
+// Not `byName` — this file already has a local one that looks a member up by name, and
+// importing the comparator under the same identifier would shadow it.
+import { applySort, commonSorts, countSort, matches, useStoredSort } from "../../lib/listview";
 import { Icon } from "../ui/Icon";
 import { IconButton } from "../ui/IconButton";
 import { EmptyState } from "../ui/EmptyState";
+import { Pagination } from "../ui/Pagination";
 import { Select } from "../ui/Select";
 import { CreateGroupModal } from "../modals/CreateGroupModal";
 import { AddGroupMemberModal } from "../modals/AddGroupMemberModal";
@@ -162,12 +169,52 @@ export function Groups() {
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   // Global "members shown per team", applied to every team card below.
   const [perTeam, setPerTeam] = useState(MEMBER_PAGE_SIZES[0]);
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const byName = (n: string) => members.find((m) => m.name === n);
+
+  const sortOptions = useMemo(
+    () => [
+      ...commonSorts<Group>(
+        (g) => g.name,
+        (g) => g,
+      ),
+      countSort<Group>(
+        "size",
+        "Largest team",
+        (g) => g.members.length,
+        (g) => g.name,
+      ),
+    ],
+    [],
+  );
+  const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
+  const [sort, setSort] = useStoredSort("teams", sortKeys);
+
+  // Searching a team by one of its members is the point: "which team is Priya on" is
+  // easier to ask than to remember.
+  const shown = useMemo(
+    () =>
+      applySort(
+        groups.filter((g) => matches(q, g.name, ...g.members)),
+        sortOptions,
+        sort,
+      ),
+    [groups, q, sortOptions, sort],
+  );
+
+  // Bounded DOM: a team card renders a row per member, so the page grew with members × teams.
+  const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const pageSafe = Math.min(page, totalPages);
+  const pageItems = shown.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
+  useEffect(() => setPage(1), [q, sort]);
 
   return (
     <>
       <div className="page-head">
+        <BackButton />
         <div>
           <h1>Teams</h1>
           <p>Organize your members into teams you can route tickets to.</p>
@@ -177,15 +224,37 @@ export function Groups() {
         </Button>
       </div>
 
-      {groups.length === 0 && (
+      <MasterTruncationNotice what="some teams are not shown" />
+
+      <ListToolbar
+        query={q}
+        onQuery={setQ}
+        placeholder="Search teams or members…"
+        sortOptions={sortOptions}
+        sort={sort}
+        onSort={setSort}
+        count={shown.length}
+        unit="team"
+        onClearAll={q ? () => setQ("") : undefined}
+      />
+
+      {shown.length === 0 && (
         <div className="card">
           <EmptyState>
-            No teams yet — use <b>Add team</b> to create your first.
+            {groups.length === 0 ? (
+              <>
+                No teams yet — use <b>Add team</b> to create your first.
+              </>
+            ) : (
+              <>
+                No teams match <b>{q}</b>.
+              </>
+            )}
           </EmptyState>
         </div>
       )}
 
-      {groups.map((g) => (
+      {pageItems.map((g) => (
         <TeamCard
           key={g.name}
           group={g}
@@ -197,7 +266,20 @@ export function Groups() {
         />
       ))}
 
-      {groups.length > 0 && (
+      {shown.length > 0 && (
+        <div className="card">
+          <Pagination
+            total={shown.length}
+            page={pageSafe}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            unit="teams"
+          />
+        </div>
+      )}
+
+      {shown.length > 0 && (
         <div className="card per-team-bar">
           <span>Show Members per Team</span>
           <Select

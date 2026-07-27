@@ -1,8 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
+import { BackButton, withOrigin } from "@/components/ui/BackButton";
+import { ListToolbar } from "@/components/ui/ListToolbar";
+import { MasterTruncationNotice } from "@/components/ui/TruncationNotice";
+import { applySort, commonSorts, countSort, matches, useStoredSort } from "@/lib/listview";
 import { Icon } from "@/components/ui/Icon";
 import { ManageButton } from "@/components/ui/ManageButton";
 import { StatTile } from "@/components/ui/StatTile";
@@ -15,6 +19,8 @@ import { AddClientProductModal } from "@/components/modals/AddClientProductModal
 import { ClientLeads, ClientProducts } from "@/components/pages/ClientSections";
 import { EditClientModal } from "@/components/modals/EditClientModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Pagination } from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/Toast";
 import { useSubmit } from "@/components/ui/useSubmit";
 import { RESOLVED, clientContacts, enc, fmtDate, initials, isActive } from "@/lib/helpers";
@@ -62,6 +68,9 @@ export function Clients() {
   );
   const [leadTarget, setLeadTarget] = useState<{ client: string; poc: Poc } | null>(null);
   const [editClient, setEditClient] = useState<Client | null>(null);
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
   // Deletes that a linked ticket would block are refused up front with a clear message.
@@ -100,9 +109,66 @@ export function Clients() {
     });
   };
 
+  // Ticket counts per client, built once rather than inside the comparator — a sort makes
+  // O(n log n) comparisons and re-scanning every ticket in each one would be quadratic.
+  const ticketCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of tickets) if (t.client) m.set(t.client, (m.get(t.client) ?? 0) + 1);
+    return m;
+  }, [tickets]);
+
+  const sortOptions = useMemo(
+    () => [
+      ...commonSorts<Client>(
+        (c) => c.name,
+        (c) => c,
+      ),
+      countSort<Client>(
+        "tickets",
+        "Most tickets",
+        (c) => ticketCount.get(c.name) ?? 0,
+        (c) => c.name,
+      ),
+    ],
+    [ticketCount],
+  );
+  const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
+  const [sort, setSort] = useStoredSort("clients", sortKeys);
+
+  // Searching by division or contact matters as much as by company name — "which client
+  // is the Boiler division" and "who is Priya with" are both asked from this page.
+  const shown = useMemo(
+    () =>
+      applySort(
+        clients.filter((c) =>
+          matches(
+            q,
+            c.name,
+            c.code,
+            ...c.divisions.map((d) => d.name),
+            // Not clientContacts() — that dedupes down to {id, email} and drops the
+            // person's name, which is the half of a contact you actually search by.
+            ...[...c.leads, ...c.divisions.flatMap((d) => d.pocs)].flatMap((p) => [p.name, p.email]),
+          ),
+        ),
+        sortOptions,
+        sort,
+      ),
+    [clients, q, sortOptions, sort],
+  );
+
+  // Each client renders a full card with its divisions, contacts and engagements nested
+  // inside, so an unpaginated list put every one of them in the DOM at once. Search and
+  // sort still run over the whole set — only what is rendered is bounded.
+  const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const pageSafe = Math.min(page, totalPages);
+  const pageItems = shown.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
+  useEffect(() => setPage(1), [q, sort]);
+
   return (
     <>
       <div className="page-head">
+        <BackButton />
         <div>
           <h1>Clients</h1>
           <p>
@@ -119,7 +185,37 @@ export function Clients() {
         </Button>
       </div>
 
-      {clients.map((cl, i) => {
+      <MasterTruncationNotice what="some clients are not shown and every count here is a floor" />
+
+      <ListToolbar
+        query={q}
+        onQuery={setQ}
+        placeholder="Search clients, divisions or contacts…"
+        sortOptions={sortOptions}
+        sort={sort}
+        onSort={setSort}
+        count={shown.length}
+        unit="client"
+        onClearAll={q ? () => setQ("") : undefined}
+      />
+
+      {shown.length === 0 && (
+        <div className="card">
+          <EmptyState>
+            {clients.length === 0 ? (
+              <>
+                No clients yet — use <b>Add client</b> to onboard your first.
+              </>
+            ) : (
+              <>
+                No clients match <b>{q}</b>.
+              </>
+            )}
+          </EmptyState>
+        </div>
+      )}
+
+      {pageItems.map((cl, i) => {
         const color = PALETTE[i % PALETTE.length];
         const open = tickets.filter((t) => t.client === cl.name && isActive(t.status)).length;
         const resolved = tickets.filter((t) => t.client === cl.name && RESOLVED.includes(t.status)).length;
@@ -128,7 +224,7 @@ export function Clients() {
         const pocCount = clientContacts(cl).length;
         const metrics = [
           { v: cl.divisions.length, l: "Divisions" },
-          { v: pocCount, l: "POCs" },
+          { v: pocCount, l: "Contacts" },
           { v: open, l: "Open" },
           { v: resolved, l: "Resolved" },
         ];
@@ -163,7 +259,7 @@ export function Clients() {
 
             <div className="cc-metrics">
               {metrics.map((m) => {
-                const disabled = m.l === "Divisions" || m.l === "POCs";
+                const disabled = m.l === "Divisions" || m.l === "Contacts";
                 return (
                   <StatTile
                     key={m.l}
@@ -187,15 +283,13 @@ export function Clients() {
             <div className="cc-body">
               <ClientProducts
                 client={cl}
-                openCount={(product) =>
-                  tickets.filter((t) => t.client === cl.name && t.product === product && isActive(t.status))
-                    .length
-                }
                 onAdd={() => setProductTarget({ client: cl.name })}
                 onEdit={(p) => setProductTarget({ client: cl.name, product: p })}
                 onRemove={(p) => setConfirm({ kind: "product", client: cl.name, product: p })}
                 onShowTickets={(p) =>
-                  router.push(`/tickets?client=${enc(cl.name)}&product=${enc(p.product)}`)
+                  router.push(
+                    withOrigin(`/tickets?client=${enc(cl.name)}&product=${enc(p.product)}`, "/clients"),
+                  )
                 }
               />
               <ClientLeads
@@ -232,7 +326,12 @@ export function Clients() {
                               className="dv-open"
                               title={`View ${d.name} tickets`}
                               onClick={() =>
-                                router.push(`/tickets?client=${enc(cl.name)}&div=${enc(d.name)}`)
+                                router.push(
+                                  withOrigin(
+                                    `/tickets?client=${enc(cl.name)}&div=${enc(d.name)}`,
+                                    "/clients",
+                                  ),
+                                )
                               }
                             >
                               <span className="dv-name">{d.name}</span>
@@ -318,7 +417,7 @@ export function Clients() {
                                   </div>
                                 ))
                               ) : (
-                                <div className="poc-empty">No POC yet — add one below.</div>
+                                <div className="poc-empty">No contact yet — add one below.</div>
                               )}
                             </div>
                           )}
@@ -328,7 +427,7 @@ export function Clients() {
                               onClick={() => setPocTarget({ client: cl.name, div: d.name })}
                             >
                               <Icon name="plus" size={13} />
-                              {d.pocs.length ? "Add another POC" : "Add POC"}
+                              {d.pocs.length ? "Add another contact" : "Add contact"}
                             </button>
                           )}
                         </div>
@@ -345,6 +444,19 @@ export function Clients() {
           </div>
         );
       })}
+
+      {shown.length > 0 && (
+        <div className="card">
+          <Pagination
+            total={shown.length}
+            page={pageSafe}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            unit="clients"
+          />
+        </div>
+      )}
 
       {showAddClient && <AddClientModal onClose={() => setShowAddClient(false)} />}
       {pocTarget && (
@@ -423,7 +535,7 @@ export function Clients() {
       {confirm?.kind === "client" && (
         <ConfirmDialog
           title="Delete client"
-          message={`Delete ${confirm.client}, along with its divisions and POCs? This can't be undone.`}
+          message={`Delete ${confirm.client}, along with its divisions and contacts? This can't be undone.`}
           confirmLabel="Delete client"
           busy={busy}
           onConfirm={() =>
@@ -438,7 +550,7 @@ export function Clients() {
       {confirm?.kind === "division" && (
         <ConfirmDialog
           title="Delete division"
-          message={`Delete the ${confirm.div} division of ${confirm.client} and its POCs?`}
+          message={`Delete the ${confirm.div} division of ${confirm.client} and its contacts?`}
           confirmLabel="Delete division"
           busy={busy}
           onConfirm={() =>
@@ -484,7 +596,7 @@ export function Clients() {
       )}
       {confirm?.kind === "poc" && (
         <ConfirmDialog
-          title="Remove POC"
+          title="Remove contact"
           message={`Remove ${confirm.poc.name} from ${confirm.client} · ${confirm.div}?`}
           confirmLabel="Remove"
           busy={busy}

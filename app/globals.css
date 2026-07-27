@@ -105,7 +105,11 @@ a {
 .btn,
 .segmented button,
 .vis-opt,
-.field label,
+/* Title-casing suits a short field label ("Full name" -> "Full Name"). It does NOT suit a
+   sentence, and a checkbox's label is one: `.check-row` was rendering "Send an email invite
+   to set up their password" as "Send An Email Invite To Set Up Their Password". Excluded
+   here rather than overridden in each dialog, since every CheckboxField in the app hit it. */
+.field label:not(.check-row),
 .meta-row .mk,
 .tp-opt .tt,
 .leg,
@@ -706,6 +710,8 @@ a {
   justify-content: center;
   min-width: 0;
 }
+/* Lives in a section's list toolbar, not the topbar — so it flexes to the space the
+   toolbar gives it rather than holding a fixed 420px centred in the header. */
 .search {
   display: flex;
   align-items: center;
@@ -716,8 +722,9 @@ a {
   padding: 9px 14px;
   color: var(--muted);
   font-size: 13.5px;
-  width: 420px;
-  max-width: 100%;
+  flex: 1 1 220px;
+  min-width: 190px;
+  max-width: 380px;
   transition:
     border-color 0.14s,
     box-shadow 0.14s;
@@ -752,9 +759,6 @@ a {
   .topbar {
     padding: 12px 20px;
     gap: 12px;
-  }
-  .search {
-    width: 320px;
   }
 }
 @media (max-width: 720px) {
@@ -1018,6 +1022,19 @@ a {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+}
+/* Back sits before the title block. `.page-head` is space-between, so without this the
+   three children would spread evenly and the arrow would float away from the heading it
+   belongs to — the text block takes the slack instead, keeping Back beside the title and
+   the page action out on the right. Scoped to the adjacent sibling so page heads with no
+   back button (the agent welcome header, ticket detail) are untouched. */
+.page-back {
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.page-back + div {
+  margin-right: auto;
+  min-width: 0;
 }
 .page-head h1 {
   font-size: 23px;
@@ -1859,6 +1876,127 @@ button.ui-select-opt {
   white-space: nowrap;
   line-height: 1.5;
 }
+
+/* ---- engagement list (product manage dialog) ------------------------------
+   One row per client engagement, each with its own Manage. Lives inside a .field so it
+   sits under a label like any other control. */
+.eng-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.eng-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface);
+}
+.eng-row + .eng-row {
+  border-top: 1px solid var(--line-2);
+}
+.eng-main {
+  display: flex;
+  flex-direction: column;
+  /* A column, so a chip child would otherwise stretch the full row width. */
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  margin-right: auto;
+}
+.eng-client {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+/* Can list several division names, so it truncates rather than wrapping the row taller
+   than its neighbours and breaking the list's rhythm. */
+.eng-scope {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eng-add {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+/* A mode toggle sitting directly above the control it switches (the product picker's
+   Existing / New choice). `.field` spaces a label from its control, not one control from
+   another, so the pair needs its own gap or they touch. */
+.field .segmented + .ui-select,
+.field .segmented + input {
+  margin-top: 8px;
+}
+
+/* ---- Combobox -------------------------------------------------------------
+   Type-ahead picker (currently the product field). Borrows the portalled menu from
+   .ui-select and swaps the button trigger for a text input, so the two look identical
+   in a form and only differ in that this one can be typed into. */
+.combo-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition:
+    border-color 0.13s,
+    box-shadow 0.13s;
+}
+.combo-field:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.combo-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.combo.invalid .combo-field {
+  border-color: var(--danger, #e5484d);
+}
+.combo-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.combo-input::placeholder {
+  color: var(--muted);
+  font-weight: 500;
+}
+.combo.disabled .combo-field {
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* The create row is an action, not a match — accented and separated so it never reads as
+   an existing product you are picking. */
+.combo-create {
+  color: var(--accent);
+  border-top: 1px solid var(--line);
+}
+.combo-create .ui-select-opt-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.combo-create b {
+  font-weight: 700;
+}
+.combo-empty {
+  color: var(--muted);
+  cursor: default;
+  font-style: italic;
+}
 .ui-select-opt.active {
   background: var(--surface-2);
   color: var(--ink);
@@ -2597,36 +2735,33 @@ table.tk-contacts .row-actions {
   min-width: 0;
 } /* lets .poc-email ellipsis inside the fixed cell */
 /* Filter toolbar: search + selects on the left, count/clear pushed to the right. */
-.contacts-toolbar {
+/* Shared list toolbar: search (+ any section filters) left, count/clear/sort right.
+   Generalised from the Contacts page's own toolbar so Clients, Products, Team and Teams
+   present the same controls in the same place instead of having none at all. */
+.list-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 14px;
 }
-.contacts-toolbar .search {
-  width: auto;
-  flex: 1 1 220px;
-  min-width: 200px;
-  max-width: 380px;
-}
-.cf-summary {
+.lt-right {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 10px;
 }
-.cf-count {
+.lt-count {
   font-size: 13px;
   color: var(--ink-2);
   white-space: nowrap;
 }
-.cf-count b {
+.lt-count b {
   color: var(--ink);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.cf-clear {
+.lt-clear {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--accent);
@@ -2637,8 +2772,78 @@ table.tk-contacts .row-actions {
   border-radius: 7px;
   transition: background 0.12s;
 }
-.cf-clear:hover {
+.lt-clear:hover {
   background: var(--accent-sf);
+}
+
+/* Clears the box without reaching for the keyboard. Only rendered when there is a query,
+   so it never sits there as a dead control. */
+.search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: none;
+  background: none;
+  padding: 2px;
+  margin-right: -4px;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.search-clear:hover {
+  background: var(--accent-sf);
+  color: var(--ink);
+}
+
+/* Sort control. Deliberately shaped like a facet pill — same radius, weight and accent
+   treatment — so the two read as one family of list controls. */
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 8px;
+  background: var(--accent-sf);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s;
+}
+.sort-btn.open,
+.sort-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.sort-ic {
+  color: color-mix(in srgb, var(--accent) 60%, var(--ink));
+  flex: none;
+}
+.sort-btn .sk {
+  opacity: 0.58;
+}
+.sort-btn .sv {
+  color: var(--ink);
+}
+.sort-caret {
+  opacity: 0.5;
+  flex: none;
+}
+
+/* The Tickets page keeps its FacetBar, so its search sits on its own row above it
+   rather than inside a .list-toolbar. */
+.tickets-search {
+  display: flex;
+  margin-bottom: 10px;
+}
+.tickets-search .search {
+  max-width: 460px;
 }
 
 /* global "Show Members per Team" control at the bottom of the Teams page */
@@ -4442,6 +4647,13 @@ button.stat:not(:disabled):hover {
 .row-item + .row-item {
   border-top: 1px solid var(--line-2);
 }
+/* The product row drops the count column — a number on its own said how many without
+   being a way to reach them, and "Show tickets" beside it already is. Its own template
+   rather than an empty cell, so the remaining columns close the gap instead of leaving
+   a hole where the badge used to sit. */
+.row-item.prod-row {
+  grid-template-columns: minmax(0, 1fr) var(--rl-tag) var(--rl-link) var(--rl-manage);
+}
 
 /* The single row action, replacing a pencil + ✕ pair. One fixed-width control means one
    column, so the trailing edge of every list is straight by construction rather than by
@@ -4673,6 +4885,16 @@ button.stat:not(:disabled):hover {
   border-color: transparent;
   color: var(--accent);
   cursor: default;
+}
+/* "Client-wide" — a scope, not a gap. Distinct from a division chip (which names ONE
+   division) and from .chip-empty (which means nothing is set), because it says the product
+   covers the whole client: the widest coverage there is, not a missing value. Tinted
+   accent, matching .chip-more, so it reads as information rather than as an omission. */
+.chip-scope {
+  background: var(--accent-sf);
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--accent);
+  max-width: none;
 }
 .chip-empty {
   font-size: 11.5px;

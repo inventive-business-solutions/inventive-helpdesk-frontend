@@ -9,6 +9,8 @@ import {
   relativeAge,
   isUnmatched,
   plural,
+  chunk,
+  sameName,
   NO_VALUE,
   makeCode,
   fmtDate,
@@ -233,5 +235,75 @@ describe("relativeAge", () => {
     expect(at("")).toBe("—");
     expect(relativeAge(undefined, now)).toBe("—");
     expect(at("not a date")).toBe("—");
+  });
+});
+
+/**
+ * The duplicate guard behind both product dialogs. A catalogue holding two rows for one
+ * product splits its clients and its tickets between them, and nothing on screen says so —
+ * so a near-miss name has to be recognised as the SAME name, not waved through as new.
+ */
+describe("sameName", () => {
+  it("ignores case", () => {
+    expect(sameName("EniMAX", "enimax")).toBe(true);
+    expect(sameName("ENIMAX", "EniMAX")).toBe(true);
+  });
+
+  it("ignores surrounding whitespace", () => {
+    expect(sameName("  EniMAX ", "EniMAX")).toBe(true);
+    expect(sameName("EniMAX", "\tEniMAX\n")).toBe(true);
+  });
+
+  it("does not collapse genuinely different names", () => {
+    expect(sameName("EniMAX", "EniMAXX")).toBe(false);
+    // Interior spacing is meaningful — "Eni MAX" is a different product name, not a typo
+    // of "EniMAX" that we are entitled to merge on the user's behalf.
+    expect(sameName("Eni MAX", "EniMAX")).toBe(false);
+  });
+
+  it("treats two empty or blank strings as the same", () => {
+    expect(sameName("", "   ")).toBe(true);
+  });
+});
+
+/**
+ * `chunk` exists to keep `["name","in",[…]]` filters — which travel in a GET query string —
+ * under the 8KB header buffer nginx and Traefik default to. One unbatched filter crossed it
+ * at ~170 contacts, 414'd, and the caller swallowed the error, silently reporting that
+ * nobody had portal access. The batch size is the whole safety margin, so the split has to
+ * be exact.
+ */
+describe("chunk", () => {
+  it("splits into full batches of the requested size", () => {
+    expect(chunk([1, 2, 3, 4, 5, 6], 2)).toEqual([
+      [1, 2],
+      [3, 4],
+      [5, 6],
+    ]);
+  });
+
+  it("leaves the remainder in a short final batch rather than dropping it", () => {
+    const out = chunk([1, 2, 3, 4, 5], 2);
+    expect(out).toEqual([[1, 2], [3, 4], [5]]);
+    expect(out.flat()).toHaveLength(5);
+  });
+
+  it("never loses or duplicates an item, whatever the size", () => {
+    const items = Array.from({ length: 257 }, (_, i) => i);
+    for (const size of [1, 7, 100, 256, 257, 1000]) {
+      expect(chunk(items, size).flat()).toEqual(items);
+    }
+  });
+
+  it("returns one batch when the size exceeds the input", () => {
+    expect(chunk([1, 2], 100)).toEqual([[1, 2]]);
+  });
+
+  it("returns nothing for an empty input, so callers can skip the request entirely", () => {
+    expect(chunk([], 10)).toEqual([]);
+  });
+
+  it("rejects a size of zero instead of looping forever", () => {
+    expect(() => chunk([1, 2, 3], 0)).toThrow(RangeError);
   });
 });

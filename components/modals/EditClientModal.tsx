@@ -155,8 +155,8 @@ export function EditClientModal({
         <div className="auth-note">
           <Icon name="info" size={14} />
           <div>
-            Renaming updates the client across all its tickets, divisions and POCs. Existing ticket IDs keep
-            their original code. Manage the product, divisions and POCs from the client card.
+            Renaming updates the client across all its tickets, divisions and contacts. Existing ticket IDs
+            keep their original code. Manage products, divisions and contacts from the client card.
           </div>
         </div>
       </div>

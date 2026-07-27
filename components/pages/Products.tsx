@@ -1,14 +1,19 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "../../store";
 import { Button } from "../ui/Button";
+import { BackButton, withOrigin } from "../ui/BackButton";
+import { ListToolbar } from "../ui/ListToolbar";
+import { MasterTruncationNotice } from "../ui/TruncationNotice";
+import { applySort, commonSorts, countSort, matches, useStoredSort } from "../../lib/listview";
 import { Icon } from "../ui/Icon";
 import { ManageButton } from "../ui/ManageButton";
 import { Segmented } from "../ui/Segmented";
 import { StatTile } from "../ui/StatTile";
 import { Badge } from "../ui/Chips";
 import { EmptyState } from "../ui/EmptyState";
+import { Pagination } from "../ui/Pagination";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { AddProductModal } from "../modals/AddProductModal";
 import { AddClientProductModal } from "../modals/AddClientProductModal";
@@ -16,7 +21,7 @@ import { EditProductModal } from "../modals/EditProductModal";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
 import { RESOLVED, divDisplayName, enc, isActive, plural } from "../../lib/helpers";
-import type { Client } from "../../types";
+import type { Client, ClientProduct, Product } from "../../types";
 
 const PALETTE = ["var(--cat-1)", "var(--cat-2)", "var(--cat-3)", "var(--cat-4)", "var(--accent)"];
 
@@ -35,22 +40,88 @@ export function Products() {
   const [assignTarget, setAssignTarget] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [unassignTarget, setUnassignTarget] = useState<{ product: string; client: string } | null>(null);
+  // Carries the engagement id: Remove now detaches the one record you were editing, not
+  // every engagement the client happens to hold for this product.
+  const [unassignTarget, setUnassignTarget] = useState<{
+    product: string;
+    client: string;
+    engId: string;
+  } | null>(null);
+  const [engTarget, setEngTarget] = useState<{ client: string; eng: ClientProduct } | null>(null);
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Group clients by the products they run. Driven by `client.products` — the Client
   // Product engagements — which is the same source the client card and the portal read.
   // It used to read the legacy `Client.product` single Link, so anything added from the
   // Clients page simply never appeared here.
-  const clientsByProduct = new Map<string, Client[]>();
-  for (const c of clients) {
-    for (const name of new Set(c.products.map((p) => p.product))) {
-      const arr = clientsByProduct.get(name) ?? [];
-      arr.push(c);
-      clientsByProduct.set(name, arr);
+  // Memoised, not rebuilt inline each render: the sort and search below both close over
+  // it, and a map with a fresh identity every render defeats their memoisation entirely.
+  const clientsByProduct = useMemo(() => {
+    const m = new Map<string, Client[]>();
+    for (const c of clients) {
+      for (const name of new Set(c.products.map((p) => p.product))) {
+        const arr = m.get(name) ?? [];
+        arr.push(c);
+        m.set(name, arr);
+      }
     }
-  }
-  const assigned = products.filter((p) => clientsByProduct.has(p));
-  const unassigned = products.filter((p) => !clientsByProduct.has(p));
+    return m;
+  }, [clients]);
+
+  const sortOptions = useMemo(
+    () => [
+      ...commonSorts<Product>(
+        (p) => p.name,
+        (p) => p,
+      ),
+      countSort<Product>(
+        "clients",
+        "Most clients",
+        (p) => clientsByProduct.get(p.name)?.length ?? 0,
+        (p) => p.name,
+      ),
+    ],
+    [clientsByProduct],
+  );
+  const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
+  const [sort, setSort] = useStoredSort("products", sortKeys);
+
+  // Search matches the product name or any client running it, so "who runs Helpdesk" and
+  // "what does Thermax run" are both answerable from this one box.
+  const visible = useMemo(
+    () =>
+      products.filter((p) => matches(q, p.name, ...(clientsByProduct.get(p.name) ?? []).map((c) => c.name))),
+    [products, clientsByProduct, q],
+  );
+  const assigned = useMemo(
+    () =>
+      applySort(
+        visible.filter((p) => clientsByProduct.has(p.name)),
+        sortOptions,
+        sort,
+      ),
+    [visible, clientsByProduct, sortOptions, sort],
+  );
+  const unassigned = useMemo(
+    () =>
+      applySort(
+        visible.filter((p) => !clientsByProduct.has(p.name)),
+        sortOptions,
+        sort,
+      ),
+    [visible, clientsByProduct, sortOptions, sort],
+  );
+
+  // A product card renders a block per client and a row per division inside each, so the
+  // assigned tab grew with engagements, not just with products. Paginated per tab, since
+  // the two are independent lists that happen to share a page.
+  const inTab = tab === "assigned" ? assigned : unassigned;
+  const totalPages = Math.max(1, Math.ceil(inTab.length / pageSize));
+  const pageSafe = Math.min(page, totalPages);
+  const pageItems = inTab.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
+  useEffect(() => setPage(1), [q, sort, tab]);
 
   /** The engagements one client holds for this product, and the divisions they cover.
    *  An engagement with no divisions covers the client as a whole, so it contributes
@@ -78,6 +149,7 @@ export function Products() {
   return (
     <>
       <div className="page-head">
+        <BackButton />
         <div>
           <h1>Products</h1>
           <p>The products Inventive supports and the clients that run them.</p>
@@ -97,6 +169,21 @@ export function Products() {
         onChange={setTab}
       />
 
+      {/* No count here: the Segmented directly above already shows both tabs' totals, and a
+          third number saying the same thing is noise. */}
+      <MasterTruncationNotice what="some products are not shown" />
+
+      <ListToolbar
+        query={q}
+        onQuery={setQ}
+        placeholder="Search products or clients…"
+        sortOptions={sortOptions}
+        sort={sort}
+        onSort={setSort}
+        unit="product"
+        onClearAll={q ? () => setQ("") : undefined}
+      />
+
       {tab === "assigned" &&
         (assigned.length === 0 ? (
           <div className="card">
@@ -106,7 +193,10 @@ export function Products() {
             </EmptyState>
           </div>
         ) : (
-          assigned.map((product, i) => {
+          pageItems.map((prod, i) => {
+            // Products carry timestamps now so the list can sort by them; everything below
+            // works on the name, so unwrap it once here rather than at thirty call sites.
+            const product = prod.name;
             const color = PALETTE[i % PALETTE.length];
             const runningClients = clientsByProduct.get(product) ?? [];
             // Counted from the ticket's own product field. This used to infer scope from
@@ -157,11 +247,11 @@ export function Products() {
                   role="link"
                   tabIndex={0}
                   title={`View tickets for ${product}`}
-                  onClick={() => router.push(`/tickets?product=${enc(product)}`)}
+                  onClick={() => router.push(withOrigin(`/tickets?product=${enc(product)}`, "/products"))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      router.push(`/tickets?product=${enc(product)}`);
+                      router.push(withOrigin(`/tickets?product=${enc(product)}`, "/products"));
                     }
                   }}
                 >
@@ -182,18 +272,19 @@ export function Products() {
                           <span className="pdiv-name">{cl.name}</span>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                             {clientWide && (
-                              <Badge sm title={`${product} covers all of ${cl.name}`}>
+                              // Accent, not neutral: this says the product covers the whole
+                              // client, which is the widest scope — a grey chip made it read
+                              // as the absence of one.
+                              <Badge sm tone="accent" title={`${product} covers all of ${cl.name}`}>
                                 Client-wide
                               </Badge>
                             )}
                             <span className="pdiv-code mono">{cl.code}</span>
-                            {/* One action today, but the same trigger as every other row —
-                                a bare ✕ here would be the only unlabelled destructive
-                                control left, and it sits next to a client name. */}
-                            <ManageButton
-                              subject={`${product} at ${cl.name}`}
-                              onClick={() => setUnassignTarget({ product, client: cl.name })}
-                            />
+                            {/* No Manage here. Editing an engagement lives behind the product's
+                                own Manage at the top of this card, alongside renaming and
+                                deleting — one entry point for "change something about this
+                                product" instead of two buttons a card apart, neither saying
+                                which of the two things it acted on. */}
                           </span>
                         </div>
                         {covered.length ? (
@@ -213,7 +304,10 @@ export function Products() {
                                   title={`${plural(dOpen, "active ticket")} — open ${cl.name} · ${dName}`}
                                   onClick={() =>
                                     router.push(
-                                      `/tickets?product=${enc(product)}&client=${enc(cl.name)}&div=${enc(dName)}`,
+                                      withOrigin(
+                                        `/tickets?product=${enc(product)}&client=${enc(cl.name)}&div=${enc(dName)}`,
+                                        "/products",
+                                      ),
                                     )
                                   }
                                 >
@@ -245,7 +339,8 @@ export function Products() {
             <EmptyState>No unassigned products — every product is being run by a client.</EmptyState>
           </div>
         ) : (
-          unassigned.map((product, i) => {
+          pageItems.map((prod, i) => {
+            const product = prod.name;
             const color = PALETTE[i % PALETTE.length];
             return (
               <div className="card product-card" key={product} style={{ ["--cc" as string]: color }}>
@@ -270,8 +365,8 @@ export function Products() {
                 <div className="uprod-empty">
                   <Icon name="info" size={15} />
                   <span>
-                    Not yet run by any client — so it has no divisions, POCs or tickets. Assign it to a client
-                    and those appear here, exactly like the other products.
+                    Not yet run by any client — so it has no divisions, contacts or tickets. Assign it to a
+                    client and those appear here, exactly like the other products.
                   </span>
                 </div>
               </div>
@@ -279,11 +374,43 @@ export function Products() {
           })
         ))}
 
+      {inTab.length > 0 && (
+        <div className="card">
+          <Pagination
+            total={inTab.length}
+            page={pageSafe}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            unit="products"
+          />
+        </div>
+      )}
+
       {showAdd && <AddProductModal onClose={() => setShowAdd(false)} />}
       {/* Same dialog the client card uses, so an engagement created here is identical to
           one created there — dates, divisions and all. */}
       {assignTarget && (
         <AddClientProductModal presetProduct={assignTarget} onClose={() => setAssignTarget(null)} />
+      )}
+
+      {/* The engagement editor, reached from a client row's Manage. Same dialog the Clients
+          page uses, so dates and division scoping are editable from either side rather than
+          only from the client card. */}
+      {engTarget && (
+        <AddClientProductModal
+          clientName={engTarget.client}
+          existing={engTarget.eng}
+          onClose={() => setEngTarget(null)}
+          onDelete={() => {
+            setUnassignTarget({
+              product: engTarget.eng.product,
+              client: engTarget.client,
+              engId: engTarget.eng.id,
+            });
+            setEngTarget(null);
+          }}
+        />
       )}
       {renameTarget && (
         <EditProductModal
@@ -293,6 +420,18 @@ export function Products() {
             const target = renameTarget;
             setRenameTarget(null);
             onDeleteProduct(target);
+          }}
+          // Hand off rather than stack: nested modals fight over focus and Escape, and both
+          // of these are full forms. Closing this one first is the same pattern the delete
+          // path above already uses.
+          onEditEngagement={(client, eng) => {
+            setRenameTarget(null);
+            setEngTarget({ client, eng });
+          }}
+          onAssign={() => {
+            const target = renameTarget;
+            setRenameTarget(null);
+            setAssignTarget(target);
           }}
         />
       )}
@@ -319,15 +458,10 @@ export function Products() {
           busy={busy}
           onConfirm={() =>
             run(
-              async () => {
-                // A client can hold several engagements of one product (different
-                // divisions), so unassigning removes every one of them — otherwise the
-                // product would stay on the card via the engagements left behind.
-                const cl = clients.find((c) => c.name === unassignTarget.client);
-                for (const eng of cl?.products.filter((p) => p.product === unassignTarget.product) ?? []) {
-                  await removeClientProduct(eng.id);
-                }
-              },
+              // Just this engagement. The card renders a Manage per engagement, so the one
+              // you opened is the one that goes — removing the client's others alongside it
+              // would delete records you were not looking at.
+              () => removeClientProduct(unassignTarget.engId),
               {
                 success: `${unassignTarget.product} unassigned from ${unassignTarget.client}`,
                 onSuccess: () => setUnassignTarget(null),

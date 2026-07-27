@@ -1,7 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStore } from "../../store";
 import { Button } from "../ui/Button";
+import { BackButton } from "../ui/BackButton";
+import { ListToolbar } from "../ui/ListToolbar";
+import { MasterTruncationNotice } from "../ui/TruncationNotice";
+import { applySort, commonSorts, countSort, matches, useStoredSort } from "../../lib/listview";
 import { Icon } from "../ui/Icon";
 import { ManageButton } from "../ui/ManageButton";
 import { Badge } from "../ui/Chips";
@@ -26,8 +30,49 @@ export function Team() {
   const [editTarget, setEditTarget] = useState<TeamMember | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [q, setQ] = useState("");
 
-  const memberGroups = (name: string) => groups.filter((g) => g.members.includes(name)).map((g) => g.name);
+  // useCallback so the search memo below can depend on it directly rather than on
+  // `groups`, which is what it actually closes over.
+  const memberGroups = useCallback(
+    (name: string) => groups.filter((g) => g.members.includes(name)).map((g) => g.name),
+    [groups],
+  );
+
+  // Assigned-ticket counts, built once per render pass rather than inside the comparator:
+  // a sort is O(n log n) comparisons, and counting the ticket array inside each one would
+  // turn a cheap sort into a quadratic scan of every ticket.
+  const assignedCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of tickets) if (t.assignee) m.set(t.assignee, (m.get(t.assignee) ?? 0) + 1);
+    return m;
+  }, [tickets]);
+
+  const sortOptions = useMemo(
+    () => [
+      ...commonSorts<TeamMember>(
+        (m) => m.name,
+        (m) => m,
+      ),
+      countSort<TeamMember>(
+        "tickets",
+        "Most assigned",
+        (m) => assignedCount.get(m.name) ?? 0,
+        (m) => m.name,
+      ),
+    ],
+    [assignedCount],
+  );
+  const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
+  const [sort, setSort] = useStoredSort("members", sortKeys);
+
+  // Search covers the columns actually on screen — name, title, email — plus the teams
+  // they belong to, since "who is on the Boiler team" is a question this table answers.
+  const filtered = useMemo(
+    () => members.filter((m) => matches(q, m.name, m.title, m.email, ...memberGroups(m.name))),
+    [members, memberGroups, q],
+  );
+  const shown = useMemo(() => applySort(filtered, sortOptions, sort), [filtered, sortOptions, sort]);
 
   // Grammatical "a, b and c".
   const joinList = (items: string[]) =>
@@ -49,13 +94,18 @@ export function Team() {
     return `${name} ${ticketPart} ${teamPart}. Removing them will ${joinList(effects)}. This can't be undone.`;
   };
 
-  const totalPages = Math.max(1, Math.ceil(members.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
-  const pageMembers = members.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
+  const pageMembers = shown.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
+
+  // Back to page 1 whenever the result set changes, so narrowing the list never leaves
+  // you stranded on a page that no longer exists.
+  useEffect(() => setPage(1), [q, sort]);
 
   return (
     <>
       <div className="page-head">
+        <BackButton />
         <div>
           <h1>Members</h1>
           <p>People you can assign tickets to. Invite them to set up a portal password.</p>
@@ -64,6 +114,20 @@ export function Team() {
           Add member
         </Button>
       </div>
+
+      <MasterTruncationNotice what="some members are not shown" />
+
+      <ListToolbar
+        query={q}
+        onQuery={setQ}
+        placeholder="Search members…"
+        sortOptions={sortOptions}
+        sort={sort}
+        onSort={setSort}
+        count={shown.length}
+        unit="member"
+        onClearAll={q ? () => setQ("") : undefined}
+      />
 
       <div className="card">
         <div className="table-wrap">
@@ -140,11 +204,22 @@ export function Team() {
                   </tr>
                 );
               })}
-              {members.length === 0 && (
+              {shown.length === 0 && (
                 <tr>
                   <td colSpan={6}>
+                    {/* An empty table means two different things — nobody has been added
+                        yet, or the search excluded everyone. Telling them apart is the
+                        difference between "add your first" and "your filter is too tight". */}
                     <EmptyState>
-                      No members yet — use <b>Add member</b> to add your first.
+                      {members.length === 0 ? (
+                        <>
+                          No members yet — use <b>Add member</b> to add your first.
+                        </>
+                      ) : (
+                        <>
+                          No members match <b>{q}</b>.
+                        </>
+                      )}
                     </EmptyState>
                   </td>
                 </tr>
@@ -153,7 +228,7 @@ export function Team() {
           </table>
         </div>
         <Pagination
-          total={members.length}
+          total={shown.length}
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}

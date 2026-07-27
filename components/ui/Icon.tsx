@@ -50,6 +50,13 @@ const PATHS: Record<string, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
   check: <path d="M20 6 9 17l-5-5" />,
   chevronDown: <path d="m6 9 6 6 6-6" />,
+  // Descending bars — reads as "ordered list" at 13-14px, where a two-headed arrow turns
+  // to mush. Used by the list toolbars' sort control.
+  sort: (
+    <>
+      <path d="M4 6h16M4 12h10M4 18h5" />
+    </>
+  ),
   info: (
     <>
       <circle cx="12" cy="12" r="9" />

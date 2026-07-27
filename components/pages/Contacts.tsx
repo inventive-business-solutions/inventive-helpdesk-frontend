@@ -2,6 +2,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
+import { BackButton } from "@/components/ui/BackButton";
+import { ListToolbar } from "@/components/ui/ListToolbar";
+import { MasterTruncationNotice } from "@/components/ui/TruncationNotice";
+import { applySort, byName, commonSorts, useStoredSort } from "@/lib/listview";
 import { Icon } from "@/components/ui/Icon";
 import { ManageButton } from "@/components/ui/ManageButton";
 import { Badge } from "@/components/ui/Chips";
@@ -84,16 +88,43 @@ export function Contacts() {
     ...(selectedClient?.divisions.map((d) => ({ value: d.name, label: d.name })) ?? []),
   ];
 
-  const rows = allRows.filter((r) => {
-    if (clientF && r.client !== clientF) return false;
-    if (divF && r.div !== divF) return false;
-    if (portalF && (r.poc.portal ?? "none") !== portalF) return false;
-    if (q) {
-      const s = q.toLowerCase();
-      if (!r.poc.name.toLowerCase().includes(s) && !r.poc.email.toLowerCase().includes(s)) return false;
-    }
-    return true;
-  });
+  // A contact holding several divisions appears once per division, so the same person can
+  // occupy several rows. Sorting therefore always falls through to client then division,
+  // which keeps one person's rows adjacent instead of scattering them through the table.
+  const sortOptions = useMemo(
+    () => [
+      ...commonSorts<Row>(
+        (r) => r.poc.name,
+        (r) => r.poc,
+      ),
+      {
+        key: "client",
+        label: "Client",
+        compare: (a: Row, b: Row) =>
+          byName(a.client, b.client) || byName(a.div, b.div) || byName(a.poc.name, b.poc.name),
+      },
+    ],
+    [],
+  );
+  const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
+  const [sort, setSort] = useStoredSort("contacts", sortKeys);
+
+  // Memoised: this runs over every contact row, and without it a modal opening or a
+  // pagination click re-filtered and re-sorted the whole directory for no reason.
+  const rows = useMemo(() => {
+    const filtered = allRows.filter((r) => {
+      if (clientF && r.client !== clientF) return false;
+      if (divF && r.div !== divF) return false;
+      if (portalF && (r.poc.portal ?? "none") !== portalF) return false;
+      if (q) {
+        const needle = q.toLowerCase();
+        if (!r.poc.name.toLowerCase().includes(needle) && !r.poc.email.toLowerCase().includes(needle))
+          return false;
+      }
+      return true;
+    });
+    return applySort(filtered, sortOptions, sort);
+  }, [allRows, clientF, divF, portalF, q, sortOptions, sort]);
 
   const anyFilter = !!(q || clientF || divF || portalF);
   const clearAll = () => {
@@ -104,7 +135,7 @@ export function Contacts() {
   };
 
   // Reset to page 1 whenever the result set changes, so you never land on an empty page.
-  const filterKey = `${q}|${clientF}|${divF}|${portalF}`;
+  const filterKey = `${q}|${clientF}|${divF}|${portalF}|${sort}`;
   useEffect(() => setPage(1), [filterKey]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -128,12 +159,20 @@ export function Contacts() {
     });
   };
 
-  // "Add contact" attaches to the currently-filtered client + division (a POC always needs both).
-  const canAdd = !!(clientF && divF);
+  // The dialog asks for the client and division itself, so this no longer depends on having
+  // filtered to both first. It used to sit disabled on arrival with a tooltip telling you to
+  // go and set two filters before you could add anybody — the one action the page exists for,
+  // gated behind unrelated controls. Active filters still seed the dialog, so filtering to a
+  // division and adding someone there is unchanged.
+  //
+  // The one real precondition is a client to attach to: a contact is scoped by its client,
+  // and none can exist before one does.
+  const canAdd = clients.length > 0;
 
   return (
     <>
       <div className="page-head">
+        <BackButton />
         <div>
           <h1>Contacts</h1>
           <p>
@@ -145,59 +184,55 @@ export function Contacts() {
           variant="primary"
           icon={<Icon name="plus" size={16} />}
           disabled={!canAdd}
-          title={canAdd ? undefined : "Pick a client and division to add a contact"}
+          title={canAdd ? undefined : "Add a client first — a contact belongs to one"}
           onClick={() => canAdd && setPocTarget({ client: clientF, div: divF })}
         >
           Add contact
         </Button>
       </div>
 
-      <div className="contacts-toolbar">
-        <div className="search">
-          <Icon name="search" size={16} />
-          <input
-            placeholder="Search name or email…"
-            aria-label="Search contacts"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-        <Select
-          label="All clients"
-          ariaLabel="Filter by client"
-          value={clientF}
-          options={clientOpts}
-          onChange={(v) => {
-            setClientF(v);
-            setDivF(""); // divisions differ per client
-          }}
-        />
-        <Select
-          label="All divisions"
-          ariaLabel="Filter by division"
-          value={divF}
-          options={divOpts}
-          onChange={setDivF}
-          disabled={!clientF}
-        />
-        <Select
-          label="All portal states"
-          ariaLabel="Filter by portal state"
-          value={portalF}
-          options={PORTAL_OPTS}
-          onChange={setPortalF}
-        />
-        <div className="cf-summary">
-          <span className="cf-count">
-            <b>{rows.length}</b> {rows.length === 1 ? "contact" : "contacts"}
-          </span>
-          {anyFilter && (
-            <button type="button" className="cf-clear" onClick={clearAll}>
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
+      <MasterTruncationNotice what="some contacts are not shown" />
+
+      <ListToolbar
+        query={q}
+        onQuery={setQ}
+        placeholder="Search name or email…"
+        sortOptions={sortOptions}
+        sort={sort}
+        onSort={setSort}
+        count={rows.length}
+        unit="contact"
+        onClearAll={anyFilter ? clearAll : undefined}
+        filters={
+          <>
+            <Select
+              label="All clients"
+              ariaLabel="Filter by client"
+              value={clientF}
+              options={clientOpts}
+              onChange={(v) => {
+                setClientF(v);
+                setDivF(""); // divisions differ per client
+              }}
+            />
+            <Select
+              label="All divisions"
+              ariaLabel="Filter by division"
+              value={divF}
+              options={divOpts}
+              onChange={setDivF}
+              disabled={!clientF}
+            />
+            <Select
+              label="All portal states"
+              ariaLabel="Filter by portal state"
+              value={portalF}
+              options={PORTAL_OPTS}
+              onChange={setPortalF}
+            />
+          </>
+        }
+      />
 
       <div className="card">
         <div className="table-wrap">
@@ -253,7 +288,7 @@ export function Contacts() {
                       {r.div || <span className="muted">No division</span>}
                     </td>
                     <td className="center">
-                      {p.isLead ? <Badge tone="accent">Lead</Badge> : <span className="muted">POC</span>}
+                      {p.isLead ? <Badge tone="accent">Lead</Badge> : <span className="muted">Contact</span>}
                     </td>
                     <td className="center">{portalBadge(p.portal)}</td>
                     <td className="center">

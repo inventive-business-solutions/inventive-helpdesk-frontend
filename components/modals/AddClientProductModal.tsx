@@ -1,12 +1,15 @@
 "use client";
 import { useState } from "react";
 import { Modal } from "../ui/Modal";
-import { TextField, Field } from "../ui/Field";
+import { Field } from "../ui/Field";
 import { Select } from "../ui/Select";
+
 import { ModalFooter } from "../ui/ModalFooter";
 import { Button } from "../ui/Button";
 import { Segmented } from "../ui/Segmented";
-import { CheckList } from "../ui/CheckList";
+import { EngagementFields } from "./EngagementFields";
+import { scopedDivisions } from "../../lib/engagement";
+import { sameName } from "../../lib/helpers";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
@@ -39,20 +42,34 @@ export function AddClientProductModal({
   onDelete?: () => void;
 }) {
   const clients = useStore((s) => s.clients);
+  const products = useStore((s) => s.products);
   const addClientProduct = useStore((s) => s.addClientProduct);
   const updateClientProduct = useStore((s) => s.updateClientProduct);
   const toast = useToast();
   const { busy, run } = useSubmit();
 
+  const productNames = products.map((p) => p.name);
+
   const [pickedClient, setPickedClient] = useState(fixedClient ?? clients[0]?.name ?? "");
   const clientName = fixedClient ?? pickedClient;
   const client = clients.find((c) => c.name === clientName);
 
-  const [product, setProduct] = useState(existing?.product ?? presetProduct ?? "");
+  // Two separate pieces of state, not one shared box. If picking "EniMAX" then switching to
+  // New pre-filled the name field with it, the fastest path through the dialog would be to
+  // create a duplicate of the product you had just selected — which is the exact bug this
+  // field exists to prevent.
+  const [mode, setMode] = useState<"existing" | "new">(productNames.length ? "existing" : "new");
+  const [picked, setPicked] = useState(existing?.product ?? presetProduct ?? "");
+  const [draft, setDraft] = useState("");
+  const product = mode === "existing" ? picked : draft.trim();
   const [devStart, setDevStart] = useState(existing?.devStart ?? "");
   const [completion, setCompletion] = useState(existing?.expectedCompletion ?? "");
   const [divisions, setDivisions] = useState<string[]>(existing?.divisions ?? []);
   const [productErr, setProductErr] = useState(false);
+
+  // Flagged while you type, not after you save. Case- and whitespace-insensitive, so
+  // "enimax" is recognised as the existing EniMAX rather than waved through as new.
+  const draftClashes = mode === "new" && !!draft.trim() && productNames.some((n) => sameName(n, draft));
 
   const divs = client?.divisions ?? [];
   const hasDivisions = divs.length > 0;
@@ -64,7 +81,7 @@ export function AddClientProductModal({
   const [scope, setScope] = useState<"client" | "divisions">(
     existing ? (existing.divisions.length ? "divisions" : "client") : hasDivisions ? "divisions" : "client",
   );
-  const clientWide = scope === "client" || !hasDivisions;
+  const sendDivisions = () => scopedDivisions(scope, client, divisions);
 
   const save = () =>
     run(
@@ -76,13 +93,13 @@ export function AddClientProductModal({
               expectedCompletion: completion || undefined,
               // Empty = client-wide. Sent from the scope choice, not from whatever happens
               // to be ticked, so switching to client-wide actually clears the divisions.
-              divisions: clientWide ? [] : divisions,
+              divisions: sendDivisions(),
             })
           : addClientProduct(clientName, {
               product: product.trim(),
               devStart: devStart || undefined,
               expectedCompletion: completion || undefined,
-              divisions: clientWide ? [] : divisions,
+              divisions: sendDivisions(),
             }),
       {
         success: `${product.trim()} ${existing ? "updated" : `added to ${clientName}`}`,
@@ -98,13 +115,22 @@ export function AddClientProductModal({
     }
     if (!product.trim()) {
       setProductErr(true);
+      toast(mode === "existing" ? "Choose a product" : "Name the new product");
+      return;
+    }
+    // The guard that makes the two modes worth having. Without it, New product would be the
+    // old free-text field wearing a label, and a near-miss name would still mint a
+    // duplicate that splits this product's clients and tickets across two catalogue rows.
+    if (draftClashes) {
+      setProductErr(true);
+      toast(`${draft.trim()} already exists — pick it under Existing product`);
       return;
     }
     if (devStart && completion && completion < devStart) {
       toast("Expected completion can't be before the dev start date");
       return;
     }
-    if (!clientWide && divisions.length === 0) {
+    if (scope === "divisions" && hasDivisions && divisions.length === 0) {
       toast("Pick at least one division, or set this product to client-wide");
       return;
     }
@@ -160,69 +186,82 @@ export function AddClientProductModal({
             )}
           </Field>
         )}
-        <TextField
-          label="Product name"
-          required
-          value={product}
-          error={productErr}
-          placeholder="e.g. EniMAX"
-          onChange={(v) => {
-            setProduct(v);
-            if (productErr) setProductErr(false);
-          }}
-        />
-        <div className="field-2">
-          <TextField label="Dev start date" optional type="date" value={devStart} onChange={setDevStart} />
-          <TextField
-            label="Expected completion"
-            optional
-            type="date"
-            value={completion}
-            onChange={setCompletion}
-          />
-        </div>
-
-        <Field label="Where does it run?" required>
-          {() => (
+        {/* An explicit choice, not a text box. This field used to be free text resolved
+            find-or-create, so "EniMax" silently became a second catalogue product beside
+            "EniMAX" and nothing on screen said so. Creating is now a mode you select. */}
+        <Field label="Product" required error={productErr}>
+          {(id) => (
             <>
-              {/* Only shown when there is a choice — a client with no divisions can only
-                  be client-wide, and offering a disabled option is noise. */}
-              {hasDivisions && (
-                <Segmented
-                  ariaLabel="Product scope"
-                  options={[
-                    { key: "client", label: "Client-wide" },
-                    { key: "divisions", label: "Specific divisions" },
-                  ]}
-                  value={clientWide ? "client" : "divisions"}
-                  onChange={(v) => setScope(v)}
+              <Segmented
+                ariaLabel="Product source"
+                options={[
+                  { key: "existing", label: "Existing product" },
+                  { key: "new", label: "New product" },
+                ]}
+                value={mode}
+                onChange={(v) => {
+                  setMode(v as "existing" | "new");
+                  setProductErr(false);
+                }}
+              />
+              {mode === "existing" ? (
+                <Select
+                  id={id}
+                  block
+                  label="Select a product"
+                  ariaLabel="Product"
+                  value={picked}
+                  options={productNames.map((n) => ({ value: n, label: n }))}
+                  onChange={(v) => {
+                    setPicked(v);
+                    setProductErr(false);
+                  }}
+                  invalid={productErr}
+                />
+              ) : (
+                <input
+                  id={id}
+                  type="text"
+                  value={draft}
+                  placeholder="e.g. EniMAX"
+                  aria-invalid={productErr || undefined}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    setProductErr(false);
+                  }}
                 />
               )}
-              <div className="field-hint">
-                {clientWide
-                  ? hasDivisions
-                    ? `Applies to all of ${clientName}, including divisions added later.`
-                    : `${clientName} has no divisions yet, so this applies to the client as a whole. You can scope it to divisions once they exist.`
-                  : "Only the divisions ticked below run this product."}
-              </div>
+              {mode === "existing" && productNames.length === 0 && (
+                <div className="field-hint">
+                  No products in the catalogue yet — switch to <b>New product</b> to add the first one.
+                </div>
+              )}
+              {draftClashes && (
+                <div className="field-hint">
+                  <b>{draft.trim()}</b> already exists — pick it under <b>Existing product</b> instead of
+                  creating a second one.
+                </div>
+              )}
+              {mode === "new" && !draftClashes && !!draft.trim() && (
+                <div className="field-hint">
+                  <b>{draft.trim()}</b> will be added to the catalogue when you save.
+                </div>
+              )}
             </>
           )}
         </Field>
-
-        {!clientWide && hasDivisions && (
-          <CheckList
-            label="Divisions running this product"
-            labelHead="Division"
-            metaHead="Code"
-            selected={divisions}
-            options={divs.map((d) => ({
-              value: d.docname ?? d.name,
-              label: d.name,
-              hint: `${client?.code}-${d.code}`,
-            }))}
-            onChange={setDivisions}
-          />
-        )}
+        <EngagementFields
+          client={client}
+          clientName={clientName}
+          devStart={devStart}
+          onDevStart={setDevStart}
+          completion={completion}
+          onCompletion={setCompletion}
+          scope={scope}
+          onScope={setScope}
+          divisions={divisions}
+          onDivisions={setDivisions}
+        />
       </div>
     </Modal>
   );

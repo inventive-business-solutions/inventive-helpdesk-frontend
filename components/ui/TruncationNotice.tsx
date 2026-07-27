@@ -1,6 +1,6 @@
 "use client";
 import { Icon } from "@/components/ui/Icon";
-import { TICKET_FETCH_CAP, useStore } from "@/store";
+import { MASTER_FETCH_CAP, TICKET_FETCH_CAP, useStore } from "@/store";
 
 /**
  * Says so when the ticket fetch came back at its cap.
@@ -27,6 +27,29 @@ export function TruncationNotice({ what }: { what: string }) {
       <span>
         Showing the <b>most recent {TICKET_FETCH_CAP.toLocaleString()}</b> tickets. Older ones are not loaded,
         and {what}.
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The same warning for master data — clients, contacts, products, members, teams.
+ *
+ * Those lists were unbounded until now, so this state could not arise; capping them makes
+ * it possible, which is precisely why it has to be visible. Every count on these pages is
+ * derived in the browser from what was fetched, so past the cap they are floors rather than
+ * totals — and a record someone swears exists would simply not be findable, with nothing on
+ * screen explaining why.
+ */
+export function MasterTruncationNotice({ what }: { what: string }) {
+  const truncated = useStore((s) => s.mastersTruncated);
+  if (!truncated) return null;
+  return (
+    <div className="banner">
+      <Icon name="info" />
+      <span>
+        This list hit its load limit of <b>{MASTER_FETCH_CAP.toLocaleString()}</b> records, so {what}. Narrow
+        the list with search, or ask for server-side paging if you have grown past this.
       </span>
     </div>
   );

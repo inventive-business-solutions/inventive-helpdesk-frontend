@@ -2,8 +2,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useStore } from "@/store";
-import { useAutoRefresh, TICKET_POLL_MS } from "@/lib/useAutoRefresh";
+import { useAutoRefresh, TICKET_POLL_MS, LIST_PING_THROTTLE_MS } from "@/lib/useAutoRefresh";
 import { onRealtime, subscribeDoctype, stopRealtime } from "@/lib/realtime";
+import { throttleTrailing } from "@/lib/throttle";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { PortalShell } from "./PortalShell";
@@ -30,12 +31,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!booted || !session) return;
     const leave = subscribeDoctype("Support Ticket");
+    // Throttled, because this is a BROADCAST: every connected session receives it and
+    // refetches its whole list. Unthrottled, an email burst creating fifty tickets meant
+    // fifty full refetches in every open tab at once — the load rising with both the surge
+    // and the number of agents watching it. Leading-edge, so the ordinary single ticket
+    // still lands immediately; the trailing call catches whatever arrived during the window.
+    //
     // Caught, not awaited: an un-handled rejection here would surface as a global
     // `unhandledrejection` (and a process warning on the standalone server) every time the
     // backend hiccups. A failed background refresh is a no-op — the poller retries.
-    const off = onRealtime("ticket_list_dirty", () => void refreshTickets().catch(() => {}));
+    const refresh = throttleTrailing(() => void refreshTickets().catch(() => {}), LIST_PING_THROTTLE_MS);
+    const off = onRealtime("ticket_list_dirty", refresh);
     return () => {
       off();
+      refresh.cancel();
       leave();
     };
   }, [booted, session, refreshTickets]);

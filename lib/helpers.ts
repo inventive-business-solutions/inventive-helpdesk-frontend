@@ -170,6 +170,28 @@ export function statusClass(s: Status): string {
 export const typeClass = (t: TicketType) => "type-" + (t === "New Feature" ? "Feature" : t);
 
 /** Pragmatic email check: non-empty local part, one @, a dotted domain. */
+/**
+ * Split a list into fixed-size batches.
+ *
+ * Exists because `getList` sends its filters as a GET query string, so an
+ * `["name","in",[…]]` filter grows the URL by ~24 bytes per entry. nginx and Traefik both
+ * default to an 8KB header buffer, which one such filter crosses at roughly 170 entries —
+ * and the request then fails as a 414 that the caller was swallowing, silently producing
+ * wrong data rather than an error. Batching keeps every URL far below that.
+ */
+export function chunk<T>(items: T[], size: number): T[][] {
+  if (size < 1) throw new RangeError("chunk size must be at least 1");
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/** Do two names refer to the same thing? Case- and whitespace-insensitive, so "  enimax "
+ *  is recognised as the existing "EniMAX" rather than waved through as a new product. Both
+ *  product dialogs use this to refuse a near-miss duplicate — a catalogue holding two rows
+ *  for one product splits its clients and its tickets between them. */
+export const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 export function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }

@@ -4,6 +4,12 @@ import { useEffect, useEffectEvent, useRef } from "react";
 /** Default cadence for background ticket refresh. */
 export const TICKET_POLL_MS = 30_000;
 
+/** Window for collapsing `ticket_list_dirty` broadcasts. Long enough that an email burst
+ *  or a busy triage minute costs two refetches rather than fifty; short enough that a
+ *  second ticket arriving right behind the first is still on screen well inside the "few
+ *  seconds" a person would call live. */
+export const LIST_PING_THROTTLE_MS = 1_500;
+
 /**
  * Poll `fn` on an interval, but ONLY while the tab is visible — hidden/background tabs
  * make zero requests. Refetches immediately on tab focus / becoming visible (so returning

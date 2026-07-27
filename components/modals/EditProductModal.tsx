@@ -2,34 +2,44 @@
 import { useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Icon } from "../ui/Icon";
-import { Badge } from "../ui/Chips";
-import { TextField } from "../ui/Field";
+import { TextField, Field } from "../ui/Field";
 import { ModalFooter } from "../ui/ModalFooter";
 import { Button } from "../ui/Button";
+import { ManageButton } from "../ui/ManageButton";
+import { EmptyState } from "../ui/EmptyState";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
-import { clientsRunning } from "../../lib/helpers";
+import { divDisplayName, plural, sameName } from "../../lib/helpers";
+import type { ClientProduct } from "../../types";
 
-/** Rename a product. The rename cascades to every client running it, because Product is
- *  autonamed and the engagements link to it.
+/** The manage view for a product: its name, and every engagement it is in service under.
  *
- *  Assignment used to live here too, with a "keep common or move it?" prompt — the move
- *  branch cleared the legacy `Client.product` from every other client, which only made
- *  sense while a client could run exactly one product. A client can now run several, so
- *  attaching one is creating an engagement: that is `AddClientProductModal`, reached from
- *  the Products page or the client card. Ticket IDs are unaffected by a rename either
- *  way — they come from the client and division codes, never the product. */
+ *  Both used to be reachable, but from different buttons in different places — this dialog
+ *  renamed and deleted, while a second Manage down on the client row edited that client's
+ *  engagement. Two controls a card apart, neither saying which of the two things it acted
+ *  on. Managing a product now starts in one place and the engagements are listed here.
+ *
+ *  Editing an engagement hands back to the caller rather than stacking a second dialog on
+ *  this one: nested modals fight over focus and Escape, and the engagement editor is a full
+ *  form in its own right. Ticket IDs are unaffected by a rename either way — they come from
+ *  the client and division codes, never the product. */
 export function EditProductModal({
   product,
   onClose,
   onDelete,
+  onEditEngagement,
+  onAssign,
 }: {
   product: string;
   onClose: () => void;
   /** Rendered as Delete in the footer. This is the manage view, so removing happens here
    *  — while looking at the record — rather than from a bare ✕ in a row. */
   onDelete?: () => void;
+  /** Open the engagement editor for one client's use of this product. */
+  onEditEngagement?: (clientName: string, eng: ClientProduct) => void;
+  /** Put this product into service with another client. */
+  onAssign?: () => void;
 }) {
   const products = useStore((s) => s.products);
   const clients = useStore((s) => s.clients);
@@ -39,11 +49,22 @@ export function EditProductModal({
 
   const [name, setName] = useState(product);
   const [err, setErr] = useState(false);
-  const dirty = name.trim() !== product;
-
-  const running = clientsRunning(clients, product);
   const nm = name.trim();
   const renamed = nm !== product;
+  const dirty = renamed;
+
+  // One row per ENGAGEMENT, not per client: a client may run the same product under more
+  // than one division scope, and each of those is a separate editable record. Collapsing
+  // them to one row per client would make it arbitrary which one a Manage button edited.
+  const engagements = clients.flatMap((c) =>
+    c.products.filter((p) => p.product === product).map((eng) => ({ client: c, eng })),
+  );
+
+  /** The divisions an engagement covers, or the client-wide marker. Returns null for
+   *  client-wide so the row can render it as a chip rather than as plain scope text —
+   *  covering everything is a different kind of answer from naming two divisions. */
+  const scopeOf = (client: (typeof clients)[number], eng: ClientProduct) =>
+    eng.divisions.length ? eng.divisions.map((dn) => divDisplayName(client, dn)).join(", ") : null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +72,7 @@ export function EditProductModal({
       setErr(true);
       return;
     }
-    if (renamed && products.some((p) => p.toLowerCase() === nm.toLowerCase())) {
+    if (renamed && products.some((p) => sameName(p.name, nm))) {
       setErr(true);
       toast("A product with that name already exists");
       return;
@@ -62,7 +83,7 @@ export function EditProductModal({
 
   return (
     <Modal
-      title={`Edit ${product}`}
+      title={`Manage ${product}`}
       onClose={onClose}
       onSubmit={submit}
       footer={
@@ -95,23 +116,53 @@ export function EditProductModal({
             if (err) setErr(false);
           }}
         />
-        {running.length > 0 && (
-          <div className="field">
-            <div className="field-label">Currently run by</div>
-            <div className="chip-wrap">
-              {running.map((c) => (
-                <Badge round key={c.name}>
-                  {c.name}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
+
+        <Field label={`In service with ${plural(engagements.length, "client")}`}>
+          {() => (
+            <>
+              {engagements.length === 0 ? (
+                <EmptyState>
+                  Not yet run by any client — assign it to one to set its dates and divisions.
+                </EmptyState>
+              ) : (
+                <div className="eng-list">
+                  {engagements.map(({ client, eng }) => (
+                    <div className="eng-row" key={eng.id}>
+                      <div className="eng-main">
+                        <span className="eng-client">{client.name}</span>
+                        {scopeOf(client, eng) ? (
+                          <span className="eng-scope">{scopeOf(client, eng)}</span>
+                        ) : (
+                          <span className="chip chip-scope" title={`${product} covers all of ${client.name}`}>
+                            Client-wide
+                          </span>
+                        )}
+                      </div>
+                      {onEditEngagement && (
+                        <ManageButton
+                          subject={`${product} at ${client.name}`}
+                          onClick={() => onEditEngagement(client.name, eng)}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {onAssign && (
+                <Button variant="ghost" className="eng-add" onClick={onAssign} disabled={busy}>
+                  <Icon name="plus" size={13} />
+                  Assign to a client
+                </Button>
+              )}
+            </>
+          )}
+        </Field>
+
         <div className="auth-note">
           <Icon name="info" size={14} />
           <div>
-            Renaming updates the product everywhere it is used. To put it into service with another client —
-            with its own dates and divisions — use <b>Assign to a client</b> on the Products page.
+            Renaming updates the product everywhere it is used. Dates and division scoping belong to each
+            client&rsquo;s engagement — edit those with <b>Manage</b> above.
           </div>
         </div>
       </div>

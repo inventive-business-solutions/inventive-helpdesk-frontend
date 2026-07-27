@@ -3,6 +3,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore, collabKey, mergeTicketDraft, type TicketDraft } from "@/store";
 import { Button } from "@/components/ui/Button";
+import { originFromUrl } from "@/components/ui/BackButton";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
 import { Segmented } from "@/components/ui/Segmented";
@@ -199,11 +200,13 @@ export function TicketDetail({ id }: { id: string }) {
   // previous entry (a deep-linked ticket URL opened in a fresh tab) do we fall back to the
   // section list. `window.history.length > 1` is the App-Router-safe "is there somewhere to
   // go back to" check (App Router doesn't expose a history index like Pages Router did).
+  // Stated, not inferred. `router.back()` used to be close enough here, but it lands
+  // somewhere different depending on how you arrived, and once the list pages grew their
+  // own Back the two mirrored each other into a loop. The list now passes its full filtered
+  // URL as `from`, so this returns to the exact view the ticket was opened from — which
+  // browser history gave us by accident and this gives us on purpose.
   const backTo = isAdmin ? "/tickets" : "/portal";
-  const doBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) router.back();
-    else router.push(backTo);
-  };
+  const doBack = () => router.push(originFromUrl() ?? backTo);
 
   const [streamTab, setStreamTab] = useState<"client" | "internal" | "activity">("client");
   const [vis, setVis] = useState<"internal" | "client">("internal");

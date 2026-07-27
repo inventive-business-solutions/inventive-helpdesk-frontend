@@ -21,7 +21,21 @@ export interface Attachment {
  *  - a Lead, created during client onboarding to oversee divisions.
  *  A Lead starts with `divisions` empty, which means no ticket access at all — access is
  *  only ever granted by assigning divisions. */
-export interface Poc {
+/** Server timestamps, carried on records loaded from the backend so a list can offer
+ *  "Newest" and "Recently updated" without a second request. Optional because records
+ *  built locally (fixtures, a row assembled before its first save) have none yet — every
+ *  comparator therefore has to treat a missing stamp as "oldest", not as an error. */
+export interface Stamped {
+  createdISO?: string;
+  updatedISO?: string;
+}
+
+/** A catalogue product. This was a bare string until list sorting needed its dates. */
+export interface Product extends Stamped {
+  name: string;
+}
+
+export interface Poc extends Stamped {
   /** POC docname — set on POCs loaded from the backend; needed to edit/delete. */
   id?: string;
   name: string;
@@ -36,7 +50,7 @@ export interface Poc {
 }
 
 /** An Inventive team member a ticket can be assigned to. */
-export interface TeamMember {
+export interface TeamMember extends Stamped {
   name: string;
   email: string;
   /** Job title, e.g. "Software Dev". */
@@ -46,7 +60,7 @@ export interface TeamMember {
 }
 
 /** A custom group of team members (e.g. "Structural Team", "IT Team"). */
-export interface Group {
+export interface Group extends Stamped {
   name: string;
   members: string[]; // member names
 }
@@ -74,7 +88,7 @@ export interface ClientProduct {
   divisions: string[];
 }
 
-export interface Client {
+export interface Client extends Stamped {
   name: string;
   code: string;
   status: ClientStatus;

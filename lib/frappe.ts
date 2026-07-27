@@ -17,6 +17,7 @@ import type {
   Poc,
   PortalStatus,
   Priority,
+  Stamped,
   Status,
   TeamMember,
   Ticket,
@@ -709,7 +710,20 @@ export function toTicket(r: RawTicket, divName: (docname?: string) => string): T
   };
 }
 
-export interface RawClient {
+/** Frappe's own row timestamps. They are NOT in the default field set, so every list
+ *  that wants to offer "Newest" / "Recently updated" has to ask for them by name. */
+export interface RawStamps {
+  creation?: string;
+  modified?: string;
+}
+
+/** Frappe's snake_case stamps → the camelCase pair the UI types carry. */
+export const toStamps = (r: RawStamps): Stamped => ({
+  createdISO: r.creation,
+  updatedISO: r.modified,
+});
+
+export interface RawClient extends RawStamps {
   name: string;
   client_code: string;
   status?: ClientStatus;
@@ -733,7 +747,7 @@ export interface RawDivision {
   division_code: string;
   client: string;
 }
-export interface RawPoc {
+export interface RawPoc extends RawStamps {
   name: string;
   poc_name: string;
   email: string;
@@ -815,11 +829,13 @@ export function assembleClients(
     isLead: !!p.is_lead,
     divisions: pocDivs.get(p.name) ?? [],
     portal: pocPortalStatus(p, users),
+    ...toStamps(p),
   });
 
   return clients.map((c) => {
     const mine = pocs.filter((p) => p.client === c.name).map(toPoc);
     return {
+      ...toStamps(c),
       name: c.name,
       code: c.client_code,
       status: c.status ?? "Active",
@@ -849,17 +865,20 @@ export function assembleClients(
   });
 }
 
-export function toMember(r: {
-  member_name: string;
-  email?: string;
-  title?: string;
-  status?: "Active" | "Invited" | "Not Invited";
-}): TeamMember {
+export function toMember(
+  r: RawStamps & {
+    member_name: string;
+    email?: string;
+    title?: string;
+    status?: "Active" | "Invited" | "Not Invited";
+  },
+): TeamMember {
   return {
     name: r.member_name,
     email: r.email || "—",
     title: r.title || undefined,
     status: r.status || "Not Invited",
+    ...toStamps(r),
   };
 }
 /** A row of the Assignment Group Member child table. */
@@ -878,7 +897,7 @@ export interface RawGroupMember {
  *  rows are permission-checked through their parent, so Frappe needs telling which parent
  *  doctype to check against. Same technique already used for POC Division above. */
 export function assembleGroups(
-  groups: { name: string; group_name?: string }[],
+  groups: (RawStamps & { name: string; group_name?: string })[],
   memberRows: RawGroupMember[] = [],
 ): Group[] {
   const members = byParent(memberRows, "member");
@@ -887,5 +906,6 @@ export function assembleGroups(
     // rather than relying on that, since the docname is what the child rows join on.
     name: g.group_name || g.name,
     members: members.get(g.name) ?? [],
+    ...toStamps(g),
   }));
 }
