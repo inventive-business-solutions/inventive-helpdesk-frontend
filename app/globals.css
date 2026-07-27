@@ -438,7 +438,10 @@ a {
 /* ---------- APP SHELL ---------- */
 .app-shell {
   display: grid;
-  grid-template-columns: 232px 1fr;
+  /* minmax(0,1fr): without it the main column cannot shrink below its widest child, so
+     one long name anywhere in the app scrolls the WHOLE shell sideways rather than
+     ellipsising inside the card that holds it. */
+  grid-template-columns: 232px minmax(0, 1fr);
   min-height: 100vh;
 }
 /* The rail keeps one width at every size it is shown at (the phone drawer below is
@@ -2051,7 +2054,8 @@ button.ui-select-opt {
 }
 .bar-row {
   display: grid;
-  grid-template-columns: 132px 1fr 28px;
+  /* Middle track carries the bar itself; the 132px label is separately clipped. */
+  grid-template-columns: 132px minmax(0, 1fr) 28px;
   align-items: center;
   gap: 12px;
 }
@@ -2866,7 +2870,9 @@ table.tk-contacts .row-actions {
 /* ticket detail */
 .detail-grid {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  /* The main column holds ticket titles, descriptions and message bodies — all
+     arbitrary length. minmax(0,…) lets them wrap instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 18px;
   align-items: start;
 }
@@ -3325,7 +3331,9 @@ table.tk-contacts .row-actions {
    columns so the rail doesn't stack deep. */
 .rail-2col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Pairs Team|Assignee and Priority|Status — every one of those is a name that can be
+     long. minmax(0,…) keeps a wide value inside its half instead of widening the rail. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   align-items: start;
 }
@@ -4151,10 +4159,20 @@ button.stat:not(:disabled):hover {
 .field.invalid select:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 15%, transparent);
 }
+/* minmax(0, 1fr), not 1fr. A grid item defaults to `min-width: auto`, which means it
+   refuses to shrink below its CONTENT's intrinsic width — so a client named "ZZ Stress
+   Industries And Manufacturing Solutions Private Limited" widened its column, then the
+   grid, then the dialog, and the whole modal scrolled sideways. The select inside was
+   already set up to ellipsis; it never got the chance, because the track never got
+   narrower than the text. */
 .field-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
+}
+/* Same reason one level down: a flex/grid child has to be told it may shrink. */
+.field-2 > .field {
+  min-width: 0;
 }
 @media (max-width: 480px) {
   .field-2 {

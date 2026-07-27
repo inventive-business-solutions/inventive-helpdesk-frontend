@@ -176,7 +176,11 @@ export function Select({
             onMouseEnter={() => setActive(i)}
             onClick={() => choose(o.value)}
           >
-            <span className="ui-select-opt-label">{o.label}</span>
+            {/* Options ellipsis too, and the menu is capped at the trigger's width — so a
+                long name needs to be readable before it is picked, not only after. */}
+            <span className="ui-select-opt-label" title={typeof o.label === "string" ? o.label : undefined}>
+              {o.label}
+            </span>
             {isSel && <Icon name="check" size={15} className="ui-select-tick" />}
           </li>
         );
@@ -196,6 +200,11 @@ export function Select({
         type="button"
         id={id}
         className="ui-select-trigger"
+        // The value ellipsises when the control is narrower than its text, so the full
+        // name has to stay reachable somehow. Set unconditionally because CSS truncation
+        // is invisible to JS without measuring, and a tooltip that sometimes exists is
+        // worse than one that always does.
+        title={display}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
