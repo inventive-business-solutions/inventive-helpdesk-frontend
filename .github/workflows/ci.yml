@@ -28,7 +28,15 @@ jobs:
   # ============================================================
   BUILD_AND_DEPLOY_PROD:
     name: Quality, Build & Deploy
-    runs-on: [self-hosted, inventive-microscan]
+    # inventive-microscan-2, not inventive-microscan: the backend repo builds on the
+    # latter, and with both on one runner a frontend release queued behind a backend one
+    # (and vice versa) for the length of a full image build.
+    #
+    # This does NOT buy redundancy. Both runners are two agents on the SAME host, running
+    # as the same `ubuntu` user — so a failure of that machine still stops every build for
+    # the whole product. What it buys is concurrency, and concurrency is precisely what
+    # makes the credential isolation below mandatory rather than tidy.
+    runs-on: [self-hosted, inventive-microscan-2]
     environment: Production
     timeout-minutes: 45
 
@@ -90,6 +98,25 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      # inventive-microscan and inventive-microscan-2 are two runner agents on the SAME
+      # host under the same `ubuntu` user, so by default they share
+      # /home/ubuntu/.docker/config.json. docker/login-action's post step runs
+      # `docker logout ghcr.io`, which empties `auths` in that shared file — so a build
+      # finishing in another repo can strip this job's credentials mid-run. GHCR reports
+      # the result as "manifest unknown" rather than 401, so it reads as a missing image
+      # instead of an auth failure and sends you looking in the wrong place.
+      #
+      # Giving this job its own DOCKER_CONFIG makes both the login and the logout private
+      # to this run. That also stops this job writing to the shared file at all, so the
+      # backend pipeline on inventive-microscan is no more exposed than it was when both
+      # repos shared one runner.
+      #
+      # Must precede setup-buildx-action: the builder resolves the config path at creation.
+      - name: Isolate Docker credentials to this job
+        run: |
+          mkdir -p "$RUNNER_TEMP/docker-config"
+          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker-config" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
