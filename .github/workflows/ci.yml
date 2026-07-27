@@ -28,31 +28,40 @@ jobs:
   # ============================================================
   BUILD_AND_DEPLOY_PROD:
     name: Quality, Build & Deploy
-    # Any self-hosted agent, not a named one.
+    # The Microscan host, by name — after two attempts at being cleverer than that.
     #
-    # This was pinned to inventive-microscan-2 so a frontend release would not queue behind
-    # a backend image build on inventive-microscan. It did buy that — and then -2 went
-    # offline and the frontend could not build AT ALL for over an hour, while the backend
-    # kept deploying happily on the other agent. Pinning turned a busy runner into a broken
-    # pipeline: a named label has no fallback, so one dead agent is a total outage for
-    # whichever repo named it.
+    # It was first pinned to inventive-microscan-2, so a frontend release would not queue
+    # behind a backend image build. Then -2 went offline and the frontend could not build
+    # AT ALL for over an hour: a named label has no fallback, so one dead agent is a total
+    # outage for whichever repo named it.
     #
-    # Unpinned, a build takes whichever agent is free. The cost is that the two repos can
-    # once again queue behind each other when both are busy — a slower release, which is a
-    # far better failure than no release. The DOCKER_CONFIG isolation below stays either
-    # way: with both repos able to land on the same agent, the shared
-    # ~/.docker/config.json that `docker logout` empties is once again reachable.
+    # Dropping the name was worse. A bare [self-hosted] matches EVERY self-hosted runner in
+    # the org, including a Windows one that took the job and died on the first bash line
+    # ("Expressions are only allowed as the first element of a pipeline", from
+    # C:\Users\...\actions-runner). Adding Linux/X64 fixed that and exposed the real
+    # problem: the org has OTHER Linux agents. Runs landed on qua-prod-x64 and quadev,
+    # which belong to a different project.
     #
-    # Still not redundancy in the real sense — both agents are on ONE host, so losing the
-    # machine stops everything. This only survives losing an agent.
+    # Those agents build and push the image fine, and can POST the deploy webhook — but
+    # they have no network path to helpdesk.inventivebizsol.co.in. So "Verify deployment"
+    # polled twelve times, got `unavailable` every time, and failed a release that had
+    # deployed correctly and was serving traffic throughout. A red release that is really
+    # green is worse than no check at all, because the next genuine failure looks the same.
+    # The Microscan agents can always reach production: they are on the same host as it.
     #
-    # `Linux` is not decoration. A bare [self-hosted] matches EVERY self-hosted runner the
-    # org exposes — including a Windows one, which took this job and failed instantly:
-    # every `run:` here is bash, and PowerShell reported "Expressions are only allowed as
-    # the first element of a pipeline" from C:\Users\...\actions-runner. GitHub adds
-    # Linux/Windows/macOS and X64 automatically, so this matches both Microscan agents and
-    # nothing else.
-    runs-on: [self-hosted, Linux, X64]
+    # So: the backend's agent, shared. The two repos queue behind each other when both are
+    # busy — a slower release, which is a far better failure than a false red or a dead
+    # pipeline. There is no array that means "microscan OR microscan-2"; `runs-on` labels
+    # are ANDed. Restoring fallback needs one shared custom label on both agents, which
+    # needs org runner access to create.
+    #
+    # Linux/X64 are kept as a guard, so this cannot be satisfied by a Windows box if the
+    # inventive-microscan label is ever applied to one.
+    #
+    # The DOCKER_CONFIG isolation below now matters MORE, not less: both repos share
+    # /home/ubuntu/.docker/config.json on this host, and docker/login-action's post step
+    # runs `docker logout ghcr.io` against it.
+    runs-on: [self-hosted, Linux, X64, inventive-microscan]
     environment: Production
     timeout-minutes: 45
 
