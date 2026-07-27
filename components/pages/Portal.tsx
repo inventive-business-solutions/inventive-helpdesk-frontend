@@ -145,6 +145,8 @@ export function Portal() {
     type: typeOpts,
     status: statusOpts,
     source: sourceOpts,
+    // Not offered to clients (buildFacets gates it on role) — the key is required by the type.
+    sender: [],
     month: monthOpts,
     year: yearOpts,
     client: [],

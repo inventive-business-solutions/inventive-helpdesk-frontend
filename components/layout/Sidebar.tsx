@@ -18,6 +18,7 @@ type NavItem = {
   manage?: boolean;
   mine?: string;
   teamq?: string;
+  source?: string;
 };
 
 export function Sidebar() {
@@ -25,6 +26,7 @@ export function Sidebar() {
   const sp = useSearchParams();
   const mineParam = sp?.get("mine") ?? null;
   const teamqParam = sp?.get("teamq") ?? null;
+  const sourceParam = sp?.get("source") ?? null;
   const session = useStore((s) => s.session);
   const tickets = useStore((s) => s.tickets);
   const clients = useStore((s) => s.clients);
@@ -46,6 +48,9 @@ export function Sidebar() {
       : (tierLabel(session) ?? TIER.admin);
 
   const activeCount = tickets.filter((t) => isActive(t.status)).length;
+  // Open tickets that arrived by email. Same convention as every other badge here: it
+  // counts work still to do, not everything ever received.
+  const emailedCount = tickets.filter((t) => t.source === "Email" && isActive(t.status)).length;
   const mine = tickets.filter((t) => t.client === session.client && t.div === session.div);
   const myActive = mine.filter((t) => isActive(t.status)).length;
 
@@ -76,6 +81,16 @@ export function Sidebar() {
   const managerItems: NavItem[] = [
     { to: "/", label: "Dashboard", icon: "dashboard", end: true },
     { to: "/tickets", label: "Tickets", icon: "tickets", end: false, count: activeCount },
+    // A filtered view of Tickets, not a page of its own — so it keeps that page's search,
+    // sort, paging and filters instead of growing a second, thinner copy of them.
+    {
+      to: "/tickets?source=Email",
+      label: "Emailed tickets",
+      icon: "mail",
+      end: false,
+      count: emailedCount,
+      source: "Email",
+    },
     { to: "/clients", label: "Clients", icon: "clients", end: false, count: clients.length, manage: true },
     { to: "/contacts", label: "Contacts", icon: "mail", end: false, count: pocCount, manage: true },
     {
@@ -101,6 +116,14 @@ export function Sidebar() {
   const agentItems: NavItem[] = [
     { to: "/", label: "Dashboard", icon: "dashboard", end: true },
     { to: "/tickets", label: "All tickets", icon: "tickets", end: false, count: activeCount },
+    {
+      to: "/tickets?source=Email",
+      label: "Emailed tickets",
+      icon: "mail",
+      end: false,
+      count: emailedCount,
+      source: "Email",
+    },
     {
       to: "/tickets?mine=me",
       label: "Assigned to me",
@@ -148,10 +171,14 @@ export function Sidebar() {
   // one; the plain "/tickets" (All) view lights up on the list or a ticket detail, but
   // yields to a mine/teamq view when one is active; everything else is a plain path match.
   const itemActive = (it: NavItem) => {
+    if (it.source !== undefined) return pathname === "/tickets" && sourceParam === it.source;
     if (it.mine !== undefined) return pathname === "/tickets" && mineParam === it.mine;
     if (it.teamq !== undefined) return pathname === "/tickets" && teamqParam === it.teamq;
     if (it.to === "/tickets")
-      return pathname.startsWith("/tickets") && !(pathname === "/tickets" && (mineParam || teamqParam));
+      return (
+        pathname.startsWith("/tickets") &&
+        !(pathname === "/tickets" && (mineParam || teamqParam || sourceParam))
+      );
     return it.end ? pathname === it.to : pathname.startsWith(it.to);
   };
 

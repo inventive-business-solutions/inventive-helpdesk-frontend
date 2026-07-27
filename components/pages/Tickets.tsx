@@ -40,6 +40,9 @@ const STATUSES: Status[] = [
   "Closed",
 ];
 const PRIORITIES: Priority[] = ["Critical", "High", "Medium", "Low"];
+// Classified server-side (sender.py) and cached on the ticket. Listed here so every value
+// stays filterable even when no ticket currently has it.
+const SENDERS = ["Registered", "Known Contact", "Unregistered", "No Reply"] as const;
 
 export function Tickets() {
   const router = useRouter();
@@ -110,6 +113,9 @@ export function Tickets() {
   const sla = sp.get("sla");
   const attention = sp.get("attention");
   const source = sp.get("source");
+  const sender = sp.get("sender"); // sender_kind: Registered | Known Contact | Unregistered | No Reply
+  const mismatch = sp.get("mismatch"); // known contact, but not on this ticket's division
+  const unmatched = sp.get("unmatched"); // emailed in, attributed to no client
   const group = sp.get("group");
   const astate = sp.get("astate"); // assignment state: unassigned | team | member
   const mine = sp.get("mine"); // agent "my work" view: me | triage | collab
@@ -118,6 +124,23 @@ export function Tickets() {
   const product = sp.get("product");
   const month = sp.get("month");
   const year = sp.get("year");
+
+  // "client|POC name" -> the divisions that contact holds. A POC is listed under each
+  // division they cover, so the set is assembled from the client tree rather than stored.
+  // Built once per clients change: the mismatch predicate below runs per ticket, and
+  // rebuilding this inside it would rescan every client for every row.
+  const pocDivs = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const c of clients)
+      for (const d of c.divisions)
+        for (const p of d.pocs) {
+          const k = `${c.name}|${p.name}`;
+          let set = m.get(k);
+          if (!set) m.set(k, (set = new Set()));
+          set.add(d.name);
+        }
+    return m;
+  }, [clients]);
 
   // Apply every active filter to the ticket list (predicates unchanged from before).
   const rows = useMemo(() => {
@@ -137,6 +160,17 @@ export function Tickets() {
     if (assignee) r = r.filter((t) => t.assignee === assignee);
     if (sla) r = r.filter((t) => t.slaRisk && isActive(t.status));
     if (source) r = r.filter((t) => t.source === source);
+    if (sender) r = r.filter((t) => t.senderKind === sender);
+    // Attributed to nobody: the emailed-in pile that still needs a human to say who sent it.
+    if (unmatched) r = r.filter((t) => !t.client || t.client === "—");
+    // A contact we know, writing about a division they do not hold. Deliberately false for
+    // an unknown sender — that is "Unregistered", a different question with its own filter.
+    if (mismatch)
+      r = r.filter((t) => {
+        if (!t.div || !t.raisedBy) return false;
+        const held = pocDivs.get(`${t.client}|${t.raisedBy}`);
+        return !!held && !held.has(t.div);
+      });
     if (group) r = r.filter((t) => (group === "none" ? !t.group : t.group === group));
     if (astate === "unassigned") r = r.filter((t) => !t.group && t.assignee === "Unassigned");
     else if (astate === "team") r = r.filter((t) => !!t.group && t.assignee === "Unassigned");
@@ -180,6 +214,10 @@ export function Tickets() {
     assignee,
     sla,
     source,
+    sender,
+    mismatch,
+    unmatched,
+    pocDivs,
     group,
     astate,
     mine,
@@ -371,6 +409,7 @@ export function Tickets() {
   const pageRows = sorted.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
 
   // ---- faceted filter bar ----
+  const senderOpts: SelectOption[] = SENDERS.map((v) => ({ value: v, label: v }));
   const facetOpts: FacetOpts = {
     product: productOpts,
     client: clientOpts,
@@ -381,6 +420,7 @@ export function Tickets() {
     team: teamOpts,
     member: memberOpts,
     source: sourceOpts,
+    sender: senderOpts,
     priority: priorityOpts,
     month: monthOpts,
     year: yearOpts,
@@ -409,6 +449,20 @@ export function Tickets() {
     });
   if (attention)
     context.push({ key: "attention", value: "Needs attention", onRemove: () => setParam("attention", "") });
+  // Derived from the ticket + the client tree rather than a stored field, so they are chips
+  // rather than facets: there is no list of values to pick from, only on or off.
+  if (unmatched)
+    context.push({
+      key: "unmatched",
+      value: "Unmatched sender",
+      onRemove: () => setParam("unmatched", ""),
+    });
+  if (mismatch)
+    context.push({
+      key: "mismatch",
+      value: "Division mismatch",
+      onRemove: () => setParam("mismatch", ""),
+    });
 
   const values: Record<string, string> = {
     product: impliedProduct,
@@ -419,6 +473,7 @@ export function Tickets() {
     status: status ?? "",
     priority: priority ?? "",
     source: source ?? "",
+    sender: sender ?? "",
     group: group ?? "",
     assignee: assignee ?? "",
     month: month ?? "",

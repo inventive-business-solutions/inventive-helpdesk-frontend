@@ -26,6 +26,7 @@ const FACET_ICON: Record<string, IconName> = {
   status: "info",
   priority: "alert",
   source: "mail",
+  sender: "user",
   group: "grid",
   assignee: "user",
   month: "clock",
@@ -54,6 +55,7 @@ export interface FacetOpts {
   team: SelectOption[];
   member: SelectOption[];
   source: SelectOption[];
+  sender: SelectOption[];
   priority: SelectOption[];
   month: SelectOption[];
   year: SelectOption[];
@@ -169,6 +171,10 @@ export function buildFacets(ctx: BuildCtx): { facets: Facet[]; context: ContextC
   facets.push({ key: "type", label: "Type", options: vals(opts.type) });
   facets.push({ key: "status", label: "Status", options: vals(opts.status) });
   facets.push({ key: "source", label: "Source", options: vals(opts.source), formatValue: sourceFmt });
+  // Who the mail came from, classified server-side (sender.py). Staff only: it exists to
+  // answer "can this person reach us any other way", which is a triage question, and the
+  // portal audience is by definition Registered.
+  if (role !== "client") facets.push({ key: "sender", label: "Sender", options: vals(opts.sender) });
 
   // Priority — staff only.
   if (role !== "client") facets.push({ key: "priority", label: "Priority", options: vals(opts.priority) });
