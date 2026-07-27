@@ -524,6 +524,13 @@ export function inviteAdmin(member_name: string, email: string, title?: string) 
   );
 }
 
+export function revokeAccount(member: string) {
+  return call<{ member: string; disabled: boolean; sessions_cleared: number }>(
+    "inventive_helpdesk_backend.api.revoke_account",
+    { member },
+  );
+}
+
 export function setMemberAdmin(member: string, admin: boolean) {
   return call<{ member: string; is_admin: boolean; changed: boolean }>(
     "inventive_helpdesk_backend.api.set_member_admin",

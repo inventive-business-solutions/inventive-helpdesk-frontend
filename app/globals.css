@@ -5129,3 +5129,31 @@ button.stat:not(:disabled):hover {
 .checklist-empty {
   font-style: italic;
 }
+
+/* Irreversible action, set apart from the form above it. In its own bordered section
+   rather than the footer, because a modal footer holds one left action everywhere else in
+   this app — a second one there wraps to two lines and makes both look equally heavy. */
+.danger-zone {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger, #e5484d) 26%, transparent);
+  background: color-mix(in srgb, var(--danger, #e5484d) 5%, transparent);
+  border-radius: 10px;
+}
+.danger-zone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+.danger-zone-text b {
+  font-size: 13px;
+  color: var(--ink);
+}
+.danger-zone-text span {
+  font-size: 12px;
+  color: var(--ink-2);
+}

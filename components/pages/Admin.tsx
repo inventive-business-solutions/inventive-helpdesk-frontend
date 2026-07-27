@@ -34,6 +34,7 @@ export function Admin() {
   const session = useStore((s) => s.session);
   const sendInvite = useStore((s) => s.sendInvite);
   const updateMember = useStore((s) => s.updateMember);
+  const removeMember = useStore((s) => s.removeMember);
   const members = useStore((s) => s.members);
   const toast = useToast();
   const { busy, run } = useSubmit();
@@ -42,6 +43,7 @@ export function Admin() {
   const [q, setQ] = useState("");
   const [confirm, setConfirm] = useState<{ row: api.AdminRow; next: boolean } | null>(null);
   const [managing, setManaging] = useState<api.AdminRow | null>(null);
+  const [removing, setRemoving] = useState<api.AdminRow | null>(null);
   // Candidates are fetched only when the picker opens: the list is only interesting at the
   // moment you are adding someone, and it goes stale the instant you promote one.
   const [adding, setAdding] = useState(false);
@@ -364,6 +366,40 @@ export function Admin() {
             setManaging(null);
             setConfirm({ row, next: false });
           }}
+          onRemove={() => {
+            setRemoving(managing);
+            setManaging(null);
+          }}
+        />
+      )}
+
+      {removing && (
+        <ConfirmDialog
+          title="Remove from system"
+          message={`${removing.member_name} will be signed out immediately, their login disabled, and their record removed. Tickets assigned to them go back to Unassigned. This cannot be undone — re-adding them means a fresh invite.`}
+          confirmLabel="Remove from system"
+          busy={busy}
+          onConfirm={() => {
+            const row = removing;
+            run(
+              // Account first, record second. Disabling the login and dropping their
+              // sessions is the part that actually revokes access; deleting the Team
+              // Member is bookkeeping. If the second half fails, the person is still
+              // locked out rather than still holding a live session.
+              async () => {
+                await api.revokeAccount(row.name);
+                await removeMember(row.name);
+              },
+              {
+                success: `${row.member_name} removed and signed out`,
+                onSuccess: () => {
+                  setRemoving(null);
+                  void load();
+                },
+              },
+            );
+          }}
+          onClose={() => setRemoving(null)}
         />
       )}
 
@@ -397,12 +433,14 @@ function ManageAdminModal({
   onClose,
   onSaveName,
   onRevoke,
+  onRemove,
 }: {
   row: api.AdminRow;
   busy: boolean;
   onClose: () => void;
   onSaveName: (name: string, title: string) => void;
   onRevoke: () => void;
+  onRemove: () => void;
 }) {
   const [name, setName] = useState(row.member_name);
   const [title, setTitle] = useState(row.title ?? "");
@@ -456,9 +494,23 @@ function ManageAdminModal({
         <div className="auth-note">
           <Icon name="info" size={14} />
           <div>
-            Email is how they sign in, so it is changed from <b>Members</b> rather than here. Removing access
-            leaves the person on the team — they go back to working tickets only.
+            Email is how they sign in, so it is changed from <b>Members</b> rather than here. Removing{" "}
+            {TIER.admin} access leaves them on the team as a member — they keep their login, appear under
+            Members, and can be put on a team.
           </div>
+        </div>
+
+        {/* Its own section, not a second footer button. Demoting someone and closing their
+            account are different orders of consequence, and two destructive controls side
+            by side in a footer make the milder one look as heavy as the other. */}
+        <div className="danger-zone">
+          <div className="danger-zone-text">
+            <b>Remove from the system</b>
+            <span>Signs them out, disables the login and deletes the record. Cannot be undone.</span>
+          </div>
+          <Button variant="ghost" danger onClick={onRemove} disabled={busy}>
+            Remove
+          </Button>
         </div>
       </div>
     </Modal>
