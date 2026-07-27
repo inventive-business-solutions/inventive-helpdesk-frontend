@@ -162,7 +162,13 @@ jobs:
           # a missing Suspense boundary around useSearchParams, a bad route export or a
           # server/client boundary mistake surfaces here and nowhere else — lint,
           # typecheck and vitest all pass straight through them.
-          push: ${{ github.ref == 'refs/heads/master' }}
+          #
+          # `load`, not `push`: the image goes to the runner's local daemon so the smoke
+          # step below can RUN it, and the registry push happens afterwards only if that
+          # passes. Publishing straight from here put an unexercised image in the registry
+          # and then deployed it — which is how a route that 404s reached production with
+          # every check green. Same order the backend pipeline already uses.
+          load: true
           tags: |
             ${{ vars.IMAGE_NAME }}:${{ github.sha }}
             ${{ vars.IMAGE_NAME }}:latest
@@ -177,6 +183,92 @@ jobs:
             SOCKETIO_URL=${{ vars.SOCKETIO_URL }}
             BUILD_SHA=${{ github.sha }}
             NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+
+      # ============================================================
+      # Smoke the ARTIFACT, not the source.
+      #
+      # Everything above this line tests source: eslint, tsc and vitest never make an HTTP
+      # request, and `next build` proves the bundle compiles, not that the running server
+      # answers. Two production bugs in one day lived exactly in that gap — both were
+      # correct code behind an unreachable route:
+      #
+      #   * `delete_product` shipped without its next.config.mjs rewrite. Next answered
+      #     with its own 404 before Frappe saw the call; the UI said "Something went wrong".
+      #   * `app/icon.svg` is an App Router route, so proxy.ts auth-gated it and returned
+      #     307 -> /login for every signed-out visitor — i.e. everyone on the sign-in page.
+      #
+      # A running container answers both questions in seconds. This runs on every branch,
+      # so development catches them too, and the push below is gated on it.
+      # ============================================================
+      - name: Smoke the built image
+        env:
+          IMAGE_REF: ${{ vars.IMAGE_NAME }}:${{ github.sha }}
+          NAME: smoke-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          # Port 0 lets Docker pick a free one — two runs on the same agent must not
+          # collide, and both agents are on one host.
+          #
+          # FRAPPE_URL points at a closed port on purpose. The health route calls the
+          # backend with a 5s timeout and reports `degraded` rather than failing, so a
+          # refused connection keeps the readiness loop fast without changing any verdict
+          # below. The PROXY destinations are baked at build time and unaffected by this.
+          docker run -d --name "$NAME" -p 127.0.0.1::3000 \
+            -e FRAPPE_URL=http://127.0.0.1:1 "$IMAGE_REF" >/dev/null
+          trap 'docker logs "$NAME" 2>&1 | tail -40 || true; docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
+          BASE="http://$(docker port "$NAME" 3000/tcp | head -1)"
+          echo "smoking $BASE"
+
+          for i in $(seq 1 60); do
+            curl -fsS --max-time 3 "$BASE/api/health" >/dev/null 2>&1 && break
+            [ "$i" = 60 ] && { echo "::error::container never became ready"; exit 1; }
+            sleep 1
+          done
+
+          # 1. The image is the commit CI thinks it is. Guards against a cache serving an
+          #    older build under a new tag — the exact failure that made the backend
+          #    disable its layer cache.
+          got=$(curl -fsS "$BASE/api/health" | jq -r .version)
+          [ "$got" = "$GITHUB_SHA" ] || { echo "::error::image reports $got, expected $GITHUB_SHA"; exit 1; }
+
+          # 2. Metadata routes are reachable without a session. `grep -q "<svg"` because a
+          #    307 to /login also returns a body — a status check alone passed this bug.
+          curl -fsS "$BASE/icon.svg" | grep -q "<svg" \
+            || { echo "::error::/icon.svg is not served (auth-gated? missing?)"; exit 1; }
+
+          # 3. The auth gate still gates. The inverse of 2, so a fix to one cannot quietly
+          #    disable the other.
+          code=$(curl -so /dev/null -w '%{http_code}' "$BASE/tickets")
+          [ "$code" = "307" ] || { echo "::error::/tickets returned $code, expected 307"; exit 1; }
+
+          # 4. Every one of OUR whitelisted endpoints is routed. 404 means next.config.mjs
+          #    has no rewrite for it and the call dies at the proxy; anything else means it
+          #    reached Frappe, which is all this asserts.
+          #
+          #    Scoped to inventive_helpdesk_backend.* deliberately: these all refuse an
+          #    unauthenticated caller at the top of the function, so probing them is inert.
+          #    Frappe core methods in the same allowlist are covered by
+          #    tests/proxy-allowlist.test.ts, which compares the files statically and needs
+          #    no request at all.
+          fail=0
+          for m in $(grep -oP '(?<=/api/frappe/method/)inventive_helpdesk_backend\.[^"]+' next.config.mjs | sort -u); do
+            code=$(curl -so /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+                     -d '{}' --max-time 20 "$BASE/api/frappe/method/$m" || echo 000)
+            if [ "$code" = "404" ]; then echo "::error::$m is not routed by next.config.mjs"; fail=1; fi
+          done
+          [ "$fail" = 0 ] || exit 1
+          echo "Smoke passed."
+
+      # Only now does the image become something the world can pull. Mirrors the backend
+      # pipeline: build local -> exercise it -> publish. Nothing untested reaches the
+      # registry, so a failed smoke cannot be deployed by a later stack redeploy either.
+      - name: Push image to registry
+        if: success() && github.ref == 'refs/heads/master'
+        run: |
+          set -euo pipefail
+          docker push "${{ vars.IMAGE_NAME }}:${{ github.sha }}"
+          docker push "${{ vars.IMAGE_NAME }}:latest"
+          echo "Pushed :${{ github.sha }} and :latest"
 
       # The stack's VERSION must be "latest" (not a pinned SHA). This webhook only
       # redeploys the stack — it does not set environment variables, and a ?VERSION=
