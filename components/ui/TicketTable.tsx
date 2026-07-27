@@ -41,18 +41,16 @@ export function TicketTable({
         <col className={staff ? "c-typeprio" : "c-type"} />
         {staff && <col className="c-client" />}
         {staff && <col className="c-team" />}
-        <col className="c-source" />
         <col className="c-status" />
       </colgroup>
       <thead>
         <tr>
-          <th>Ticket</th>
+          <th className="left">Ticket</th>
           <th className="left">Created</th>
           <th className="left">Title</th>
           {staff ? <th className="left">Type / Priority</th> : <th className="center">Type</th>}
           {staff && <th className="left">Client / Div</th>}
           {staff && <th className="left">Team / Member</th>}
-          <th className="center">Source</th>
           <th className="center">Status</th>
         </tr>
       </thead>
@@ -70,9 +68,14 @@ export function TicketTable({
                 onClick={() => onOpen(t.id)}
                 onKeyDown={(e) => onRowKey(e, t.id)}
               >
+                {/* Source rides in front of the id rather than owning a column. It was a
+                    28px badge inside a column with its own header and gutters — ~78px of
+                    table for one icon, on a table that scrolls. Fixed-width and first, so
+                    the ids stay in a straight line whatever the icon is. */}
                 <td className="t-id">
                   {isUnread && <span className="unread-dot" aria-hidden="true" />}
-                  {t.id}
+                  <SourceTag source={t.source} />
+                  <span className="t-id-txt">{t.id}</span>
                 </td>
                 <td className="left">
                   <MetaCell iso={t.createdISO} />
@@ -100,9 +103,6 @@ export function TicketTable({
                   </td>
                 )}
                 <td className="center">
-                  <SourceTag source={t.source} />
-                </td>
-                <td className="center">
                   <StatusPill status={t.status} />
                 </td>
               </tr>
@@ -110,7 +110,7 @@ export function TicketTable({
           })
         ) : (
           <tr>
-            <td colSpan={staff ? 8 : 6}>{empty}</td>
+            <td colSpan={staff ? 7 : 5}>{empty}</td>
           </tr>
         )}
       </tbody>

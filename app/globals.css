@@ -2608,11 +2608,27 @@ table.tk tr.trow {
 table.tk tr.trow:hover td {
   background: var(--surface-2);
 }
+/* Source icon, then the id, on one line. The icon is flex:none at a fixed size so every
+   id starts at the same x — a ragged left edge here would be worse than the column it
+   replaced, because the id is what the eye scans down. */
 table.tk .t-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--mono);
   font-size: 12.5px;
   color: var(--ink-2);
   white-space: nowrap;
+}
+table.tk .t-id .src-tag {
+  flex: none;
+}
+/* Ellipsis on the id, not the row: a long id should shorten rather than push the icon
+   out of alignment or widen the column. */
+table.tk .t-id-txt {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* Unread marker: a client message or internal note this agent hasn't seen. Per agent,
    so a teammate opening the ticket doesn't clear it for you. The dot is absolutely
@@ -2825,7 +2841,11 @@ table.tk-tickets.client {
    scrollbar at roughly 800px of content instead of 1100px. Below that it still scrolls,
    and should: eight columns have a floor, and hiding data silently would be worse. */
 table.tk-tickets col.c-id {
-  width: clamp(96px, 12%, 132px);
+  /* Now carries the source chip too: 28px icon + 8px gap + ~90px for the longest id
+     ("THX-HTG-0001", 12 mono chars) + gutters. It absorbs most of what the Source column
+     gave back, but not its header, its gutters, or the whitespace around a 28px badge in
+     a 60px cell. */
+  width: clamp(140px, 16%, 172px);
 }
 table.tk-tickets col.c-created {
   width: clamp(84px, 10%, 112px);
@@ -2837,15 +2857,12 @@ table.tk-tickets col.c-type {
   width: clamp(84px, 11%, 128px);
 }
 table.tk-tickets col.c-client {
-  width: clamp(112px, 16%, 184px);
+  width: clamp(112px, 15%, 156px);
 }
+/* Two stacked lines ("No team" over "Unassigned"), so ~150px is the honest ceiling —
+   184 left a visible gap between this column and the next on any wide screen. */
 table.tk-tickets col.c-team {
-  width: clamp(112px, 16%, 184px);
-}
-table.tk-tickets col.c-source {
-  /* Holds one 28px icon badge. 76px max was two and a half times its content — the widest
-     waste per pixel of any column here, on every row. */
-  width: clamp(46px, 4%, 60px);
+  width: clamp(112px, 15%, 156px);
 }
 table.tk-tickets col.c-status {
   /* Floor is the longest label: "Pending Client" is ~104px of pill plus ~18px of gutters.
