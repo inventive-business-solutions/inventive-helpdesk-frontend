@@ -181,13 +181,14 @@ export function Products() {
 
       <MasterTruncationNotice what="some products are not shown" />
 
-      {/* Search and sort first, matching every other list page — this page put its tabs
-          above the toolbar and so read differently from Clients, Contacts, Members and
-          Teams for no reason. The tabs sit under it as a full-width band, which also stops
-          two short pills floating in an otherwise empty row.
+      {/* Toolbar first, matching every other list page — this page put its tabs above it
+          and so read differently from Clients, Contacts, Members and Teams for no reason.
+          The tabs sit under it as a full-width band, which also stops two short pills
+          floating in an otherwise empty row.
 
-          No count on the toolbar: the tabs below carry both totals, and a third number
-          saying the same thing is noise. */}
+          No count on the toolbar: `assigned`/`unassigned` are both derived from `visible`,
+          so the tab badges below are already post-search totals and a third number saying
+          the same thing is noise. */}
       <ListToolbar
         query={q}
         onQuery={setQ}

@@ -52,13 +52,13 @@ export function ListToolbar<T>({
 }) {
   return (
     <div className="list-toolbar">
-      {/* Three tracks, so the search is centred against the PAGE rather than against
-          whatever happens to sit beside it. The side tracks are equal, so a section with
-          filters (only Contacts today) does not drag the box off centre. */}
-      <div className="lt-filters">{filters}</div>
-      <div className="lt-search">
+      {filters}
+      {/* Portalled out of this row into the topbar, so it starts at the same x on every
+          section instead of wherever the row's other contents happen to leave it. Renders
+          no box here, so the row below is filters-left, count/sort-right. */}
+      <TopbarSlot>
         <SearchInput value={query} onChange={onQuery} placeholder={placeholder} ariaLabel={searchAriaLabel} />
-      </div>
+      </TopbarSlot>
       <div className="lt-right">
         {count != null && (
           <span className="lt-count">

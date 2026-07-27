@@ -539,9 +539,6 @@ export function Tickets() {
           ariaLabel="Search tickets by subject, client or contact"
         />
       </TopbarSlot>
-      <div className="tickets-search">
-        <SortMenu options={sortOptions} value={sort} onChange={setSort} />
-      </div>
 
       <FacetBar
         bucket={bucket}
@@ -553,6 +550,7 @@ export function Tickets() {
         onClearAll={() => router.push(sp.get("from") ? `/tickets?from=${enc(sp.get("from")!)}` : "/tickets")}
         count={rows.length}
         unit="ticket"
+        trailing={<SortMenu options={sortOptions} value={sort} onChange={setSort} />}
       />
 
       {/* Filters run over what was fetched, so a silent cap would quietly narrow a

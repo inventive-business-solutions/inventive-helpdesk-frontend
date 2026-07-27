@@ -134,6 +134,7 @@ export function Admin() {
         query={q}
         onQuery={setQ}
         placeholder="Search administrators…"
+        searchAriaLabel="Search administrators by name, email or title"
         sortOptions={sortOptions}
         sort={sort}
         onSort={setSort}

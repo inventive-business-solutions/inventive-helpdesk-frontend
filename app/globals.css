@@ -2994,18 +2994,20 @@ table.tk-contacts .row-actions {
 .contact-cell .contact-tx {
   min-width: 0;
 } /* lets .poc-email ellipsis inside the fixed cell */
-/* Filter toolbar: search + selects on the left, count/clear pushed to the right. */
-/* Shared list toolbar: search (+ any section filters) left, count/clear/sort right.
-   Generalised from the Contacts page's own toolbar so Clients, Products, Team and Teams
-   present the same controls in the same place instead of having none at all. */
-/* The search is no longer in this strip — it portals into the topbar's centre — so this is
-   back to a plain row: filters left, count and sort right. */
+/* Shared list toolbar, the counterpart of Tickets' .facet-bar: section filters on the
+   left, count/clear/sort on the right. Generalised from the Contacts page's own toolbar so
+   Clients, Products, Team and Teams present the same controls in the same place instead of
+   having none at all. The search is not in this strip — it portals into the topbar's
+   centre.
+
+   No margin-bottom: .content is a flex column with its own gap, so a margin here stacked on
+   top of it and left list pages with a wider gap under the toolbar than Tickets had under
+   its filter bar. Spacing comes from the column in both now. */
 .list-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
 }
 .lt-right {
   margin-left: auto;
@@ -3096,16 +3098,6 @@ table.tk-contacts .row-actions {
 .sort-caret {
   opacity: 0.5;
   flex: none;
-}
-
-/* The Tickets page keeps its FacetBar, so its search sits on its own row above it
-   rather than inside a .list-toolbar. */
-/* Holds only the sort control now: this page's search sits in the topbar like every
-   other section's. */
-.tickets-search {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
 }
 
 /* global "Show Members per Team" control at the bottom of the Teams page */

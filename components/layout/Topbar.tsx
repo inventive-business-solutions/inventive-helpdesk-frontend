@@ -10,9 +10,13 @@ function crumbFor(pathname: string): { section: string; leaf?: string } {
   if (pathname.startsWith("/tickets/")) return { section: "Tickets", leaf: pathname.split("/").pop() };
   if (pathname.startsWith("/tickets")) return { section: "Tickets" };
   if (pathname.startsWith("/clients")) return { section: "Clients" };
+  // /contacts and /admin were missing, so those two sections rendered a topbar with no
+  // title at all while every other section had one. Labels match the sidebar's.
+  if (pathname.startsWith("/contacts")) return { section: "Contacts" };
   if (pathname.startsWith("/products")) return { section: "Products" };
   if (pathname.startsWith("/members")) return { section: "Members" };
   if (pathname.startsWith("/teams")) return { section: "Teams" };
+  if (pathname.startsWith("/admin")) return { section: "Admin" };
   if (pathname.startsWith("/portal/tickets/"))
     return { section: "My Tickets", leaf: pathname.split("/").pop() };
   if (pathname.startsWith("/portal")) return { section: "My Tickets" };

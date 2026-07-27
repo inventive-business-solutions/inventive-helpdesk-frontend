@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Segmented } from "./Segmented";
 import { Popover, MenuList } from "./Menu";
 import { Icon } from "./Icon";
@@ -29,6 +29,11 @@ interface Props {
   onClearAll: () => void;
   count?: number;
   unit?: string;
+  /** Trailing control in the right-hand group, after the count and "Clear all" — the sort
+   *  menu. Tickets used to put its sort on a row of its own above this bar, which meant the
+   *  one control every list shares sat somewhere different here than on the ListToolbar
+   *  pages. Same slot, same order (count → clear → sort) in both now. */
+  trailing?: ReactNode;
 }
 
 export function FacetBar({
@@ -41,6 +46,7 @@ export function FacetBar({
   onClearAll,
   count,
   unit = "ticket",
+  trailing,
 }: Props) {
   const [adding, setAdding] = useState(false);
   const [stage, setStage] = useState<Facet | null>(null); // chosen facet in the Add flow → show its values
@@ -207,7 +213,7 @@ export function FacetBar({
         </Popover>
       )}
 
-      {(pills.length > 0 || count != null) && (
+      {(pills.length > 0 || count != null || trailing) && (
         <div className="facet-summary">
           {count != null && (
             <span className="fs-count">
@@ -225,6 +231,7 @@ export function FacetBar({
               Clear all
             </button>
           )}
+          {trailing}
         </div>
       )}
     </div>
