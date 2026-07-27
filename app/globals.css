@@ -2848,7 +2848,10 @@ table.tk-tickets col.c-id {
   width: clamp(140px, 16%, 172px);
 }
 table.tk-tickets col.c-created {
-  width: clamp(84px, 10%, 112px);
+  /* Mono, so this column's width is exactly predictable: "27/07/2026" is 10 characters at
+     12.5px mono, about 75px, plus gutters. The old 84px minimum could clip it and the
+     112px maximum left a visible gap after the date on any wide screen. */
+  width: clamp(94px, 9%, 104px);
 }
 table.tk-tickets col.c-typeprio {
   width: clamp(88px, 12%, 140px);
@@ -2857,12 +2860,12 @@ table.tk-tickets col.c-type {
   width: clamp(84px, 11%, 128px);
 }
 table.tk-tickets col.c-client {
-  width: clamp(112px, 15%, 156px);
+  width: clamp(112px, 14%, 148px);
 }
 /* Two stacked lines ("No team" over "Unassigned"), so ~150px is the honest ceiling —
    184 left a visible gap between this column and the next on any wide screen. */
 table.tk-tickets col.c-team {
-  width: clamp(112px, 15%, 156px);
+  width: clamp(108px, 14%, 148px);
 }
 table.tk-tickets col.c-status {
   /* Floor is the longest label: "Pending Client" is ~104px of pill plus ~18px of gutters.
