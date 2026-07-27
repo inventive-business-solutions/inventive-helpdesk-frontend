@@ -176,24 +176,39 @@ a {
   flex-direction: column;
   justify-content: space-between;
   gap: 40px;
-  background: linear-gradient(150deg, #5257de 0%, #3a3f9e 52%, #232659 100%);
+  /* Near-black field with the brand indigo as a LIGHT SOURCE behind the headline,
+     rather than flooding the panel. Flooding is what made the old version feel washed
+     out: at full-panel saturation the white text sat on mid-indigo everywhere, so
+     nothing led the eye and the contrast ratio was the same in every corner. */
+  background:
+    radial-gradient(120% 90% at 12% 38%, #4b53d6 0%, rgba(43, 47, 122, 0.72) 38%, transparent 72%),
+    linear-gradient(160deg, #14162b 0%, #0b0c14 100%);
 }
 .auth-brand::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
+  /* Replaces a 44px white grid that sat at a flat 6% across the whole panel — uniform
+     opacity over a gradient reads as haze, because it lifts the dark end far more than
+     the light end. A single diagonal sheen plus a vignette shapes the light instead of
+     tiling over it, and keeps the corners from competing with the headline. */
   background:
-    repeating-linear-gradient(0deg, transparent 0 43px, rgba(255, 255, 255, 0.06) 43px 44px),
-    repeating-linear-gradient(90deg, transparent 0 43px, rgba(255, 255, 255, 0.06) 43px 44px);
+    linear-gradient(115deg, transparent 34%, rgba(255, 255, 255, 0.05) 50%, transparent 66%),
+    radial-gradient(140% 100% at 20% 40%, transparent 45%, rgba(0, 0, 0, 0.42) 100%);
 }
 .auth-brand > * {
   position: relative;
 }
+/* On the old mid-indigo field a translucent white tile was the only thing that read;
+   on near-black the accent itself can carry the mark, so the logo becomes the brightest
+   point on the panel instead of a washed square. */
 .auth-brand .brand-glyph {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--accent);
   color: #fff;
-  box-shadow: none;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 26px rgba(75, 83, 214, 0.45);
 }
 .auth-brand .brand-name {
   color: #fff;
@@ -231,7 +246,10 @@ a {
   width: 18px;
   height: 18px;
   flex: none;
-  opacity: 0.95;
+  /* Tinted rather than dimmed. Full-opacity white ticks out-shouted the text they
+     belong to; dropping opacity on near-black just made them muddy. */
+  color: #a5abff;
+  opacity: 1;
 }
 .auth-brand .foot {
   font-size: 12px;
