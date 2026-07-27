@@ -169,6 +169,10 @@ const proxyRewrites = [
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.update_product`,
   },
   {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.delete_product",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.delete_product`,
+  },
+  {
     source: "/api/frappe/method/inventive_helpdesk_backend.api.update_poc",
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.update_poc`,
   },
