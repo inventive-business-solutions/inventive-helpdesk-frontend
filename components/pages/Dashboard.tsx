@@ -2,7 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
+import { useAutoRefresh, LIST_PING_THROTTLE_MS } from "@/lib/useAutoRefresh";
+import { onRealtime } from "@/lib/realtime";
+import { throttleTrailing } from "@/lib/throttle";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Segmented } from "@/components/ui/Segmented";
@@ -111,6 +113,26 @@ function ManagerDashboard() {
   // Re-count on the same cadence as the ticket poll, so a figure and the list beneath it
   // do not drift apart on screen.
   useAutoRefresh(() => refreshStats(weeks));
+  // ...and re-count on the same realtime ping that refreshes the list, for the same reason.
+  //
+  // Without this the Dashboard was the one screen realtime did not reach. AppShell joins
+  // the Support Ticket doctype room and refetches the ticket LIST on `ticket_list_dirty`,
+  // but these figures are a separate server-side aggregate that only the 30s poll touched
+  // — so an emailed ticket appeared in every list view in about a second while the tiles
+  // above it sat unchanged for up to half a minute. Measured twice on production at ~15s
+  // and ~30s, which is exactly the poll window, not the ~1.5s the ping delivers.
+  //
+  // No `subscribeDoctype` here: AppShell already joined the room for the whole session, so
+  // this only needs to listen. Throttled with the same window as the list refresh, so one
+  // ping costs one refetch of each rather than two independent bursts.
+  useEffect(() => {
+    const refresh = throttleTrailing(() => void refreshStats(weeks), LIST_PING_THROTTLE_MS);
+    const off = onRealtime("ticket_list_dirty", refresh);
+    return () => {
+      off();
+      refresh.cancel();
+    };
+  }, [refreshStats, weeks]);
 
   const counts = stats?.counts;
   // by_client only contains clients that HAVE open tickets — a GROUP BY returns existing
