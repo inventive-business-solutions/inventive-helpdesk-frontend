@@ -24,6 +24,7 @@ export function AddPocModal({
   poc,
   onClose,
   onDelete,
+  onInvite,
 }: {
   /** Fixed when opened from a client card or a division row. Omitted from the Contacts
    *  directory, which asks for one instead of forcing the caller to filter first. */
@@ -36,6 +37,11 @@ export function AddPocModal({
   /** Rendered as Remove in the footer when editing. This is the manage view for a
    *  contact, so removing one happens here rather than from a bare ✕ in a row. */
   onDelete?: () => void;
+  /** Send or resend the portal sign-in email. Lives here rather than in the row for the
+   *  same reason as Remove: this is the manage view, and a per-row button cost every row
+   *  a reserved 68px slot — kept even for active contacts who can never use it — which
+   *  made Actions the widest thing in the table and forced it to scroll. */
+  onInvite?: () => void;
 }) {
   const addPoc = useStore((s) => s.addPoc);
   const updatePoc = useStore((s) => s.updatePoc);
@@ -255,6 +261,34 @@ export function AddPocModal({
               Invite to the client portal
             </CheckboxField>
           </>
+        )}
+
+        {/* Portal access, on the manage view only. Adding a contact offers the same thing as
+            a tick above, because at that point it is part of one decision; here it is a
+            distinct action taken later, so it gets a button and says what it will do.
+            Boxed like the Admin dialog's invite path — same meaning, same treatment. */}
+        {editing && onInvite && (
+          <div className="field alt-path">
+            <div className="field-label">Portal access</div>
+            {poc?.portal === "active" ? (
+              <div className="field-hint">
+                {name.trim() || "This contact"} can already sign in to the client portal.
+              </div>
+            ) : (
+              <>
+                <div className="field-hint">
+                  {poc?.portal === "invited"
+                    ? "A sign-in link has been emailed already. Resend it if it never arrived."
+                    : "Creates a portal login and emails them a sign-in link."}
+                  {!isEmail(email) && " Add a valid email address first."}
+                </div>
+                <Button disabled={busy || !isEmail(email)} onClick={onInvite}>
+                  <Icon name="mail" size={14} />
+                  {poc?.portal === "invited" ? "Resend invite" : "Send invite"}
+                </Button>
+              </>
+            )}
+          </div>
         )}
       </div>
     </Modal>

@@ -238,7 +238,7 @@ export function Contacts() {
         <div className="table-wrap">
           <table className="tk tk-contacts">
             <colgroup>
-              <col style={{ width: "26%" }} />
+              <col style={{ width: "27%" }} />
               {/* Contact */}
               <col style={{ width: "16%" }} />
               {/* Client */}
@@ -246,10 +246,11 @@ export function Contacts() {
               {/* Division */}
               <col style={{ width: "10%" }} />
               {/* Role */}
-              <col style={{ width: "14%" }} />
-              {/* Portal */}
-              <col style={{ width: "18%" }} />
-              {/* Actions */}
+              <col style={{ width: "15%" }} />
+              {/* Portal — 15% keeps the 96px badge inside its cell down to ~773px */}
+              <col style={{ width: "16%" }} />
+              {/* Actions — one 108px Manage button now, not two controls; 16% holds it
+                  down to ~800px, where it used to need 18% of 1122px */}
             </colgroup>
             <thead>
               <tr>
@@ -292,24 +293,12 @@ export function Contacts() {
                     </td>
                     <td className="center">{portalBadge(p.portal)}</td>
                     <td className="center">
+                      {/* Manage only. Invite/resend moved into that dialog: the slot here was
+                          a fixed 68px reserved on EVERY row — including active contacts who
+                          can never use it — purely to keep the icons aligned. Two controls
+                          made Actions the widest column in the table and the reason it
+                          scrolled. The dialog also has room to say what the action does. */}
                       <div className="row-actions">
-                        {/* Fixed-width invite slot — reserved even when a POC is already active, so the
-                            edit/remove icons stay aligned column-wide row-to-row. */}
-                        <span className="ca-invite">
-                          {p.portal !== "active" && p.id && (
-                            <button
-                              className="poc-invite"
-                              title={
-                                p.portal === "invited"
-                                  ? "Resend the portal sign-in email"
-                                  : "Create a portal login and email a sign-in link"
-                              }
-                              onClick={() => onInvite(p)}
-                            >
-                              {p.portal === "invited" ? "Resend" : "Invite"}
-                            </button>
-                          )}
-                        </span>
                         <ManageButton
                           subject={p.name}
                           onClick={() => setPocTarget({ client: r.client, div: r.div, poc: p })}
@@ -362,6 +351,9 @@ export function Contacts() {
                 }
               : undefined
           }
+          // Only for a saved contact: invitePoc needs an id, and one being added has none
+          // until it is created (where the "Invite to the client portal" tick covers it).
+          onInvite={pocTarget.poc?.id ? () => onInvite(pocTarget.poc!) : undefined}
         />
       )}
       {confirm && (

@@ -2863,11 +2863,11 @@ table.tk.tk-fixed td {
    instead of shoving the whole table out of alignment. */
 table.tk.tk-members {
   table-layout: fixed;
-  /* Same reasoning as tk-contacts below, and deliberately barely moved: the Status chip is
-     min-width 90px in a 12% column with 10px gutters, so the real floor is
-     (90 + 20) / 0.12 = 917px. There is ~40px of slack here, not 90 — this table is
-     genuinely close to its content limit and pushing it lower would clip "Not Invited". */
-  min-width: 920px;
+  /* Same recomputation as tk-contacts. The old 960 was set when Actions carried a 128px
+     invite button plus a 108px Manage: 242px of controls at 22% needed ~1191px, so this
+     table could never fit a laptop. With Manage alone, Actions at 16% floors at 800px and
+     the "Not Invited" chip (90px + 20 gutters) at 14% floors at 786px. */
+  min-width: 800px;
 }
 table.tk-members th,
 table.tk-members td {
@@ -2896,24 +2896,18 @@ table.tk-members td.center .badge {
 }
 /* Fixed-width invite button so "Send Invite" / "Resend Invite" render on one line at
    the same size — which also keeps the following edit/remove icons aligned row-to-row. */
-.invite-btn {
-  min-width: 128px;
-  white-space: nowrap;
-  justify-content: center;
-  text-align: center;
-}
 
 /* ---------- contacts directory (ui: pages/Contacts) ---------- */
 /* Same fixed-layout table discipline as tk-members: ellipsis on overflow, centered
    equal-width status chips, so columns stay aligned row-to-row. */
 table.tk.tk-contacts {
   table-layout: fixed;
-  /* The columns here are already percentages, so this floor was the only thing forcing a
-     scrollbar. What actually sets it is the narrowest column's content: the Portal badge
-     is min-width 96px in a 14% column with 10px gutters, so the table cannot go below
-     (96 + 20) / 0.14 = 829px without the badge overflowing its cell. 840 leaves a little
-     headroom and nothing more — the old 920 was ~90px of scrollbar for no reason. */
-  min-width: 840px;
+  /* Floor set by the widest per-column requirement, recomputed after the row lost its
+     invite control. Actions now holds one 108px Manage button (+20px gutters) at 16% ->
+     800px; the Portal badge is 96px (+20) at 15% -> 773px. So 800. It was 920 when the
+     row carried invite AND manage: 202px of controls at 18% needed 1122px, which is why
+     this table scrolled on anything short of a large monitor. */
+  min-width: 800px;
 }
 table.tk-contacts th,
 table.tk-contacts td {
@@ -2933,16 +2927,6 @@ table.tk-contacts .row-actions {
 }
 /* Reserve the invite/resend column even when a POC is already active (no button), and give
    the button one width so "Invite"/"Resend" match — keeps the edit/remove icons aligned. */
-.tk-contacts .ca-invite {
-  width: 68px;
-  flex: none;
-  display: inline-flex;
-}
-.tk-contacts .ca-invite .poc-invite {
-  flex: 1;
-  padding: 4px 0;
-  text-align: center;
-}
 .contact-cell {
   display: flex;
   align-items: center;

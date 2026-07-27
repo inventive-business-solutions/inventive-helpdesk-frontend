@@ -23,7 +23,6 @@ export function Team() {
   const groups = useStore((s) => s.groups);
   const tickets = useStore((s) => s.tickets);
   const removeMember = useStore((s) => s.removeMember);
-  const sendInvite = useStore((s) => s.sendInvite);
   const { busy, run } = useSubmit();
   const [showAdd, setShowAdd] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
@@ -133,18 +132,19 @@ export function Team() {
         <div className="table-wrap">
           <table className="tk tk-members">
             <colgroup>
-              <col style={{ width: "20%" }} />
+              <col style={{ width: "21%" }} />
               {/* Name */}
               <col style={{ width: "14%" }} />
               {/* Title */}
-              <col style={{ width: "20%" }} />
+              <col style={{ width: "21%" }} />
               {/* Email — the longest data, keep ≥20% */}
-              <col style={{ width: "12%" }} />
-              {/* Status — fits the "Not Invited" chip */}
-              <col style={{ width: "12%" }} />
+              <col style={{ width: "14%" }} />
+              {/* Status — 14% keeps the 90px "Not Invited" chip inside its cell to ~786px */}
+              <col style={{ width: "14%" }} />
               {/* Teams */}
-              <col style={{ width: "22%" }} />
-              {/* Actions */}
+              <col style={{ width: "16%" }} />
+              {/* Actions — one 108px Manage button now. It was 22% to fit invite + manage
+                  (242px of controls, needing ~1191px of table); 16% floors at 800px */}
             </colgroup>
             <thead>
               <tr>
@@ -188,16 +188,12 @@ export function Team() {
                       )}
                     </td>
                     <td className="center">
+                      {/* Manage only. Invite/resend lives inside that dialog, which already
+                          offers it — and offers it better: it knows whether the member has
+                          an email yet and says "Add an email first to invite them" instead
+                          of failing on click. Two buttons per row cost 128px of Actions
+                          column on every row to duplicate one the dialog already had. */}
                       <div className="row-actions">
-                        <Button
-                          variant="ghost"
-                          className="invite-btn"
-                          onClick={() =>
-                            run(() => sendInvite(m.name), { success: `Invite sent to ${m.email}` })
-                          }
-                        >
-                          {m.status === "Invited" ? "Resend invite" : "Send invite"}
-                        </Button>
                         <ManageButton subject={m.name} onClick={() => setEditTarget(m)} />
                       </div>
                     </td>
