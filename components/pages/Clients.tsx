@@ -190,7 +190,8 @@ export function Clients() {
       <ListToolbar
         query={q}
         onQuery={setQ}
-        placeholder="Search clients, divisions or contacts…"
+        placeholder="Search clients…"
+        searchAriaLabel="Search clients by name, code, division or contact"
         sortOptions={sortOptions}
         sort={sort}
         onSort={setSort}

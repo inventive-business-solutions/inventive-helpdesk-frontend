@@ -191,7 +191,8 @@ export function Products() {
       <ListToolbar
         query={q}
         onQuery={setQ}
-        placeholder="Search products or clients…"
+        placeholder="Search products…"
+        searchAriaLabel="Search products by name, or by a client that runs one"
         sortOptions={sortOptions}
         sort={sort}
         onSort={setSort}

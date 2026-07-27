@@ -196,7 +196,8 @@ export function Contacts() {
       <ListToolbar
         query={q}
         onQuery={setQ}
-        placeholder="Search name or email…"
+        placeholder="Search contacts…"
+        searchAriaLabel="Search contacts by name or email"
         sortOptions={sortOptions}
         sort={sort}
         onSort={setSort}

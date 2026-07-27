@@ -229,7 +229,8 @@ export function Groups() {
       <ListToolbar
         query={q}
         onQuery={setQ}
-        placeholder="Search teams or members…"
+        placeholder="Search teams…"
+        searchAriaLabel="Search teams by name or member"
         sortOptions={sortOptions}
         sort={sort}
         onSort={setSort}

@@ -133,12 +133,12 @@ export function Admin() {
       <ListToolbar
         query={q}
         onQuery={setQ}
-        placeholder="Search members…"
+        placeholder="Search administrators…"
         sortOptions={sortOptions}
         sort={sort}
         onSort={setSort}
         count={shown.length}
-        unit="member"
+        unit="administrator"
         onClearAll={q ? () => setQ("") : undefined}
       />
 

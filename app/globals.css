@@ -2990,18 +2990,56 @@ table.tk-contacts .row-actions {
 /* Shared list toolbar: search (+ any section filters) left, count/clear/sort right.
    Generalised from the Contacts page's own toolbar so Clients, Products, Team and Teams
    present the same controls in the same place instead of having none at all. */
+/* Search centred against the page. Equal 1fr side tracks are what makes that true
+   regardless of what sits beside it — with the old flex row the box hugged the left edge,
+   and on Contacts it was pushed further by three filter selects. */
 .list-toolbar {
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 420px) 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.lt-filters {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  min-width: 0;
+}
+.lt-search {
+  min-width: 0;
+}
+/* Fill the centre track: .search sizes itself with flex basis + max-width, which does
+   nothing for a grid item. */
+.lt-search .search {
+  width: 100%;
+  max-width: none;
+  flex: none;
 }
 .lt-right {
-  margin-left: auto;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 10px;
+}
+/* Below this the three tracks leave the centre one too narrow to type in, so the search
+   takes its own row — still centred, which is the point of the change. */
+@media (max-width: 1200px) {
+  .list-toolbar {
+    grid-template-columns: 1fr auto;
+  }
+  .lt-search {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: min(100%, 420px);
+  }
+  .lt-filters {
+    grid-column: 1;
+  }
+  .lt-right {
+    grid-column: 2;
+  }
 }
 .lt-count {
   font-size: 13px;
@@ -3090,12 +3128,40 @@ table.tk-contacts .row-actions {
 
 /* The Tickets page keeps its FacetBar, so its search sits on its own row above it
    rather than inside a .list-toolbar. */
+/* Same three-track shape as .list-toolbar, so the search box sits in the same place on
+   Tickets as on every other list. This page uses SortMenu directly rather than
+   ListToolbar (it has the FacetBar below instead of inline filters), so the geometry is
+   repeated here rather than shared — the alternative was making ListToolbar carry a
+   facet-bar variant it would use exactly once. */
 .tickets-search {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 420px) 1fr;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 10px;
 }
 .tickets-search .search {
-  max-width: 460px;
+  grid-column: 2;
+  width: 100%;
+  max-width: none;
+  flex: none;
+}
+.tickets-search > :last-child {
+  grid-column: 3;
+  justify-self: end;
+}
+@media (max-width: 1200px) {
+  .tickets-search {
+    grid-template-columns: 1fr auto;
+  }
+  .tickets-search .search {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: min(100%, 420px);
+  }
+  .tickets-search > :last-child {
+    grid-column: 2;
+  }
 }
 
 /* global "Show Members per Team" control at the bottom of the Teams page */

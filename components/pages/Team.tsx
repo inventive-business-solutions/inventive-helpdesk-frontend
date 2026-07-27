@@ -120,6 +120,7 @@ export function Team() {
         query={q}
         onQuery={setQ}
         placeholder="Search members…"
+        searchAriaLabel="Search members by name, title, email or team"
         sortOptions={sortOptions}
         sort={sort}
         onSort={setSort}

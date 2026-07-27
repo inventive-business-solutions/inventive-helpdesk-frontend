@@ -5,8 +5,8 @@ import { SortMenu } from "./SortMenu";
 import type { SortOption } from "@/lib/listview";
 
 /**
- * The header strip above every master-data list: search on the left, any section-specific
- * filters next to it, then the result count and sort control pushed to the right.
+ * The header strip above every master-data list: the search box centred, section-specific
+ * filters to its left, and the result count and sort control to its right.
  *
  * Generalised from the toolbar the Contacts page already had, so all five lists present
  * the same control in the same place instead of Contacts having filters and the rest
@@ -16,6 +16,7 @@ export function ListToolbar<T>({
   query,
   onQuery,
   placeholder,
+  searchAriaLabel,
   sortOptions,
   sort,
   onSort,
@@ -28,6 +29,10 @@ export function ListToolbar<T>({
   query: string;
   onQuery: (v: string) => void;
   placeholder: string;
+  /** Fuller description for assistive tech, when the page searches more than its own
+   *  entity. The placeholder names the section (consistently, across every list); this
+   *  says what the box actually matches on. */
+  searchAriaLabel?: string;
   sortOptions: SortOption<T>[];
   sort: string;
   onSort: (key: string) => void;
@@ -45,8 +50,13 @@ export function ListToolbar<T>({
 }) {
   return (
     <div className="list-toolbar">
-      <SearchInput value={query} onChange={onQuery} placeholder={placeholder} />
-      {filters}
+      {/* Three tracks, so the search is centred against the PAGE rather than against
+          whatever happens to sit beside it. The side tracks are equal, so a section with
+          filters (only Contacts today) does not drag the box off centre. */}
+      <div className="lt-filters">{filters}</div>
+      <div className="lt-search">
+        <SearchInput value={query} onChange={onQuery} placeholder={placeholder} ariaLabel={searchAriaLabel} />
+      </div>
       <div className="lt-right">
         {count != null && (
           <span className="lt-count">
