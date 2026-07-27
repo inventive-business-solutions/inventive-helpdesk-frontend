@@ -13,6 +13,15 @@ import { useSubmit } from "@/components/ui/useSubmit";
 import { initials } from "@/lib/helpers";
 import * as api from "@/lib/frappe";
 
+/** What each tier is called on screen. Defined once: the badge, the locked-row
+ *  explanations and both confirm dialogs all read from here, so renaming a tier is one
+ *  edit rather than a hunt through prose that quietly disagrees with itself. */
+const TIER = {
+  owner: "Lead Admin",
+  admin: "Administrator",
+  agent: "Agent",
+} as const;
+
 /**
  * Delegate admin access to a team member.
  *
@@ -108,7 +117,7 @@ export function Admin() {
                 <th className="left">Name</th>
                 <th className="left">Email</th>
                 <th className="center">Access</th>
-                <th className="center">Admin</th>
+                <th className="center">{TIER.admin}</th>
               </tr>
             </thead>
             <tbody>
@@ -119,7 +128,7 @@ export function Admin() {
                 // this explains why rather than presenting a control that fails.
                 const locked = r.is_owner || isSelf || !r.can_delegate;
                 const why = r.is_owner
-                  ? "Site owner — not managed here"
+                  ? `${TIER.owner} — not managed here`
                   : isSelf
                     ? "You can't change your own access"
                     : !r.can_delegate
@@ -134,11 +143,11 @@ export function Admin() {
                     <td className="t-cd left">{r.email}</td>
                     <td className="center">
                       {r.is_owner ? (
-                        <Badge tone="accent">Owner</Badge>
+                        <Badge tone="accent">{TIER.owner}</Badge>
                       ) : r.is_admin ? (
-                        <Badge tone="good">Admin</Badge>
+                        <Badge tone="good">{TIER.admin}</Badge>
                       ) : (
-                        <Badge>Agent</Badge>
+                        <Badge>{TIER.agent}</Badge>
                       )}
                     </td>
                     <td className="center">
@@ -147,7 +156,10 @@ export function Admin() {
                           —
                         </span>
                       ) : (
-                        <label className="check-row admin-toggle" title={`Toggle admin for ${r.member_name}`}>
+                        <label
+                          className="check-row admin-toggle"
+                          title={`Toggle ${TIER.admin} access for ${r.member_name}`}
+                        >
                           <input
                             type="checkbox"
                             checked={r.is_admin}
@@ -183,20 +195,20 @@ export function Admin() {
       <div className="auth-note">
         <Icon name="info" size={14} />
         <div>
-          An admin can manage every client, contact, product, member and team — the same as you, except this
-          page. Only a site owner can grant or revoke it, so admin cannot spread on its own.
+          A {TIER.admin} can manage every client, contact, product, member and team — the same as you, except
+          this page. Only a {TIER.owner} can grant or revoke it, so access cannot spread on its own.
         </div>
       </div>
 
       {confirm && (
         <ConfirmDialog
-          title={confirm.next ? "Grant admin access" : "Revoke admin access"}
+          title={confirm.next ? `Grant ${TIER.admin} access` : `Revoke ${TIER.admin} access`}
           message={
             confirm.next
-              ? `${confirm.row.member_name} will be able to manage every client, contact, product, member and team. They will not be able to grant admin to anyone else.`
+              ? `${confirm.row.member_name} will be able to manage every client, contact, product, member and team. They will not be able to grant it to anyone else.`
               : `${confirm.row.member_name} will go back to working tickets only, and will lose access to clients, contacts, products, members and teams.`
           }
-          confirmLabel={confirm.next ? "Grant admin" : "Revoke admin"}
+          confirmLabel={confirm.next ? `Grant ${TIER.admin}` : `Revoke ${TIER.admin}`}
           busy={busy}
           onConfirm={() => apply(confirm.row, confirm.next)}
           onClose={() => setConfirm(null)}
