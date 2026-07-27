@@ -102,7 +102,11 @@ a {
 .auth-card h2,
 .kpi .label,
 .nav a,
-.btn,
+/* `.btn` is deliberately NOT here. CSS `capitalize` title-cases EVERY word, including the
+   ones no title-case convention capitalises, so "Invite as Administrator" rendered as
+   "Invite As Administrator" — wrong by any style guide, and the same trap waits for every
+   future label containing as/to/an/of. Button labels are authored in sentence case
+   throughout, so the fix is to stop rewriting them and let the source read as it ships. */
 .segmented button,
 .vis-opt,
 /* Title-casing suits a short field label ("Full name" -> "Full Name"). It does NOT suit a
@@ -4127,6 +4131,67 @@ button.stat:not(:disabled):hover {
   color: var(--muted);
   margin-top: 6px;
   line-height: 1.4;
+}
+
+/* Two alternative routes to the same outcome in one dialog — "pick an existing member"
+   vs "invite someone new". Spacing alone did not carry that: with both paths rendered as
+   plain fields in one column, they read as consecutive steps of a single form, and the
+   second path's own button looked like it competed with the footer's primary action.
+   The rule states the relationship instead of hinting at it. */
+.or-split {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 18px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.or-split::before,
+.or-split::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+/* The second path, boxed so its own action visibly belongs to it rather than to the
+   dialog footer. Same idea as .danger-zone: a bordered tint marks "this is a different
+   action", without borrowing that one's warning colour. */
+.alt-path {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--surface-2);
+}
+.alt-path > .field-label {
+  margin-top: 0;
+}
+/* `.field-hint` only carries a margin-top, which is right when it trails the control it
+   explains. Here it LEADS the fields it introduces, so without this the sentence sat
+   directly on top of the "Full name" label and the two read as one block of text. */
+.alt-path > .field-hint {
+  margin-bottom: 16px;
+}
+/* The path's own action: separated from the inputs it submits, and centred, since it
+   belongs to the whole panel rather than to the Email field it would otherwise sit under.
+   `width: fit-content` + auto margins — `.btn` is inline-flex, so it has no width of its
+   own for `margin: auto` to work against. */
+.alt-path > .btn {
+  display: flex;
+  width: fit-content;
+  margin: 14px auto 0;
+}
+
+/* Per-row invite buttons in a stacked list. The label depends on the row — "Resend
+   invite" where one was already sent, "Send invite" where it was not — so sizing to
+   content made every button a different width and the column's left edge stepped in and
+   out down the list. Sized from the longer label so the pair is interchangeable; centred
+   because "Send invite" would otherwise sit left of its own button. */
+.invite-action {
+  min-width: 8rem;
+  justify-content: center;
 }
 
 /* empty */

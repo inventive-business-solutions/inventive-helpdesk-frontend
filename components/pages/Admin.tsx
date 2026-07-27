@@ -245,7 +245,12 @@ export function Admin() {
           }
         >
           <div className="modal-body">
-            <Field label="Team member" required>
+            {/* Not `required`: it is one of two ways through this dialog, and the other
+                one does not use it at all. Marking it Required told an admin the form
+                could not be completed without picking a member, which is false — and the
+                invite path below is exactly what someone reaches for when the person they
+                want is not in that list. */}
+            <Field label="Team member">
               {(id) => (
                 <Select
                   id={id}
@@ -270,8 +275,15 @@ export function Admin() {
               </div>
             )}
 
-            <div className="field">
-              <div className="field-label">Or invite someone new</div>
+            {/* The two paths are alternatives, not sequential steps, and nothing said so:
+                both rendered as plain fields in one column, so the eye ran straight from
+                the member picker into the name/email pair as though all four were one
+                form — and the invite button then looked like it was competing with the
+                footer's Grant. The rule and the box make the choice explicit. */}
+            <div className="or-split">or</div>
+
+            <div className="field alt-path">
+              <div className="field-label">Invite someone new</div>
               <div className="field-hint">
                 They do not need to be on a team — they will be emailed a set-password link and arrive as an{" "}
                 {TIER.admin}.
@@ -291,8 +303,11 @@ export function Admin() {
                   onChange={setFreshEmail}
                 />
               </div>
+              {/* `default`, not `ghost`: a borderless button sat on the panel's tint with
+                  nothing to define it, reading as a label rather than a control. It stays
+                  below the footer's primary in weight, which is right — this is the other
+                  path, not the main one. */}
               <Button
-                variant="ghost"
                 disabled={busy || !freshName.trim() || !isEmail(freshEmail)}
                 onClick={() =>
                   run(() => api.inviteAdmin(freshName.trim(), freshEmail.trim()), {
@@ -324,8 +339,12 @@ export function Admin() {
                         <span className="eng-client">{m.name}</span>
                         <span className="eng-scope">{m.email}</span>
                       </div>
+                      {/* One width for both labels — see .invite-action. The text differs
+                          per row ("Resend" vs "Send"), so content-sized buttons made the
+                          column's left edge step in and out down the list. */}
                       <Button
                         variant="ghost"
+                        className="invite-action"
                         disabled={busy}
                         onClick={() =>
                           run(() => sendInvite(m.name), {
