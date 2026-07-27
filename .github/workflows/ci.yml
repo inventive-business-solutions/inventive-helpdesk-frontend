@@ -49,19 +49,32 @@ jobs:
     # green is worse than no check at all, because the next genuine failure looks the same.
     # The Microscan agents can always reach production: they are on the same host as it.
     #
-    # So: the backend's agent, shared. The two repos queue behind each other when both are
-    # busy — a slower release, which is a far better failure than a false red or a dead
-    # pipeline. There is no array that means "microscan OR microscan-2"; `runs-on` labels
-    # are ANDed. Restoring fallback needs one shared custom label on both agents, which
-    # needs org runner access to create.
+    # Now back on -2, with the backend on inventive-microscan, so the two repos build in
+    # parallel instead of taking turns. Sharing one agent cost about six minutes per
+    # release, and on 2026-07-27 a development run took the agent ahead of a queued
+    # PRODUCTION release, which is the wrong thing to be waiting on.
+    #
+    # This is knowingly the configuration that failed earlier that same day: a named label
+    # has no fallback, so if -2 is offline this queues forever rather than moving to the
+    # other agent. Accepted because the recovery is known and takes a minute:
+    #
+    #     ssh ubuntu@<host>
+    #     sudo systemctl restart 'actions.runner.*microscan-2*'
+    #
+    # This is a STOPGAP. The correct fix is one shared custom label — say `helpdesk` — on
+    # both Microscan agents, then `runs-on: [self-hosted, Linux, X64, helpdesk]`, which
+    # gives parallelism AND fallback and still excludes the foreign agents. `runs-on`
+    # labels are ANDed, so no array can express "microscan OR microscan-2" — the label has
+    # to exist on both. Creating it needs org-runner permission, which this repo's admins
+    # do not have; it is an org-owner action. Do that and delete this paragraph.
     #
     # Linux/X64 are kept as a guard, so this cannot be satisfied by a Windows box if the
-    # inventive-microscan label is ever applied to one.
+    # inventive-microscan-2 label is ever applied to one.
     #
     # The DOCKER_CONFIG isolation below now matters MORE, not less: both repos share
     # /home/ubuntu/.docker/config.json on this host, and docker/login-action's post step
     # runs `docker logout ghcr.io` against it.
-    runs-on: [self-hosted, Linux, X64, inventive-microscan]
+    runs-on: [self-hosted, Linux, X64, inventive-microscan-2]
     environment: Production
     timeout-minutes: 45
 
