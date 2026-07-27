@@ -1747,16 +1747,20 @@ button.ui-select-opt {
 }
 /* Add-filter dimension row (tiled icon + label) — a picker of dimensions, so each gets a
    small tile that lights up on hover, Linear/Notion-style. */
+/* Filter menus are a chooser, not a page heading. The rows were 13px at weight 600 beside
+   a 25px icon tile — about 41px of height each — which made a seven-item list read louder
+   than the table it filters. Scoped to .facet-opt so the change lands on the filter menus
+   and not on every Select in the app. */
 .facet-opt {
   display: inline-flex;
   align-items: center;
-  gap: 11px;
+  gap: 9px;
 }
 .facet-opt-ic {
   display: grid;
   place-items: center;
-  width: 25px;
-  height: 25px;
+  width: 21px;
+  height: 21px;
   flex: none;
   border-radius: 7px;
   background: var(--surface-2);
@@ -1771,7 +1775,10 @@ button.ui-select-opt {
   flex: none;
 }
 .facet-opt-tx {
-  font-weight: 600;
+  /* 500, matching .ui-select-opt's own weight. 600 was making the label the loudest text
+     on screen while the menu is open. */
+  font-size: 12.5px;
+  font-weight: 500;
   color: var(--ink-2);
   transition: color 0.12s;
 }
@@ -1784,6 +1791,11 @@ button.ui-select-opt {
 .ui-select-opt:hover .facet-opt-tx,
 .ui-select-opt.active .facet-opt-tx {
   color: var(--ink);
+}
+/* Row height follows from the icon tile, so it is trimmed here rather than by touching
+   .ui-select-opt, which every dropdown in the app shares. */
+.ui-select-opt:has(.facet-opt) {
+  padding: 5px 9px;
 }
 /* Back row in the two-step Add menu. */
 .facet-menu-back {
