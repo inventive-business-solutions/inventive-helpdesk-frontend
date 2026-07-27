@@ -604,6 +604,29 @@ export const useStore = create<Store>()((set, get) => {
   /** Re-derive this agent's unread set. Staff only — the endpoint throws PermissionError
    *  for a client POC, and a portal session has no ticket list to mark up anyway. Failures
    *  are swallowed: an unread dot is a convenience, never a reason to break a refresh. */
+  /** Everything sign-in does AFTER the password is accepted: read the session, then load
+   *  the master data and tickets the app cannot start without.
+   *
+   *  Split out so signIn can wrap exactly this half in asPostAuthError. Anything that
+   *  throws in here happened with valid credentials, so it must never be reported as a
+   *  credentials problem. */
+  const bootSession = async () => {
+    const ctx = await api.me();
+    // Authenticated, but with no app role they aren't a valid user of this tool —
+    // reject rather than silently admitting them as a client (same guard restore uses).
+    if (!ctx || ctx.user === "Guest" || !ctx.role) {
+      throw new api.UserError("This account isn't set up for the support app — contact your administrator.");
+    }
+    api.setCsrfToken(ctx.csrf_token);
+    const session = sessionFromCtx(ctx);
+    const masters = await fetchMasters(session.role);
+    const { tickets, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
+    markTabSession(true); // this tab now holds a live session (survives F5, not tab close)
+    set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
+    void refreshUnread();
+    return session;
+  };
+
   const refreshUnread = async () => {
     if (get().session?.role !== "admin") return;
     try {
@@ -649,23 +672,16 @@ export const useStore = create<Store>()((set, get) => {
 
     // ---- auth ----
     signIn: async (email, pwd) => {
+      // Only this call can fail because the credentials were wrong. Everything after it
+      // runs with the password already accepted, so its failures are wrapped below —
+      // otherwise a permission gap or a backend hiccup reads as "wrong password" and sends
+      // someone off to fix the one thing that is definitely correct.
       await api.login(email, pwd);
-      const ctx = await api.me();
-      // Authenticated, but with no app role they aren't a valid user of this tool —
-      // reject rather than silently admitting them as a client (same guard restore uses).
-      if (!ctx || ctx.user === "Guest" || !ctx.role) {
-        throw new api.UserError(
-          "This account isn't set up for the support app — contact your administrator.",
-        );
+      try {
+        return await bootSession();
+      } catch (err) {
+        throw api.asPostAuthError(err);
       }
-      api.setCsrfToken(ctx.csrf_token);
-      const session = sessionFromCtx(ctx);
-      const masters = await fetchMasters(session.role);
-      const { tickets, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
-      markTabSession(true); // this tab now holds a live session (survives F5, not tab close)
-      set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
-      void refreshUnread();
-      return session;
     },
     setPassword: async (key, newPassword) => {
       // If this browser already holds a session (e.g. an admin testing the invite link),

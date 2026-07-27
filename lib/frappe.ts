@@ -46,6 +46,45 @@ export class FrappeError extends Error {
  *  like); anything else that escapes is a bug, and its message stays internal. */
 export class UserError extends Error {}
 
+/**
+ * A sign-in that failed AFTER the password was accepted.
+ *
+ * Signing in is not one request: it authenticates, then reads the session, then loads the
+ * master data and tickets the app cannot start without. A failure in that second half — a
+ * missing role, a permission gap, the backend going away mid-sequence — used to surface as
+ * "check your email and password", which is advice to fix the one thing that is definitely
+ * correct. Someone can spend a long time re-typing a password that was never wrong.
+ *
+ * `cause` keeps the original for logging; `message` is what a person should read.
+ */
+export class PostAuthError extends UserError {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
+    super(message);
+  }
+}
+
+/** Wrap a post-authentication failure, preferring a message the backend actually wrote. */
+export function asPostAuthError(err: unknown): PostAuthError {
+  if (err instanceof PostAuthError) return err;
+  const detail = userFacingMessage(err);
+  if (detail) return new PostAuthError(detail, err);
+  // A 403 here means authenticated-but-not-permitted, which is a setup problem on the
+  // account rather than anything the person signing in can correct.
+  if (err instanceof FrappeError && err.status === 403) {
+    return new PostAuthError(
+      "Your password was accepted, but this account isn't set up to use the helpdesk yet. Please contact your administrator.",
+      err,
+    );
+  }
+  return new PostAuthError(
+    "Your password was accepted, but we couldn't load your workspace. Please try again, or contact your administrator if it keeps happening.",
+    err,
+  );
+}
+
 /** The message to show for a failed action, or null when there is nothing worth showing
  *  and the caller should fall back to a generic line. Deliberately narrow: an unexpected
  *  TypeError also has a `.message`, and "Cannot read properties of undefined" must never

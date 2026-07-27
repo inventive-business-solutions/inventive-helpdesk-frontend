@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
-import { requestPasswordReset, isAccountDisabledError } from "@/lib/frappe";
+import { requestPasswordReset, isAccountDisabledError, PostAuthError } from "@/lib/frappe";
 import { postAuthDest } from "@/lib/auth";
 import { isEmail } from "@/lib/helpers";
 import { Icon } from "@/components/ui/Icon";
@@ -46,13 +46,25 @@ export function SignIn() {
       const session = await signIn(email.trim(), password);
       router.replace(postAuthDest(session.role));
     } catch (err) {
-      // A removed member/POC (disabled login) gets a clear "no access" message rather
-      // than the generic credentials hint — but only when they had the right password,
-      // so we never reveal disabled-status to a stranger guessing (see Frappe auth).
+      // Three genuinely different failures, and telling them apart is the whole point.
+      //
+      // A removed member/POC (disabled login) gets a clear "no access" message — but only
+      // when they had the right password, so we never reveal disabled-status to a stranger
+      // guessing (see Frappe auth).
+      //
+      // A PostAuthError means the password was ACCEPTED and something later failed: a
+      // missing role, a permission gap, the backend going away mid-sequence. Telling that
+      // person to check their password sends them to re-type the one thing that is
+      // definitely correct — which is exactly what happened when an account reached the
+      // login screen with no roles attached.
+      //
+      // Only a failure at the credentials step earns the credentials hint.
       setError(
         isAccountDisabledError(err)
           ? "This account no longer has access to the system. Please reach out to your administrator."
-          : "We couldn't sign you in. Check your email and password, then try again.",
+          : err instanceof PostAuthError
+            ? err.message
+            : "We couldn't sign you in. Check your email and password, then try again.",
       );
       setSubmitting(false);
     }
