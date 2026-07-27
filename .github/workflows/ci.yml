@@ -191,20 +191,22 @@ jobs:
           # Keeps the manifest single-platform; provenance attestations add an
           # "unknown/unknown" entry that confuses some registry/pull paths.
           provenance: false
-          # Registry-backed layer cache, so `npm ci` and the base image are not repeated
-          # on every run. Registry rather than the GHA cache because the two agents are
-          # separate runners: a registry cache is shared between them and survives a
-          # restart, which a local one does not.
+          # No registry cache here, and that is a measured decision rather than an
+          # oversight. Tried on 2026-07-27, all three runs on inventive-microscan-2:
           #
-          # No CACHE_BUST needed here, unlike the backend. That one fetches app source
-          # inside the build, so its layer key does not change when the app does. This
-          # Dockerfile COPYs the working tree in, so any source change alters the COPY
-          # layer and everything after it rebuilds on its own.
+          #     no cache      54s
+          #     cache write  151s
+          #     cache read    72s
           #
-          # The smoke step below asserts /api/health reports THIS commit, so a cache that
-          # ever did serve a stale bundle fails the build rather than shipping it.
-          cache-from: type=registry,ref=${{ vars.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ vars.IMAGE_NAME }}:buildcache,mode=max
+          # It is ~18s SLOWER than no cache at all. This runner is persistent, so its local
+          # Docker layer cache is already warm and reusing `npm ci` from disk; adding a
+          # registry cache means pulling those layers back over the network, which costs
+          # more than it saves on a build this size.
+          #
+          # The backend genuinely benefits (260s -> 99s) because it ran with
+          # `no-cache: true` and so reused nothing at all — the registry cache replaces a
+          # from-scratch rebuild there, not a warm local one. Do not copy that setting here
+          # by symmetry; measure again first, and only if this build gets much bigger.
           build-args: |
             FRAPPE_URL=${{ vars.FRAPPE_URL }}
             SOCKETIO_URL=${{ vars.SOCKETIO_URL }}
