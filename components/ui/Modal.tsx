@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { Icon } from "./Icon";
 import { IconButton } from "./IconButton";
 import { Button } from "./Button";
+import { AlertDialog } from "./AlertDialog";
+import { lockBodyScroll } from "@/lib/scrollLock";
 
 interface Props {
   title: string;
@@ -60,23 +62,24 @@ export function Modal({ title, onClose, children, footer, wide, onSubmit, disabl
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const first = dialog?.querySelector<HTMLElement>(FOCUSABLE);
     (first ?? dialog)?.focus();
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockBodyScroll();
     return () => {
-      document.body.style.overflow = prevOverflow;
+      unlock();
       previouslyFocused?.focus?.();
     };
   }, []);
 
-  // Escape to close (guarded) + Tab focus trap. While the discard confirm is open, Escape
-  // dismisses that instead.
+  // Escape to close (guarded) + Tab focus trap.
   useEffect(() => {
     const dialog = ref.current;
     const focusables = () => (dialog ? Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)) : []);
     const onKey = (e: KeyboardEvent) => {
+      // The discard alert owns the keyboard while it is up: it handles its own Escape, and
+      // its buttons render OUTSIDE this dialog's subtree, so the trap below cannot see them
+      // and would drag focus back into the form the alert is asking about.
+      if (confirmDiscard) return;
       if (e.key === "Escape") {
-        if (confirmDiscard) setConfirmDiscard(false);
-        else attemptClose();
+        attemptClose();
         return;
       }
       if (e.key === "Tab") {
@@ -127,28 +130,14 @@ export function Modal({ title, onClose, children, footer, wide, onSubmit, disabl
       </div>
 
       {confirmDiscard && (
-        <div
-          className="modal-bg nested"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setConfirmDiscard(false);
-          }}
-        >
-          <div
-            className="modal"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label="Discard changes"
-            tabIndex={-1}
-          >
-            <div className="modal-head">
-              <h3>Discard changes?</h3>
-            </div>
-            <div className="modal-body">
-              <p style={{ margin: 0, color: "var(--ink-2)", lineHeight: 1.5 }}>
-                You have unsaved changes. Leave without saving them?
-              </p>
-            </div>
-            <div className="modal-foot">
+        <AlertDialog
+          nested
+          tone="warning"
+          title="Discard changes?"
+          message="You have unsaved changes. Leave without saving them?"
+          onDismiss={() => setConfirmDiscard(false)}
+          actions={
+            <>
               <Button variant="ghost" onClick={() => setConfirmDiscard(false)}>
                 Keep editing
               </Button>
@@ -162,9 +151,9 @@ export function Modal({ title, onClose, children, footer, wide, onSubmit, disabl
               >
                 Discard
               </Button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
       )}
     </div>
   );

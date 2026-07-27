@@ -7,7 +7,7 @@ import { originFromUrl } from "@/components/ui/BackButton";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
 import { Segmented } from "@/components/ui/Segmented";
-import { Modal } from "@/components/ui/Modal";
+import { AlertDialog } from "@/components/ui/AlertDialog";
 import { Badge, IdChip, StatusPill, TypeTag } from "@/components/ui/Chips";
 import { SenderBadge } from "@/components/ui/SenderBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -1036,11 +1036,13 @@ export function TicketDetail({ id }: { id: string }) {
       </div>
 
       {leaveTo !== null && (
-        <Modal
+        <AlertDialog
+          tone="warning"
           title="Unsaved changes"
-          onClose={() => setLeaveTo(null)}
-          disableClose={busy}
-          footer={
+          message="You have unsaved changes to this ticket. Save them before leaving?"
+          onDismiss={() => setLeaveTo(null)}
+          disableDismiss={busy}
+          actions={
             <>
               <Button variant="ghost" onClick={() => setLeaveTo(null)} disabled={busy}>
                 Keep editing
@@ -1075,13 +1077,7 @@ export function TicketDetail({ id }: { id: string }) {
               </Button>
             </>
           }
-        >
-          <div className="modal-body">
-            <p style={{ margin: 0, color: "var(--ink-2)", lineHeight: 1.5 }}>
-              You have unsaved changes to this ticket. Save them before leaving?
-            </p>
-          </div>
-        </Modal>
+        />
       )}
     </>
   );

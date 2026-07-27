@@ -67,7 +67,7 @@ export function CheckList({
                       screen reader actually operate; the switch beside it is only paint. */}
                   <input
                     type="checkbox"
-                    className="checklist-input"
+                    className="sw-input"
                     checked={on}
                     aria-label={`${o.label}${o.hint ? ` (${o.hint})` : ""}`}
                     onChange={() => toggle(o.value)}

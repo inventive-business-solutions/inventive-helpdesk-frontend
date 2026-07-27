@@ -154,8 +154,16 @@ export function TextField({
   );
 }
 
-/** A checkbox with an inline label (the input nests in the label, so it's already
- *  associated). Replaces the repeated inline-styled checkbox rows. */
+/** An on/off option with an inline label (the input nests in the label, so it's already
+ *  associated). Replaces the repeated inline-styled checkbox rows.
+ *
+ *  Drawn as a switch, not a native checkbox. These options are settings — "also invite
+ *  them", "add a contact too" — and a switch reads as a state you are leaving on or off,
+ *  where a tick reads as an item you are selecting from a set. It is also the same control
+ *  the access CheckList already used, so the app has one toggle rather than two.
+ *
+ *  The native input is kept, only visually hidden: it stays focusable, announces its
+ *  checked state, and is what the keyboard actually toggles. The span is paint. */
 export function CheckboxField({
   checked,
   onChange,
@@ -168,7 +176,13 @@ export function CheckboxField({
   return (
     <div className="field">
       <label className="check-row">
-        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <input
+          type="checkbox"
+          className="sw-input"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="switch" aria-hidden="true" />
         {children}
       </label>
     </div>
