@@ -74,8 +74,14 @@ export function TicketTable({
                     the ids stay in a straight line whatever the icon is. */}
                 <td className="t-id">
                   {isUnread && <span className="unread-dot" aria-hidden="true" />}
-                  <SourceTag source={t.source} />
-                  <span className="t-id-txt">{t.id}</span>
+                  {/* Flex lives on this inner div, NOT on the <td>. `display: flex` on a
+                      table cell stops it being a table-cell: the browser wraps it in an
+                      anonymous cell and it no longer sizes against the <colgroup>, so the
+                      row can push past its column widths. */}
+                  <div className="t-id-row">
+                    <SourceTag source={t.source} />
+                    <span className="t-id-txt">{t.id}</span>
+                  </div>
                 </td>
                 <td className="left">
                   <MetaCell iso={t.createdISO} />
