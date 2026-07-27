@@ -3905,8 +3905,15 @@ button.stat:not(:disabled):hover {
 }
 
 /* products: assigned/unassigned tabs + unassigned list */
+/* Sits under the list toolbar as a full-width band. Each tab takes an equal share so the
+   two read as one control spanning the page, rather than two pills adrift at its left
+   edge. */
 .products-tabs {
   margin-bottom: 18px;
+}
+.products-tabs.full button {
+  flex: 1;
+  justify-content: center;
 }
 /* tab count — visual comes from .badge.num; the active tab tints it accent */
 /* Unassigned product card — same head as an assigned product, with an honest

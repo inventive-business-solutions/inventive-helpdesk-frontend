@@ -159,20 +159,15 @@ export function Products() {
         </Button>
       </div>
 
-      <Segmented
-        className="products-tabs"
-        options={[
-          { key: "assigned", label: "Assigned", count: assigned.length },
-          { key: "unassigned", label: "Unassigned", count: unassigned.length },
-        ]}
-        value={tab}
-        onChange={setTab}
-      />
-
-      {/* No count here: the Segmented directly above already shows both tabs' totals, and a
-          third number saying the same thing is noise. */}
       <MasterTruncationNotice what="some products are not shown" />
 
+      {/* Search and sort first, matching every other list page — this page put its tabs
+          above the toolbar and so read differently from Clients, Contacts, Members and
+          Teams for no reason. The tabs sit under it as a full-width band, which also stops
+          two short pills floating in an otherwise empty row.
+
+          No count on the toolbar: the tabs below carry both totals, and a third number
+          saying the same thing is noise. */}
       <ListToolbar
         query={q}
         onQuery={setQ}
@@ -182,6 +177,17 @@ export function Products() {
         onSort={setSort}
         unit="product"
         onClearAll={q ? () => setQ("") : undefined}
+      />
+
+      <Segmented
+        className="products-tabs"
+        fullWidth
+        options={[
+          { key: "assigned", label: "Assigned", count: assigned.length },
+          { key: "unassigned", label: "Unassigned", count: unassigned.length },
+        ]}
+        value={tab}
+        onChange={setTab}
       />
 
       {tab === "assigned" &&
