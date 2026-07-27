@@ -270,7 +270,12 @@ function ManagerDashboard() {
         <Kpi
           label="Needs attention"
           value={counts?.needs_attention ?? 0}
-          sub="Unassigned or stale"
+          // Describes what _needs_attention_count actually counts: New, OR Pending Client
+          // past the stale cutoff, OR an active SLA risk. Assignment is NOT part of it —
+          // that is the separate "Needs assignment" figure below. The old "Unassigned or
+          // stale" sent someone looking for a bug when two unassigned tickets produced a
+          // count of 1: both were unassigned, only one was New.
+          sub="New, stalled or at risk"
           color="var(--warning)"
           onClick={() => go("/tickets?attention=1")}
         />
