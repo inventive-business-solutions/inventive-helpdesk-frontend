@@ -45,7 +45,14 @@ jobs:
     #
     # Still not redundancy in the real sense — both agents are on ONE host, so losing the
     # machine stops everything. This only survives losing an agent.
-    runs-on: [self-hosted]
+    #
+    # `Linux` is not decoration. A bare [self-hosted] matches EVERY self-hosted runner the
+    # org exposes — including a Windows one, which took this job and failed instantly:
+    # every `run:` here is bash, and PowerShell reported "Expressions are only allowed as
+    # the first element of a pipeline" from C:\Users\...\actions-runner. GitHub adds
+    # Linux/Windows/macOS and X64 automatically, so this matches both Microscan agents and
+    # nothing else.
+    runs-on: [self-hosted, Linux, X64]
     environment: Production
     timeout-minutes: 45
 
