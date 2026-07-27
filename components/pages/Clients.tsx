@@ -271,8 +271,15 @@ export function Clients() {
                       disabled
                         ? undefined
                         : () =>
+                            // withOrigin, like the product and division links below it. This
+                            // tile was the one way into Tickets from this page that did not
+                            // carry it, so Back fell through to BackButton's default — the
+                            // Dashboard — from a journey that started on Clients.
                             router.push(
-                              `/tickets?client=${enc(cl.name)}${m.l === "Open" ? "&active=1" : m.l === "Resolved" ? "&resolved=1" : ""}`,
+                              withOrigin(
+                                `/tickets?client=${enc(cl.name)}${m.l === "Open" ? "&active=1" : m.l === "Resolved" ? "&resolved=1" : ""}`,
+                                "/clients",
+                              ),
                             )
                     }
                   />
