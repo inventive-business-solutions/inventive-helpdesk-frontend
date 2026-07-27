@@ -2,9 +2,26 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
+import * as api from "@/lib/frappe";
 import { postAuthDest } from "@/lib/auth";
 import { isSmallScreen } from "@/lib/viewport";
 import { Icon } from "@/components/ui/Icon";
+
+/** One sentence per way a link can be dead, because the right next step differs.
+ *
+ *  `expired` and `invalid` are separated on purpose: "ask for a new one" and "check you
+ *  copied the whole link" are different instructions, and sending someone to their
+ *  administrator when they simply truncated a URL wastes both their time. `revoked` never
+ *  mentions the account state in a way a stranger could mine — it reads the same whether
+ *  the reader is the account holder or not. */
+const DEAD_LINK_MESSAGE: Record<api.PasswordLinkState, string> = {
+  expired:
+    "This link has expired. Links stay valid for a limited time — ask your administrator to send a fresh invite.",
+  revoked: "This account no longer has access to the system. Please contact your administrator.",
+  invalid:
+    "This link has already been used, or it isn't complete. If you've already set a password, sign in — otherwise ask for a new invite.",
+  valid: "",
+};
 
 export function SetPassword() {
   const router = useRouter();
@@ -14,10 +31,11 @@ export function SetPassword() {
   // server and first client render agree (window doesn't exist during prerender).
   const [key, setKey] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  useEffect(() => {
-    setKey(new URLSearchParams(window.location.search).get("key"));
-    setReady(true);
-  }, []);
+  // Where to send someone whose link is dead. Comes from the server rather than a literal
+  // here, because the inbox is configurable per site (site_config `support_inbox`) and a
+  // hardcoded address would be wrong on any site that set one.
+  const [supportInbox, setSupportInbox] = useState<string | null>(null);
+
   const [pwd, setPwd] = useState("");
   const [confirm, setConfirm] = useState("");
   // One toggle drives both fields — revealing only one of a password/confirm pair is
@@ -33,6 +51,46 @@ export function SetPassword() {
   // host captured for the instruction. Sending them onward would land them on the gate
   // one route later, which reads as "the invite didn't work".
   const [activatedHost, setActivatedHost] = useState<string | null>(null);
+
+  // Check the link BEFORE offering the form. Without this the page renders every field, the
+  // person chooses a password, types it twice, submits — and only then finds out the link
+  // died. The answer is knowable on arrival, so it is asked for on arrival.
+  //
+  // The check does not consume the key: mail security products (Outlook Safe Links,
+  // Defender ATP) fetch every URL in a message before the recipient sees it, and a check
+  // that spent the key would leave scanned invites dead by the time a human opened them.
+  useEffect(() => {
+    const k = new URLSearchParams(window.location.search).get("key");
+    setKey(k);
+    if (!k) {
+      setReady(true);
+      return;
+    }
+    // Guards a late response from a request whose page has already gone — setting state
+    // after unmount, and worse, overwriting a fresher answer if the key ever changed.
+    let live = true;
+    void api
+      .passwordLinkStatus(k)
+      .then((r) => {
+        if (!live) return;
+        setSupportInbox(r.support_inbox || null);
+        if (r.status !== "valid") {
+          setDeadLink(true);
+          setError(DEAD_LINK_MESSAGE[r.status] ?? DEAD_LINK_MESSAGE.invalid);
+        }
+      })
+      // A failed pre-flight is not a verdict. The network may be down or the endpoint
+      // unreachable — neither means the link is bad, and refusing the form on that basis
+      // would strand someone holding a perfectly good invite. Fall through to the form; the
+      // server checks again at redemption, which is the boundary that actually counts.
+      .catch(() => {})
+      .finally(() => {
+        if (live) setReady(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,17 +122,23 @@ export function SetPassword() {
       }
       router.replace(postAuthDest(session.role));
     } catch (err) {
-      // Frappe returns 410 with a "reset password link…" message when the key is
-      // used/expired; match those phrases specifically (not a generic 404 "Not Found").
-      // Password-policy failures surface their own message, which we pass through.
+      // Reaching here with a dead link is now the rare path — the page checked on arrival
+      // and would not have rendered this form. It still has to be handled, because the key
+      // can die between that check and this submit: someone leaves the tab open past the
+      // window, or an administrator revokes them while the page sits there.
+      //
+      // The patterns cover our own wording from set_password_with_key AND Frappe's, since
+      // update_password can still refuse underneath us on a race. Anything else — a
+      // password-policy rejection, a network failure — keeps its own message, because
+      // telling someone their link is broken when their password was merely too weak sends
+      // them to ask for an invite they do not need.
       const msg = err instanceof Error ? err.message : "";
-      const dead = /reset password link|expired|used before/i.test(msg);
+      const dead =
+        /link has expired|already been used|no longer has access|is not valid|reset password link|used before/i.test(
+          msg,
+        );
       setDeadLink(dead);
-      setError(
-        dead
-          ? "This link is expired or already used. If you've already set a password, just sign in — otherwise ask your administrator to resend the invite."
-          : msg || "Couldn't set your password — please try again.",
-      );
+      setError(dead ? msg : msg || "Couldn't set your password — please try again.");
       setSubmitting(false);
     }
   };
@@ -110,8 +174,10 @@ export function SetPassword() {
               Inventive <span>Helpdesk</span>
             </span>
           </div>
-          <h2>Set your password</h2>
-          <div className="sub">Choose a password to activate your Inventive Helpdesk account.</div>
+          <div className="auth-head">
+            <h2>Set your password</h2>
+            <div className="sub">Choose a password to activate your Inventive Helpdesk account.</div>
+          </div>
 
           {activatedHost ? (
             <div className="auth-form">
@@ -142,6 +208,27 @@ export function SetPassword() {
               >
                 Go to sign in
               </button>
+              {/* The way out. "Ask your administrator" is only useful to someone who knows
+                  who that is and how to reach them — an invited client POC knows neither.
+                  A mailto with the subject filled in is inert (no endpoint, nothing to
+                  abuse) and turns the dead end into one tap.
+
+                  Only rendered once the server has told us the address: it is configurable
+                  per site, and a hardcoded fallback would quietly send mail to the wrong
+                  inbox on any site that set its own. */}
+              {supportInbox && (
+                <p className="auth-done-note">
+                  Can&apos;t reach your administrator?{" "}
+                  <a
+                    className="auth-mailto"
+                    href={`mailto:${supportInbox}?subject=${encodeURIComponent(
+                      "Inventive Helpdesk — my invite link has expired",
+                    )}`}
+                  >
+                    Email {supportInbox}
+                  </a>
+                </p>
+              )}
             </div>
           ) : (
             <div className="auth-form">

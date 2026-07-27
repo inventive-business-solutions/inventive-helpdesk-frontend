@@ -29,9 +29,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
           <span className="brand-glyph">
             <Icon name="logo" size={18} />
           </span>
-          <span className="pb-t">
-            Inventive Helpdesk<span>Portal</span>
-          </span>
+          <span className="pb-t">Inventive Helpdesk</span>
         </Link>
         <div className="portal-user">
           <div className="pu-chip">

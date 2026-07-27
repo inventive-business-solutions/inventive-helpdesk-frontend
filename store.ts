@@ -5,7 +5,6 @@ import type {
   Collaborator,
   Group,
   Message,
-  Poc,
   Priority,
   Product,
   RaiseTicketInput,
@@ -484,6 +483,13 @@ interface Store {
    *  so a teammate opening a ticket doesn't clear your marker. Empty for client sessions —
    *  the endpoint is staff-only. */
   unread: string[];
+  /** How many people hold admin, for the sidebar's Admin badge. 0 for everyone but the
+   *  owner: `list_admins` is owner-only server-side, and the nav item it labels is too.
+   *
+   *  Deliberately NOT part of fetchMasters. That runs on every one of reloadMasters'
+   *  ~22 mutation call sites, and adding a request there would make a badge cost as much
+   *  as the data. This refreshes on its own schedule, like `unread`. */
+  adminCount: number;
   /** True when the ticket fetch came back at its cap, i.e. there are older tickets this
    *  session is not holding. Surfaced in the list rather than kept internal: a view that
    *  is quietly missing rows is worse than one that admits it. */
@@ -512,6 +518,10 @@ interface Store {
   /** Lightweight background refresh: re-fetch just the ticket list (one call), no
    *  masters — used by the auto-refresh poller. */
   refreshTickets: () => Promise<void>;
+  /** Re-count the admins behind the sidebar badge. Called at boot, and by the Admin page
+   *  after it promotes, demotes, invites or revokes — those go straight to the API rather
+   *  than through this store, so nothing else would notice the number changed. */
+  refreshAdminCount: () => Promise<void>;
   /** Re-count the dashboard figures. `weeks` sizes the trend window. */
   refreshStats: (weeks?: number) => Promise<void>;
   loadTicket: (id: string, guarded?: boolean) => Promise<void>;
@@ -601,9 +611,6 @@ export const useStore = create<Store>()((set, get) => {
   const divDocname = (client: string, name: string) =>
     get().divIndex.find((x) => x.client === client && x.name === name)?.docname;
 
-  /** Re-derive this agent's unread set. Staff only — the endpoint throws PermissionError
-   *  for a client POC, and a portal session has no ticket list to mark up anyway. Failures
-   *  are swallowed: an unread dot is a convenience, never a reason to break a refresh. */
   /** Everything sign-in does AFTER the password is accepted: read the session, then load
    *  the master data and tickets the app cannot start without.
    *
@@ -624,15 +631,40 @@ export const useStore = create<Store>()((set, get) => {
     markTabSession(true); // this tab now holds a live session (survives F5, not tab close)
     set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
     void refreshUnread();
+    void refreshAdminCount();
     return session;
   };
 
+  /** Re-derive this agent's unread set. Staff only — the endpoint throws PermissionError
+   *  for a client POC, and a portal session has no ticket list to mark up anyway. Failures
+   *  are swallowed: an unread dot is a convenience, never a reason to break a refresh. */
   const refreshUnread = async () => {
     if (get().session?.role !== "admin") return;
     try {
       set({ unread: (await api.unreadTickets()) || [] });
     } catch {
       /* leave the previous set in place */
+    }
+  };
+
+  /** Count of everyone holding admin. Owner-gated on the client because `_require_owner`
+   *  gates it on the server — asking as a plain administrator would just earn a 403 on
+   *  every page load.
+   *
+   *  Counts `list_admins` rather than a bespoke endpoint so the badge and the page it
+   *  points at can never disagree: same rows, same role check, one definition of who
+   *  counts. That includes people invited straight in as administrators — `invite_admin`
+   *  creates a Team Member and puts Support Manager on its user, so they are in this list
+   *  from the moment they are invited, before they have set a password.
+   *
+   *  Failures swallowed, like `unread`: a badge is decoration, never a reason to break a
+   *  boot or a refresh. */
+  const refreshAdminCount = async () => {
+    if (!get().session?.isOwner) return;
+    try {
+      set({ adminCount: ((await api.listAdmins()) || []).length });
+    } catch {
+      /* leave the previous count in place */
     }
   };
 
@@ -664,6 +696,7 @@ export const useStore = create<Store>()((set, get) => {
     products: [],
     tickets: [],
     unread: [],
+    adminCount: 0,
     ticketsTruncated: false,
     mastersTruncated: false,
     stats: null,
@@ -712,6 +745,7 @@ export const useStore = create<Store>()((set, get) => {
       markTabSession(true);
       set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
       void refreshUnread();
+      void refreshAdminCount();
       return session;
     },
     restore: async () => {
@@ -734,6 +768,7 @@ export const useStore = create<Store>()((set, get) => {
         const { tickets, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
         set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
         void refreshUnread();
+        void refreshAdminCount();
       } catch {
         set({ session: null, booted: true });
       }
@@ -758,6 +793,7 @@ export const useStore = create<Store>()((set, get) => {
         groups: [],
         products: [],
         tickets: [],
+        adminCount: 0,
         ticketsTruncated: false,
         mastersTruncated: false,
         stats: null,
@@ -797,7 +833,10 @@ export const useStore = create<Store>()((set, get) => {
       // it is the one most likely to be running with a ticket detail open on screen.
       set({ tickets: keepHydratedDetail(fresh, get().tickets), ticketsTruncated: truncated });
       void refreshUnread();
+      // Not refreshAdminCount: this is the 30s poll, and who holds admin does not change
+      // on that timescale. It is refreshed at boot and by the page that changes it.
     },
+    refreshAdminCount,
     refreshStats: async (weeks) => {
       if (!get().session) return;
       try {

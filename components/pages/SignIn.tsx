@@ -99,23 +99,37 @@ export function SignIn() {
             Inventive <span>Helpdesk</span>
           </span>
         </div>
+        {/* Written for BOTH readers. /login is one screen: agents and client POCs sign in
+            through the same form and only split afterwards, on role. So the copy cannot use
+            "client" for the reader — a POC would be talked about in the third person on the
+            screen where they type their password — and it says "support requests" rather
+            than "tickets", which is operations vocabulary a first-time client has not
+            learned yet. "Ticket" stays inside the app, where it is a real object with an ID. */}
         <div className="auth-hero">
-          <h1>Great engineering deserves great support.</h1>
-          <p>
-            Raise, track, and resolve support requests in one shared space — bugs, queries, improvements and
-            new features, with the team and clients working from the same record.
-          </p>
-          <div className="brand-points">
-            <div className="brand-point">
-              <Icon name="check" size={18} /> A shared home for every client conversation
-            </div>
-            <div className="brand-point">
-              <Icon name="check" size={18} /> Behind-the-scenes notes stay behind the scenes
-            </div>
-            <div className="brand-point">
-              <Icon name="check" size={18} /> Clear timelines from first report to resolved
-            </div>
-          </div>
+          <h1>Every request, one place.</h1>
+          <p>Raise, track and resolve support requests — your team and ours, working from the same record.</p>
+          {/* Numbered and ruled rather than ticked. A tick asserts a benefit; a number just
+              indexes a list, which is the quieter claim and the one an internal tool can
+              actually make. It also gives the three rows a left edge to line up on, which
+              is what the tick version was missing. */}
+          <ol className="brand-points">
+            {/* Rows 01 and 02 are what the READER does, in the order they do it; 03 is what
+                they get. The set they replaced described the product from Inventive's side of
+                the desk — and one row, "internal notes stay internal", was a staff benefit
+                that on a client-facing screen only advertises what is being withheld. */}
+            <li className="brand-point">
+              <span className="bp-n">01</span>
+              <span className="bp-t">Raise a request in a minute</span>
+            </li>
+            <li className="brand-point">
+              <span className="bp-n">02</span>
+              <span className="bp-t">Follow its progress at any time</span>
+            </li>
+            <li className="brand-point">
+              <span className="bp-n">03</span>
+              <span className="bp-t">A clear trail from first report to resolved</span>
+            </li>
+          </ol>
         </div>
         <div className="foot">© 2026 Inventive Business Solutions Pvt Ltd</div>
       </aside>
@@ -130,11 +144,18 @@ export function SignIn() {
               Inventive <span>Helpdesk</span>
             </span>
           </div>
-          <h2>{mode === "signin" ? "Sign in" : "Reset your password"}</h2>
-          <div className="sub">
-            {mode === "signin"
-              ? "Sign in with your Inventive Helpdesk account."
-              : "Enter your email and we'll send a reset link."}
+          {/* Keyed on the mode so switching to reset and back remounts this block and
+              replays its entrance. Without the key React reuses the same DOM nodes and
+              only swaps the text, so the copy teleports with nothing for CSS to react to.
+              Scoped to the heading alone — keying the fields too would remount the inputs
+              and throw away what had been typed into them. */}
+          <div className="auth-head" key={mode}>
+            <h2>{mode === "signin" ? "Sign in" : "Reset your password"}</h2>
+            <div className="sub">
+              {mode === "signin"
+                ? "Sign in with your Inventive Helpdesk account."
+                : "Enter your email and we'll send a reset link."}
+            </div>
           </div>
 
           <div className="auth-form">

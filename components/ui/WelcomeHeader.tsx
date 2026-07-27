@@ -3,7 +3,7 @@ import { initials } from "@/lib/helpers";
 
 /**
  * Shared "Welcome back, <name>" page header: an initials avatar, a small eyebrow, the
- * first name rendered as a gradient hero, and an optional subtitle. `children` render as
+ * first name picked out in the accent colour, and an optional subtitle. `children` render as
  * the right-side controls (buttons, a range switch, …). Used across the member and manager
  * dashboards and the client portal so the greeting looks identical everywhere.
  */

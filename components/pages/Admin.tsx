@@ -36,6 +36,7 @@ export function Admin() {
   const updateMember = useStore((s) => s.updateMember);
   const removeMember = useStore((s) => s.removeMember);
   const members = useStore((s) => s.members);
+  const refreshAdminCount = useStore((s) => s.refreshAdminCount);
   const toast = useToast();
   const { busy, run } = useSubmit();
 
@@ -55,14 +56,20 @@ export function Admin() {
   const [freshName, setFreshName] = useState("");
   const [freshEmail, setFreshEmail] = useState("");
 
+  // Every mutation on this page ends in load(), so syncing the sidebar's Admin badge here
+  // covers promote, demote, invite and revoke in one place rather than at four call sites.
+  // It costs a second listAdmins on mount; keeping the store the only writer of that count
+  // is worth one extra request on a page only the owner can open, and it self-heals if the
+  // boot-time count failed.
   const load = useCallback(async () => {
     try {
       setRows(await api.listAdmins());
+      void refreshAdminCount();
     } catch (err) {
       toast(api.userFacingMessage(err) ?? "Couldn't load the team list.");
       setRows([]);
     }
-  }, [toast]);
+  }, [toast, refreshAdminCount]);
   useEffect(() => {
     void load();
   }, [load]);

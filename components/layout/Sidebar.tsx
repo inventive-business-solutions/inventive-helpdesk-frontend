@@ -33,6 +33,7 @@ export function Sidebar() {
   const members = useStore((s) => s.members);
   const groups = useStore((s) => s.groups);
   const products = useStore((s) => s.products);
+  const adminCount = useStore((s) => s.adminCount);
 
   if (!session) return null;
   const admin = session.role === "admin";
@@ -108,8 +109,26 @@ export function Sidebar() {
     { to: "/teams", label: "Teams", icon: "grid", end: false, count: groups.length, manage: true },
     // Owner-only, and the server refuses list_admins below that tier regardless — this
     // hides a door that is already locked rather than being the lock.
+    //
+    // The count is the only one here not read off a master list: admin is a User ROLE, not
+    // a Team Member field, so it cannot be derived from `members`. The store counts
+    // list_admins — the same rows the page shows — at boot and after any change there.
     ...(session?.isOwner
-      ? [{ to: "/admin", label: "Admin", icon: "lock", end: false, manage: true } as NavItem]
+      ? [
+          {
+            to: "/admin",
+            label: "Admin",
+            icon: "lock",
+            end: false,
+            // `|| undefined` so nothing renders until the count lands. Every other badge
+            // here reads a bootstrap array and is right on first paint; this one arrives a
+            // request later, and renderItem's `!= null` test would show a literal 0 in the
+            // gap. Zero is never the true answer anyway — list_admins counts the owner, so
+            // whoever can see this item is already in it.
+            count: adminCount || undefined,
+            manage: true,
+          } as NavItem,
+        ]
       : []),
   ];
   // Agents get their personal "my work" queues as primary nav instead of the org sections.
@@ -207,9 +226,10 @@ export function Sidebar() {
         <span className="brand-glyph">
           <Icon name="logo" size={18} />
         </span>
-        <div className="t">
-          Inventive Helpdesk<span>{admin ? (isAgent ? "Member" : "Admin") : "Portal"}</span>
-        </div>
+        {/* Name only. The role line under it (Admin / Member / Portal) said what the
+            sidebar below already shows, and made the same product look like three
+            different ones depending on who was signed in. */}
+        <div className="t">Inventive Helpdesk</div>
       </div>
 
       <nav className="nav">
