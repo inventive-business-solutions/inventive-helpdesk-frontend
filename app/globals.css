@@ -2752,8 +2752,18 @@ table.tk .prio {
   min-width: 84px;
   justify-content: center;
 }
+/* Status pills size to their text, with a floor so short ones keep presence.
+   116px was a hard floor for every pill, so "New" — three characters — was rendered
+   116px wide, and because that exceeded the Status column's own minimum it quietly
+   overrode it: the column could never shrink below ~134px whatever its clamp said.
+   The longest status, "Pending Client", needs about 104px, so 116 was buying an equal-
+   width column at the cost of ~45px of whitespace on the common short ones.
+   Trades a constant pill width for space, deliberately. If the ragged right edge of the
+   column reads worse than the waste did, put min-width back to ~104px (the longest label)
+   rather than 116 — that keeps the rhythm without the padding. */
 table.tk .pill {
-  min-width: 116px;
+  min-width: 72px;
+  max-width: 100%;
   justify-content: center;
 }
 /* Type over Priority, stacked in one column — both chips forced to the same width so
@@ -2833,10 +2843,15 @@ table.tk-tickets col.c-team {
   width: clamp(112px, 16%, 184px);
 }
 table.tk-tickets col.c-source {
-  width: clamp(48px, 6%, 76px);
+  /* Holds one 28px icon badge. 76px max was two and a half times its content — the widest
+     waste per pixel of any column here, on every row. */
+  width: clamp(46px, 4%, 60px);
 }
 table.tk-tickets col.c-status {
-  width: clamp(96px, 14%, 152px);
+  /* Floor is the longest label: "Pending Client" is ~104px of pill plus ~18px of gutters.
+     The old 96px min was never reachable anyway — table.tk .pill forced 116px on top of
+     it. Max trimmed from 152 to 132 now the pill hugs its text instead of filling. */
+  width: clamp(122px, 12%, 132px);
 }
 table.tk-tickets td.t-id {
   overflow: hidden;
