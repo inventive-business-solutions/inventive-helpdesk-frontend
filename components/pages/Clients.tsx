@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
 import { useToast } from "@/components/ui/Toast";
 import { useSubmit } from "@/components/ui/useSubmit";
-import { RESOLVED, clientContacts, enc, fmtDate, initials, isActive } from "@/lib/helpers";
+import { RESOLVED, clientContacts, divDisplayName, enc, fmtDate, initials, isActive } from "@/lib/helpers";
 import type { Client, ClientProduct, Division, Poc } from "@/types";
 
 const PALETTE = ["var(--cat-1)", "var(--cat-2)", "var(--cat-4)", "var(--cat-3)", "var(--accent)"];
@@ -293,11 +293,25 @@ export function Clients() {
                 onAdd={() => setProductTarget({ client: cl.name })}
                 onEdit={(p) => setProductTarget({ client: cl.name, product: p })}
                 onRemove={(p) => setConfirm({ kind: "product", client: cl.name, product: p })}
-                onShowTickets={(p) =>
+                onShowTickets={(p) => {
+                  // Carry the engagement's division through, so the filter bar says what the
+                  // row you clicked said. Only when it names exactly ONE: none means the
+                  // product is client-wide and there is no division to state, and several
+                  // cannot be expressed in a single `div` param — inventing one would filter
+                  // the list by something the row never claimed.
+                  //
+                  // divDisplayName, not the raw value: engagements store division DOCNAMES
+                  // while Ticket.div holds the DISPLAY name, so passing the docname matches
+                  // no ticket at all and reads as "this product has none".
+                  const one = p.divisions.length === 1 ? divDisplayName(cl, p.divisions[0]) : "";
                   router.push(
-                    withOrigin(`/tickets?client=${enc(cl.name)}&product=${enc(p.product)}`, "/clients"),
-                  )
-                }
+                    withOrigin(
+                      `/tickets?client=${enc(cl.name)}&product=${enc(p.product)}` +
+                        (one ? `&div=${enc(one)}` : ""),
+                      "/clients",
+                    ),
+                  );
+                }}
               />
               <ClientLeads
                 client={cl}
