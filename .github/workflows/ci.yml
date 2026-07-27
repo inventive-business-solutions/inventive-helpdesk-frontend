@@ -191,6 +191,20 @@ jobs:
           # Keeps the manifest single-platform; provenance attestations add an
           # "unknown/unknown" entry that confuses some registry/pull paths.
           provenance: false
+          # Registry-backed layer cache, so `npm ci` and the base image are not repeated
+          # on every run. Registry rather than the GHA cache because the two agents are
+          # separate runners: a registry cache is shared between them and survives a
+          # restart, which a local one does not.
+          #
+          # No CACHE_BUST needed here, unlike the backend. That one fetches app source
+          # inside the build, so its layer key does not change when the app does. This
+          # Dockerfile COPYs the working tree in, so any source change alters the COPY
+          # layer and everything after it rebuilds on its own.
+          #
+          # The smoke step below asserts /api/health reports THIS commit, so a cache that
+          # ever did serve a stale bundle fails the build rather than shipping it.
+          cache-from: type=registry,ref=${{ vars.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ vars.IMAGE_NAME }}:buildcache,mode=max
           build-args: |
             FRAPPE_URL=${{ vars.FRAPPE_URL }}
             SOCKETIO_URL=${{ vars.SOCKETIO_URL }}
