@@ -88,9 +88,19 @@ const proxyRewrites = [
     source: "/api/frappe/method/inventive_helpdesk_backend.api.request_password_reset",
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.request_password_reset`,
   },
+  // NOT frappe.core.doctype.user.user.update_password, which used to be here. It never
+  // checks whether the account is still enabled and calls login_as() on success, so a
+  // revoked user holding an unopened invite could set a password and be signed in to the
+  // account that had just been closed. Our wrapper gates on that plus a per-link-type
+  // expiry; dropping the raw endpoint from the allowlist means this origin cannot reach
+  // around the wrapper to the thing it is wrapping.
   {
-    source: "/api/frappe/method/frappe.core.doctype.user.user.update_password",
-    destination: `${FRAPPE_URL}/api/method/frappe.core.doctype.user.user.update_password`,
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.set_password_with_key",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.set_password_with_key`,
+  },
+  {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.password_link_status",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.password_link_status`,
   },
   {
     source: "/api/frappe/method/inventive_helpdesk_backend.api.list_admins",

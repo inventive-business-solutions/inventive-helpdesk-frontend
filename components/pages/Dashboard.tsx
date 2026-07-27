@@ -67,8 +67,6 @@ const PALETTE = [
   "var(--muted)",
 ];
 
-const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 // Members (staff agents) get a focused "my work" cockpit; managers/System Manager get the
 // org dashboard below. Split at the top so hooks stay unconditional in each component.
 export function Dashboard() {

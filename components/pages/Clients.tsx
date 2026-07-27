@@ -293,7 +293,6 @@ export function Clients() {
                 client={cl}
                 onAdd={() => setProductTarget({ client: cl.name })}
                 onEdit={(p) => setProductTarget({ client: cl.name, product: p })}
-                onRemove={(p) => setConfirm({ kind: "product", client: cl.name, product: p })}
                 onShowTickets={(p) => {
                   // Carry the engagement's division through, so the filter bar says what the
                   // row you clicked said. Only when it names exactly ONE: none means the
@@ -317,7 +316,6 @@ export function Clients() {
               <ClientLeads
                 client={cl}
                 onEdit={(p) => setLeadTarget({ client: cl.name, poc: p })}
-                onRemove={(p) => setConfirm({ kind: "lead", client: cl.name, poc: p })}
                 onInvite={onInvite}
               />
               <section className="cc-section">

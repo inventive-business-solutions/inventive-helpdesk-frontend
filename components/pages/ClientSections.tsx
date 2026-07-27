@@ -60,17 +60,18 @@ function divNames(client: Client, docnames: string[]) {
   return docnames.map((dn) => client.divisions.find((d) => d.docname === dn)?.name ?? dn);
 }
 
+/* No `onRemove`. Removing a product from a client used to be an inline row action; it now
+   lives inside the Manage dialog (Clients.tsx wires ProductModal's onDelete to the same
+   confirm), so the prop was still being passed here and silently dropped. */
 export function ClientProducts({
   client,
   onAdd,
   onEdit,
-  onRemove,
   onShowTickets,
 }: {
   client: Client;
   onAdd: () => void;
   onEdit: (p: ClientProduct) => void;
-  onRemove: (p: ClientProduct) => void;
   onShowTickets: (p: ClientProduct) => void;
 }) {
   return (
@@ -141,15 +142,15 @@ export function ClientProducts({
   );
 }
 
+/* Same as ClientProducts: removal moved into the Manage dialog (PocModal's onDelete), so
+   the row no longer offers it and the prop was dead weight the caller kept supplying. */
 export function ClientLeads({
   client,
   onEdit,
-  onRemove,
   onInvite,
 }: {
   client: Client;
   onEdit: (p: Poc) => void;
-  onRemove: (p: Poc) => void;
   onInvite: (p: Poc) => void;
 }) {
   if (!client.leads.length) return null;

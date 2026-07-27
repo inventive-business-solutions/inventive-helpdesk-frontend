@@ -254,10 +254,34 @@ export async function requestPasswordReset(user: string): Promise<void> {
 /** Set a password from an invite/reset key and (server-side) sign the user in — the
  *  session cookie comes back through the proxy on this origin. Guest-callable. Throws
  *  FrappeError(410) when the key is invalid or expired. */
+/** What a set-password link is worth, without spending it. */
+export type PasswordLinkState = "valid" | "expired" | "revoked" | "invalid";
+
+/** Check a link on arrival, so the form is never offered for a link that cannot work.
+ *
+ *  Deliberately does NOT consume the key — corporate mail security (Outlook Safe Links,
+ *  Defender ATP) fetches every URL in a message before the recipient sees it, and a check
+ *  that spent the key would leave scanned invites dead on opening.
+ *
+ *  Returns a coarse status only. The address it belongs to is never in the response. */
+export function passwordLinkStatus(key: string) {
+  return call<{ status: PasswordLinkState; support_inbox: string }>(
+    "inventive_helpdesk_backend.api.password_link_status",
+    { key },
+  );
+}
+
+/** Redeem a set-password link.
+ *
+ *  Ours, not frappe.core.doctype.user.user.update_password. That endpoint never checks
+ *  whether the account is still enabled and calls login_as() on success, so a revoked user
+ *  holding an unopened invite could set a password and be signed straight in. This wraps it
+ *  behind that check plus our own per-link-type expiry, and the raw endpoint is no longer
+ *  forwarded by the proxy — see next.config.mjs. */
 export async function setPassword(key: string, newPassword: string): Promise<void> {
-  await request("/method/frappe.core.doctype.user.user.update_password", {
-    method: "POST",
-    body: JSON.stringify({ key, new_password: newPassword }),
+  await call("inventive_helpdesk_backend.api.set_password_with_key", {
+    key,
+    new_password: newPassword,
   });
 }
 async function loggedUser(): Promise<string> {

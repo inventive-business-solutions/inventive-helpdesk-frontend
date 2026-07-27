@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "audit:css": "python3 scripts/css-specificity-audit.py"
+    "audit:css": "python3 scripts/css-specificity-audit.py",
+    "audit:deadcss": "node scripts/dead-css-audit.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.68.0",

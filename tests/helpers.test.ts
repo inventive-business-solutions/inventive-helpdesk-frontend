@@ -1,12 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   clientContacts,
-  clientsRunning,
-  divDisplayName,
   availableProducts,
   availableProductScopes,
   productsForDivisions,
-  productsOf,
   relativeAge,
   isUnmatched,
   plural,
