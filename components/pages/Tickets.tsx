@@ -15,7 +15,7 @@ import { TicketTable } from "@/components/ui/TicketTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TruncationNotice } from "@/components/ui/TruncationNotice";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
-import { buildFacets, type FacetOpts } from "@/lib/facets";
+import { ASTATE_LABELS, buildFacets, type FacetOpts } from "@/lib/facets";
 import {
   MONTHS,
   RESOLVED,
@@ -397,6 +397,16 @@ export function Tickets() {
   if (q)
     context.push({ key: "q", label: "Search", value: `"${q.trim()}"`, onRemove: () => setParam("q", "") });
   if (sla) context.push({ key: "sla", value: "SLA at risk", onRemove: () => setParam("sla", "") });
+  // Same class as sla/attention: arrived from a dashboard tile, and must be removable.
+  // It used to be pushed by buildFacets with no onRemove, so it filtered the list with an
+  // X-less chip — visible, but nothing short of Clear all would drop it.
+  if (astate)
+    context.push({
+      key: "astate",
+      label: "Assignment",
+      value: ASTATE_LABELS[astate] ?? astate,
+      onRemove: () => setParam("astate", ""),
+    });
   if (attention)
     context.push({ key: "attention", value: "Needs attention", onRemove: () => setParam("attention", "") });
 

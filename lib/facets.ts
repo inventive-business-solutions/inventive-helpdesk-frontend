@@ -102,7 +102,7 @@ const MINE_LABELS: Record<string, string> = {
   triage: "Triage inbox",
   collab: "Collaborating",
 };
-const ASTATE_LABELS: Record<string, string> = {
+export const ASTATE_LABELS: Record<string, string> = {
   unassigned: "Unassigned",
   team: "Awaiting member",
   member: "Assigned",
@@ -203,8 +203,10 @@ export function buildFacets(ctx: BuildCtx): { facets: Facet[]; context: ContextC
   // --- view context chips (sidebar / dashboard driven) ---
   if (view?.teamq) context.push({ key: "teamq", label: "Team queue", value: view.teamq });
   if (view?.mine) context.push({ key: "mine", label: "View", value: MINE_LABELS[view.mine] ?? view.mine });
-  if (view?.astate)
-    context.push({ key: "astate", label: "Assignment", value: ASTATE_LABELS[view.astate] ?? view.astate });
+  // `astate` is NOT pushed here. It is a dashboard funnel (Needs assignment -> ?astate=...),
+  // i.e. a filter the user should be able to drop, not a view they navigated into like
+  // `mine` / `teamq`. Chips that can be removed are pushed by the page, which owns
+  // setParam — see Tickets.tsx, next to sla and attention.
 
   for (const f of facets) f.icon = FACET_ICON[f.key];
   return { facets, context };

@@ -48,18 +48,26 @@ export function FacetBar({
   const valueOf = (f: Facet) => values[f.key] ?? "";
   const apply = (f: Facet, v: string) => (f.onPick ? f.onPick(v) : onChange(f.key, v));
 
-  // Active pills — a `group` collapses to a single pill for its deepest set facet.
+  // One pill per ACTIVE filter. Grouped facets used to collapse to their deepest set
+  // level, which meant a filter could narrow the list with nothing on screen to say so.
+  //
+  // Arriving from a client card's product link (/tickets?client=X&product=Z) set both, and
+  // the loop — walking backwards, keeping the first hit per group — kept Client and dropped
+  // Product. The list was filtered by a product the bar never mentioned and offered no way
+  // to remove.
+  //
+  // The collapse assumed containment: show the deepest and the ancestors are implied. That
+  // holds for client -> div -> poc, but product is not in that chain (a client runs several
+  // products, a product runs at several clients) — onProductPick KEEPS a compatible client
+  // rather than replacing it, which is what an intersecting filter does, not a parent. And
+  // even within the chain it was lossy: division names are not unique across clients (see
+  // clientsWithDiv), so "Division: Heating" alone does not say whose.
+  //
+  // `group` is still used, for the Popover key below.
   const pills: { facet: Facet; value: string }[] = [];
-  const seenGroups = new Set<string>();
-  for (let i = facets.length - 1; i >= 0; i--) {
-    const f = facets[i];
+  for (const f of facets) {
     const v = valueOf(f);
-    if (!v) continue;
-    if (f.group) {
-      if (seenGroups.has(f.group)) continue;
-      seenGroups.add(f.group);
-    }
-    pills.unshift({ facet: f, value: v });
+    if (v) pills.push({ facet: f, value: v });
   }
 
   // "+ Add filter" offers any facet with no value (grouped ones: any empty level → drill).
@@ -95,8 +103,10 @@ export function FacetBar({
       ))}
 
       {pills.map(({ facet, value }) => (
+        // facet.key, not facet.group: several facets share a group, and now that each
+        // renders its own pill a group key would repeat across siblings.
         <Popover
-          key={facet.group ?? facet.key}
+          key={facet.key}
           ariaLabel={`Change ${facet.label}`}
           minWidth={190}
           trigger={({ ref, onClick, open }) => (
