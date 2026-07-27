@@ -103,15 +103,44 @@ export function clientsRunning<T extends ClientLike>(clients: T[], product: stri
  *  This used to be `productsForTicket`, deriving a ticket's product because the ticket had
  *  no product field. It has one now, so its job is offering the choices, not guessing. */
 export function availableProducts(clients: ClientLike[], t: { client: string; div: string }): string[] {
+  return availableProductScopes(clients, t).map((p) => p.product);
+}
+
+/** A product this client runs, and whether it covers the client as a whole. */
+export interface ProductScope {
+  product: string;
+  /** True when the engagement names no divisions — it applies everywhere for this client. */
+  clientWide: boolean;
+}
+
+/**
+ * The products selectable for a client, narrowed by division when one is chosen.
+ *
+ * No division chosen means "not decided yet", NOT "match nothing". The division filter used
+ * to run regardless, so with the field blank every division-scoped engagement was excluded
+ * and only client-wide ones survived — a client whose products are all division-scoped
+ * offered nothing at all, and NewTicketModal hides the field when the list is empty. The
+ * result was a ticket form with no Product option and no explanation.
+ *
+ * With a division chosen the filter is exact, because that is precisely what the backend's
+ * validate accepts: an engagement scoped elsewhere is rejected server-side.
+ */
+export function availableProductScopes(
+  clients: ClientLike[],
+  t: { client: string; div: string },
+): ProductScope[] {
   const c = clients.find((x) => x.name === t.client);
   if (!c) return [];
-  return [
-    ...new Set(
-      (c.products ?? [])
-        .filter((p) => !p.divisions.length || p.divisions.some((dn) => divDisplayName(c, dn) === t.div))
-        .map((p) => p.product),
-    ),
-  ];
+  const seen = new Map<string, boolean>();
+  for (const p of c.products ?? []) {
+    const clientWide = !p.divisions.length;
+    // Only filter by division once one has been picked.
+    if (t.div && !clientWide && !p.divisions.some((dn) => divDisplayName(c, dn) === t.div)) continue;
+    // A product can be attached more than once (different division scopes). It reads as
+    // client-wide only if one of those engagements genuinely is.
+    seen.set(p.product, (seen.get(p.product) ?? false) || clientWide);
+  }
+  return [...seen].map(([product, clientWide]) => ({ product, clientWide }));
 }
 
 /** Compact relative age: "just now", "12m", "2h", "3d", "5w".

@@ -9,7 +9,7 @@ import { ModalFooter } from "../ui/ModalFooter";
 import { StagedFiles } from "./StagedFiles";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
-import { availableProducts, initials, productsForDivisions } from "../../lib/helpers";
+import { availableProductScopes, initials, productsForDivisions } from "../../lib/helpers";
 import type { Priority, TicketType } from "../../types";
 
 const TYPE_OPTIONS: { type: TicketType; hint: string; icon: IconName; color: string }[] = [
@@ -61,10 +61,10 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
   // actually running at the chosen division (plus any attached client-wide), because those
   // are exactly what the backend's validate will accept.
   const effectiveDiv = isClient ? (session?.div ?? "") : divName;
-  const productOptions = availableProducts(clients, { client: clientName, div: effectiveDiv });
+  const productScopes = availableProductScopes(clients, { client: clientName, div: effectiveDiv });
   // Required when there is something to choose. A division running nothing hides the field
   // entirely rather than blocking submit — the dead end the old `divisionless` flag created.
-  const productRequired = productOptions.length > 0;
+  const productRequired = productScopes.length > 0;
 
   const onClientChange = (name: string) => {
     setClientName(name);
@@ -256,7 +256,14 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
                   value={product}
                   options={[
                     { value: "", label: "— Choose a product —" },
-                    ...productOptions.map((p) => ({ value: p, label: p })),
+                    // Client-wide is marked in the option itself. Without it two products
+                    // read as equivalent choices when one covers this division specifically
+                    // and the other covers the whole client — which is the difference that
+                    // decides who sees the resulting ticket.
+                    ...productScopes.map((p) => ({
+                      value: p.product,
+                      label: p.clientWide ? `${p.product} — client-wide` : p.product,
+                    })),
                   ]}
                   onChange={(v) => {
                     setProduct(v);
@@ -266,7 +273,9 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
                 <div className="field-hint">
                   {isClient
                     ? "What the issue is about — only the products running in your division are listed."
-                    : `Products running at ${effectiveDiv || "this division"}.`}
+                    : effectiveDiv
+                      ? `Products running at ${effectiveDiv}. Client-wide ones are marked.`
+                      : `Everything ${clientName || "this client"} runs. Pick a division above to narrow it.`}
                 </div>
               </>
             )}

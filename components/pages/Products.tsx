@@ -355,10 +355,10 @@ export function Products() {
                     <div className="eyebrow">Product</div>
                     <div className="product-name">{product}</div>
                   </div>
+                  {/* One control, matching the assigned cards. Assigning lives inside Manage
+                      alongside renaming, deleting and editing an engagement — a second button
+                      here offered a subset of what the first one already does. */}
                   <div className="product-actions">
-                    <Button variant="ghost" onClick={() => setAssignTarget(product)}>
-                      Assign to a client
-                    </Button>
                     <ManageButton subject={product} onClick={() => setRenameTarget(product)} />
                   </div>
                 </div>

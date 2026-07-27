@@ -4,6 +4,7 @@ import {
   clientsRunning,
   divDisplayName,
   availableProducts,
+  availableProductScopes,
   productsForDivisions,
   productsOf,
   relativeAge,
@@ -305,5 +306,74 @@ describe("chunk", () => {
 
   it("rejects a size of zero instead of looping forever", () => {
     expect(() => chunk([1, 2, 3], 0)).toThrow(RangeError);
+  });
+});
+
+/**
+ * The bug this closes: the division filter ran even with no division chosen, so every
+ * division-scoped engagement was excluded and only client-wide ones survived. A client
+ * whose products are all division-scoped therefore offered NOTHING — and NewTicketModal
+ * hides the Product field when the list is empty, so the ticket form simply had no product
+ * option and no explanation for its absence.
+ *
+ * No division chosen means "not decided yet", not "match nothing".
+ */
+describe("availableProductScopes", () => {
+  const thermax = {
+    name: "Thermax",
+    divisions: [
+      { name: "Boiler", docname: "Thermax-BOI" },
+      { name: "Chemical", docname: "Thermax-CHM" },
+    ],
+    products: [
+      { product: "SmartFlow", divisions: ["Thermax-BOI"] },
+      { product: "Analytics Hub", divisions: [] }, // client-wide
+    ],
+  };
+  const clients = [thermax];
+  const names = (div: string) =>
+    availableProductScopes(clients, { client: "Thermax", div })
+      .map((p) => p.product)
+      .sort();
+
+  it("lists EVERY product the client runs when no division is chosen", () => {
+    expect(names("")).toEqual(["Analytics Hub", "SmartFlow"]);
+  });
+
+  it("narrows to that division, plus client-wide, once one is chosen", () => {
+    expect(names("Boiler")).toEqual(["Analytics Hub", "SmartFlow"]);
+    // Chemical does not run SmartFlow, so only the client-wide one survives.
+    expect(names("Chemical")).toEqual(["Analytics Hub"]);
+  });
+
+  it("flags which products are client-wide, so the two do not read as equivalent", () => {
+    const scopes = availableProductScopes(clients, { client: "Thermax", div: "" });
+    expect(scopes.find((p) => p.product === "Analytics Hub")?.clientWide).toBe(true);
+    expect(scopes.find((p) => p.product === "SmartFlow")?.clientWide).toBe(false);
+  });
+
+  it("treats a product as client-wide if ANY of its engagements is", () => {
+    // The same product attached twice: once scoped, once covering everything.
+    const dual = [
+      {
+        ...thermax,
+        products: [
+          { product: "SmartFlow", divisions: ["Thermax-BOI"] },
+          { product: "SmartFlow", divisions: [] },
+        ],
+      },
+    ];
+    const scopes = availableProductScopes(dual, { client: "Thermax", div: "" });
+    expect(scopes).toHaveLength(1); // deduped
+    expect(scopes[0].clientWide).toBe(true);
+  });
+
+  it("returns nothing for a client that is not on file", () => {
+    expect(availableProductScopes(clients, { client: "Nobody", div: "" })).toEqual([]);
+    expect(availableProductScopes([], { client: "Thermax", div: "" })).toEqual([]);
+  });
+
+  it("availableProducts still returns bare names, for callers that only need those", () => {
+    expect(availableProducts(clients, { client: "Thermax", div: "Chemical" })).toEqual(["Analytics Hub"]);
   });
 });
