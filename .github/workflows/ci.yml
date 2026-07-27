@@ -28,15 +28,24 @@ jobs:
   # ============================================================
   BUILD_AND_DEPLOY_PROD:
     name: Quality, Build & Deploy
-    # inventive-microscan-2, not inventive-microscan: the backend repo builds on the
-    # latter, and with both on one runner a frontend release queued behind a backend one
-    # (and vice versa) for the length of a full image build.
+    # Any self-hosted agent, not a named one.
     #
-    # This does NOT buy redundancy. Both runners are two agents on the SAME host, running
-    # as the same `ubuntu` user — so a failure of that machine still stops every build for
-    # the whole product. What it buys is concurrency, and concurrency is precisely what
-    # makes the credential isolation below mandatory rather than tidy.
-    runs-on: [self-hosted, inventive-microscan-2]
+    # This was pinned to inventive-microscan-2 so a frontend release would not queue behind
+    # a backend image build on inventive-microscan. It did buy that — and then -2 went
+    # offline and the frontend could not build AT ALL for over an hour, while the backend
+    # kept deploying happily on the other agent. Pinning turned a busy runner into a broken
+    # pipeline: a named label has no fallback, so one dead agent is a total outage for
+    # whichever repo named it.
+    #
+    # Unpinned, a build takes whichever agent is free. The cost is that the two repos can
+    # once again queue behind each other when both are busy — a slower release, which is a
+    # far better failure than no release. The DOCKER_CONFIG isolation below stays either
+    # way: with both repos able to land on the same agent, the shared
+    # ~/.docker/config.json that `docker logout` empties is once again reachable.
+    #
+    # Still not redundancy in the real sense — both agents are on ONE host, so losing the
+    # machine stops everything. This only survives losing an agent.
+    runs-on: [self-hosted]
     environment: Production
     timeout-minutes: 45
 
