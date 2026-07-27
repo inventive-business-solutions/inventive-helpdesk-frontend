@@ -5,17 +5,18 @@ import { Modal } from "@/components/ui/Modal";
 import { ModalFooter } from "@/components/ui/ModalFooter";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
-import { Field } from "@/components/ui/Field";
+import { Field, TextField } from "@/components/ui/Field";
 import { BackButton } from "@/components/ui/BackButton";
 import { ListToolbar } from "@/components/ui/ListToolbar";
 import { applySort, commonSorts, matches, useStoredSort } from "@/lib/listview";
 import { Badge } from "@/components/ui/Chips";
+import { ManageButton } from "@/components/ui/ManageButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { useSubmit } from "@/components/ui/useSubmit";
-import { initials } from "@/lib/helpers";
+import { initials, isEmail } from "@/lib/helpers";
 import * as api from "@/lib/frappe";
 import { TIER } from "@/lib/tiers";
 
@@ -32,6 +33,7 @@ import { TIER } from "@/lib/tiers";
 export function Admin() {
   const session = useStore((s) => s.session);
   const sendInvite = useStore((s) => s.sendInvite);
+  const updateMember = useStore((s) => s.updateMember);
   const members = useStore((s) => s.members);
   const toast = useToast();
   const { busy, run } = useSubmit();
@@ -39,11 +41,17 @@ export function Admin() {
   const [rows, setRows] = useState<api.AdminRow[] | null>(null);
   const [q, setQ] = useState("");
   const [confirm, setConfirm] = useState<{ row: api.AdminRow; next: boolean } | null>(null);
+  const [managing, setManaging] = useState<api.AdminRow | null>(null);
   // Candidates are fetched only when the picker opens: the list is only interesting at the
   // moment you are adding someone, and it goes stale the instant you promote one.
   const [adding, setAdding] = useState(false);
   const [candidates, setCandidates] = useState<api.AdminRow[] | null>(null);
   const [picked, setPicked] = useState("");
+  // An administrator need not be an agent — the person running the org may never work a
+  // ticket — so the dialog can create one outright rather than requiring them to be on
+  // the team first.
+  const [freshName, setFreshName] = useState("");
+  const [freshEmail, setFreshEmail] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -140,7 +148,7 @@ export function Admin() {
                 <th className="left">Name</th>
                 <th className="left">Email</th>
                 <th className="center">Access</th>
-                <th className="center">{TIER.admin}</th>
+                <th className="center">Manage</th>
               </tr>
             </thead>
             <tbody>
@@ -175,21 +183,9 @@ export function Admin() {
                     </td>
                     <td className="center">
                       {locked ? (
-                        <span className="muted" title={why}>
-                          —
-                        </span>
+                        <span className="muted">{why}</span>
                       ) : (
-                        <label
-                          className="check-row admin-toggle"
-                          title={`Toggle ${TIER.admin} access for ${r.member_name}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={r.is_admin}
-                            disabled={busy}
-                            onChange={() => setConfirm({ row: r, next: !r.is_admin })}
-                          />
-                        </label>
+                        <ManageButton subject={r.member_name} onClick={() => setManaging(r)} />
                       )}
                     </td>
                   </tr>
@@ -272,10 +268,50 @@ export function Admin() {
               </div>
             )}
 
-            {/* Invite is here because "add an administrator" and "that person has never
-                signed in" are the same moment in practice: without an account there is no
-                user to hold the role, and the endpoint refuses. Sending it from here saves
-                a trip to Members and back. */}
+            <div className="field">
+              <div className="field-label">Or invite someone new</div>
+              <div className="field-hint">
+                They do not need to be on a team — they will be emailed a set-password link and arrive as an{" "}
+                {TIER.admin}.
+              </div>
+              <div className="field-2">
+                <TextField
+                  label="Full name"
+                  value={freshName}
+                  placeholder="e.g. P. Deshmukh"
+                  onChange={setFreshName}
+                />
+                <TextField
+                  label="Email"
+                  type="email"
+                  value={freshEmail}
+                  placeholder="name@company.com"
+                  onChange={setFreshEmail}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                disabled={busy || !freshName.trim() || !isEmail(freshEmail)}
+                onClick={() =>
+                  run(() => api.inviteAdmin(freshName.trim(), freshEmail.trim()), {
+                    success: `Invite sent to ${freshEmail.trim()}`,
+                    onSuccess: () => {
+                      setFreshName("");
+                      setFreshEmail("");
+                      setAdding(false);
+                      void load();
+                    },
+                  })
+                }
+              >
+                <Icon name="mail" size={14} />
+                Invite as {TIER.admin}
+              </Button>
+            </div>
+
+            {/* Existing members who have never signed in: without an account there is no
+                user to hold the role, so the endpoint refuses them. Resending from here
+                saves a trip to Members and back. */}
             {pendingInvites.length > 0 && (
               <div className="field">
                 <div className="field-label">Not yet signed in</div>
@@ -306,6 +342,31 @@ export function Admin() {
         </Modal>
       )}
 
+      {managing && (
+        <ManageAdminModal
+          row={managing}
+          busy={busy}
+          onClose={() => setManaging(null)}
+          onSaveName={(name, title) =>
+            // The store action, not a raw call: a name change goes through the backend
+            // rename, which cascades the assignee/member Link references on tickets and
+            // teams. A direct field write would leave those pointing at the old name.
+            run(() => updateMember(managing.name, { name, title }), {
+              success: `${name} updated`,
+              onSuccess: () => {
+                setManaging(null);
+                void load();
+              },
+            })
+          }
+          onRevoke={() => {
+            const row = managing;
+            setManaging(null);
+            setConfirm({ row, next: false });
+          }}
+        />
+      )}
+
       {confirm && (
         <ConfirmDialog
           title={confirm.next ? `Grant ${TIER.admin} access` : `Revoke ${TIER.admin} access`}
@@ -321,5 +382,85 @@ export function Admin() {
         />
       )}
     </>
+  );
+}
+
+/** The manage view for one administrator: correct their name, or take their access away.
+ *
+ *  Both live behind one control because they are the two things you come to this row to
+ *  do, and a bare checkbox said neither — it offered exactly one of them, unlabelled, and
+ *  took effect on a mis-click. Revoking hands back to the page's confirm step rather than
+ *  acting here, so the consequence is spelled out before anything happens. */
+function ManageAdminModal({
+  row,
+  busy,
+  onClose,
+  onSaveName,
+  onRevoke,
+}: {
+  row: api.AdminRow;
+  busy: boolean;
+  onClose: () => void;
+  onSaveName: (name: string, title: string) => void;
+  onRevoke: () => void;
+}) {
+  const [name, setName] = useState(row.member_name);
+  const [title, setTitle] = useState(row.title ?? "");
+  const [err, setErr] = useState(false);
+  const dirty = name.trim() !== row.member_name || title.trim() !== (row.title ?? "");
+
+  return (
+    <Modal
+      title={`Manage ${row.member_name}`}
+      onClose={onClose}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim()) return setErr(true);
+        onSaveName(name.trim(), title.trim());
+      }}
+      footer={
+        <ModalFooter
+          submitLabel="Save changes"
+          busyLabel="Saving…"
+          busy={busy}
+          submitDisabled={!dirty}
+          onCancel={onClose}
+          left={
+            <Button variant="ghost" danger onClick={onRevoke} disabled={busy}>
+              Remove {TIER.admin} access
+            </Button>
+          }
+        />
+      }
+    >
+      <div className="modal-body">
+        <TextField
+          label="Full name"
+          required
+          value={name}
+          error={err}
+          autoFocus
+          onChange={(v) => {
+            setName(v);
+            if (err) setErr(false);
+          }}
+        />
+        <TextField
+          label="Job title"
+          optional
+          value={title}
+          placeholder="e.g. Operations Lead"
+          onChange={setTitle}
+        />
+        <Field label="Email">{() => <input value={row.email} readOnly />}</Field>
+        <div className="auth-note">
+          <Icon name="info" size={14} />
+          <div>
+            Email is how they sign in, so it is changed from <b>Members</b> rather than here. Removing access
+            leaves the person on the team — they go back to working tickets only.
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }

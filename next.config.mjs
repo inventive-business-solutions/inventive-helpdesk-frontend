@@ -101,6 +101,10 @@ const proxyRewrites = [
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.admin_candidates`,
   },
   {
+    source: "/api/frappe/method/inventive_helpdesk_backend.api.invite_admin",
+    destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.invite_admin`,
+  },
+  {
     source: "/api/frappe/method/inventive_helpdesk_backend.api.set_member_admin",
     destination: `${FRAPPE_URL}/api/method/inventive_helpdesk_backend.api.set_member_admin`,
   },
