@@ -34,5 +34,15 @@ export const config = {
   // paths like /socketXio. `_next` rather than `_next/static|_next/image`: every other
   // Next internal (HMR in dev, the build manifest) was being auth-gated and 307'd to
   // /login when signed out.
-  matcher: ["/((?!api|socket\\.io|frappe-files|_next|favicon.ico).*)"],
+  //
+  // `icon\.svg` is here for the same reason, and it is not hypothetical: the App Router
+  // serves app/icon.svg from the route root, so the tab icon was gated behind the session
+  // and answered with `307 -> /login?next=%2Ficon.svg`. The one visitor guaranteed to be
+  // signed out is the one looking at the sign-in page, so the icon was missing exactly
+  // where it was first seen. Any metadata file added later (apple-icon, opengraph-image,
+  // manifest) needs the same treatment — they are routes, not public/ assets.
+  //
+  // Dots escaped throughout. `favicon.ico` was matching `faviconXico` too; harmless in
+  // practice, but it is the identical defect the socket\.io note above describes.
+  matcher: ["/((?!api|socket\\.io|frappe-files|_next|favicon\\.ico|icon\\.svg).*)"],
 };

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Inventive Helpdesk">
+  <!-- The same mark the app draws in .brand-glyph: the `logo` icon on an accent tile.
+       Drawn on a filled tile rather than as a bare stroked glyph because a tab favicon
+       renders at 16px against an unknown background — a transparent line drawing
+       disappears on a dark tab strip and greys out on a light one. The tile also matches
+       what the user sees in the sidebar and on the sign-in panel, so the tab and the app
+       read as the same product. -->
+  <rect width="32" height="32" rx="7.5" fill="#4b53d6" />
+  <!-- The icon set's own 24x24 artwork, scaled to leave a margin inside the tile.
+       stroke-width is 2.6 rather than the UI's 2: the scale factor shrinks the stroke
+       with everything else, and at 16px a hairline reads as a smudge. -->
+  <g
+    transform="translate(5.8 5.8) scale(0.85)"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="2.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <circle cx="5" cy="6" r="2.2" />
+    <circle cx="19" cy="6" r="2.2" />
+    <circle cx="12" cy="18" r="2.2" />
+    <path d="M7.2 6h9.6M5 8.2V15a1.5 1.5 0 0 0 1.5 1.5h3.3M19 8.2V15a1.5 1.5 0 0 1-1.5 1.5h-3.3" />
+  </g>
+</svg>
