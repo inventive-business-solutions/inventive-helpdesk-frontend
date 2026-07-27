@@ -2590,6 +2590,18 @@ table.tk td {
 table.tk tbody tr:last-child td {
   border-bottom: none;
 }
+/* Gutters are the third saving, and the one nobody notices. 14px each side across eight
+   columns is 224px of pure padding — more than the Client column. Tightened to 9px once
+   the window is small enough that the space is worth more than the airiness, which is
+   also the point at which a scrollbar would otherwise appear. Vertical padding is
+   untouched: row rhythm is what makes a dense table scannable, and it costs no width. */
+@media (max-width: 1400px) {
+  table.tk th,
+  table.tk td {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+}
 table.tk tr.trow {
   cursor: pointer;
 }
@@ -2752,10 +2764,19 @@ table.tk .pill {
   align-items: flex-start;
   gap: 4px;
 }
+/* The two stacked chips stay the SAME width as each other — that is what makes the pair
+   read as one cell rather than two ragged tags — but that width now comes from the column
+   instead of a hardcoded 104px. "Low" is three characters and was being given 104px of
+   pill; on a narrow window that waste was pushing the whole table into a scrollbar.
+   Capped so a wide monitor does not stretch a two-word chip across the column. */
+table.tk .chip-stack {
+  width: 100%;
+  max-width: 132px;
+}
 table.tk .chip-stack .type-tag,
 table.tk .chip-stack .prio {
-  min-width: 104px;
-  width: 104px;
+  width: 100%;
+  min-width: 0;
   justify-content: center;
 }
 table.tk th.center,
@@ -2778,29 +2799,44 @@ table.tk-tickets.staff {
 table.tk-tickets.client {
   min-width: 760px;
 }
+/* Fluid columns: clamp(min, preferred, max) instead of one fixed pixel width.
+
+   These were fixed px and summed to 922px before Title, so the table needed ~1100px of
+   content. After a 232px sidebar that is a ~1400px viewport just to avoid a scrollbar —
+   every laptop below that scrolled horizontally on the main list in the product.
+
+   The percentage is the preferred width, so columns breathe on a wide monitor instead of
+   leaving the slack to Title alone. The min is what the content actually needs to stay
+   readable (an id is 12 mono chars, a status pill ~9), so on a narrow window they give
+   ground gracefully rather than all at once. The max stops a 2560px screen turning a
+   6-character Source column into a field of whitespace.
+
+   Mins total ~636px + Title, against 922px fixed before — so the list now fits without a
+   scrollbar at roughly 800px of content instead of 1100px. Below that it still scrolls,
+   and should: eight columns have a floor, and hiding data silently would be worse. */
 table.tk-tickets col.c-id {
-  width: 122px;
+  width: clamp(96px, 12%, 132px);
 }
 table.tk-tickets col.c-created {
-  width: 108px;
+  width: clamp(84px, 10%, 112px);
 }
 table.tk-tickets col.c-typeprio {
-  width: 136px;
+  width: clamp(88px, 12%, 140px);
 }
 table.tk-tickets col.c-type {
-  width: 124px;
+  width: clamp(84px, 11%, 128px);
 }
 table.tk-tickets col.c-client {
-  width: 168px;
+  width: clamp(112px, 16%, 184px);
 }
 table.tk-tickets col.c-team {
-  width: 168px;
+  width: clamp(112px, 16%, 184px);
 }
 table.tk-tickets col.c-source {
-  width: 72px;
+  width: clamp(48px, 6%, 76px);
 }
 table.tk-tickets col.c-status {
-  width: 148px;
+  width: clamp(96px, 14%, 152px);
 }
 table.tk-tickets td.t-id {
   overflow: hidden;
@@ -2827,7 +2863,11 @@ table.tk.tk-fixed td {
    instead of shoving the whole table out of alignment. */
 table.tk.tk-members {
   table-layout: fixed;
-  min-width: 960px;
+  /* Same reasoning as tk-contacts below, and deliberately barely moved: the Status chip is
+     min-width 90px in a 12% column with 10px gutters, so the real floor is
+     (90 + 20) / 0.12 = 917px. There is ~40px of slack here, not 90 — this table is
+     genuinely close to its content limit and pushing it lower would clip "Not Invited". */
+  min-width: 920px;
 }
 table.tk-members th,
 table.tk-members td {
@@ -2868,7 +2908,12 @@ table.tk-members td.center .badge {
    equal-width status chips, so columns stay aligned row-to-row. */
 table.tk.tk-contacts {
   table-layout: fixed;
-  min-width: 920px;
+  /* The columns here are already percentages, so this floor was the only thing forcing a
+     scrollbar. What actually sets it is the narrowest column's content: the Portal badge
+     is min-width 96px in a 14% column with 10px gutters, so the table cannot go below
+     (96 + 20) / 0.14 = 829px without the badge overflowing its cell. 840 leaves a little
+     headroom and nothing more — the old 920 was ~90px of scrollbar for no reason. */
+  min-width: 840px;
 }
 table.tk-contacts th,
 table.tk-contacts td {
