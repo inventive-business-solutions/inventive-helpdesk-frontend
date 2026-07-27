@@ -203,7 +203,10 @@ jobs:
       - name: Smoke the built image
         env:
           IMAGE_REF: ${{ vars.IMAGE_NAME }}:${{ github.sha }}
-          NAME: smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          # Repo-scoped, not just run-scoped. This host runs pipelines for other repos in
+          # the org, so the name has to be unambiguously ours — both to avoid a collision
+          # and so the cleanup sweep below can never match somebody else's container.
+          NAME: smoke-hd-frontend-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           # Port 0 lets Docker pick a free one — two runs on the same agent must not
@@ -307,11 +310,18 @@ jobs:
         run: |
           EXPECTED_SHA="${{ github.sha }}"
           HEALTH_URL="https://${{ vars.FRONTEND_DOMAIN }}/api/health"
-          echo "Waiting for container restart..."
-          sleep 45
-
-          MAX_ATTEMPTS=12
-          WAIT_SECONDS=15
+          # Poll from the first second rather than sleeping first. The old `sleep 45` was
+          # a guess at how long a restart takes, and it was consistently too long —
+          # measured on 2026-07-27 the container was already serving the new SHA 37s after
+          # the webhook, so every release paid ~45s of dead time and then still waited up
+          # to another 15s for the first probe. A stale reply costs nothing: the loop
+          # compares build SHAs, so the previous container answering is just a retry.
+          #
+          # Same worst-case budget as before (45 x 5s = 225s), spent on probing instead of
+          # waiting, so the typical release finishes verification in seconds.
+          MAX_ATTEMPTS=45
+          WAIT_SECONDS=5
+          echo "Polling for the new build..."
 
           for i in $(seq 1 $MAX_ATTEMPTS); do
             RESPONSE=$(curl -s --max-time 10 "$HEALTH_URL" || true)
@@ -337,6 +347,32 @@ jobs:
           echo "::error::Verification failed — $EXPECTED_SHA not live after $MAX_ATTEMPTS attempts"
           echo "status=unhealthy" >> "$GITHUB_OUTPUT"
           exit 1
+
+      # This agent is shared with other repos in the org, so the job cleans up after
+      # itself rather than leaving that to whoever runs next.
+      #
+      # `if: always()` and not the smoke step's own `trap`: the trap covers a normal exit
+      # or a failed assertion, but a CANCELLED job is killed without running it — and a
+      # leaked container would sit there holding memory and a published port on a machine
+      # that is also serving production. GitHub still runs always() steps on cancellation.
+      #
+      # The image tags matter more than they look: `load: true` puts a multi-hundred-MB
+      # image into the shared daemon on EVERY run, including development. Left alone that
+      # fills the host's disk, which would break every other pipeline on it long before it
+      # broke this one. The backend pipeline has done this since it started loading images.
+      #
+      # The sweep is filtered on our own prefix, so it can only ever match containers this
+      # workflow created — never another repo's.
+      - name: Clean up this job's containers and images
+        if: always()
+        run: |
+          docker rm -f "smoke-hd-frontend-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+          # Anything left by a previously cancelled run of THIS workflow.
+          stale=$(docker ps -aq --filter "name=^smoke-hd-frontend-" 2>/dev/null || true)
+          [ -n "$stale" ] && docker rm -f $stale >/dev/null 2>&1 || true
+          docker rmi -f "${{ vars.IMAGE_NAME }}:${{ github.sha }}" >/dev/null 2>&1 || true
+          docker rmi -f "${{ vars.IMAGE_NAME }}:latest" >/dev/null 2>&1 || true
+          echo "Runner cleaned: smoke container and local image tags removed."
 
       - name: Deployment summary
         if: always()
