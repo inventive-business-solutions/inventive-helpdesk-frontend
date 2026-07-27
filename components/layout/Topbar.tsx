@@ -3,6 +3,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
+import { TOPBAR_SLOT_ID } from "@/components/layout/TopbarSlot";
 
 function crumbFor(pathname: string): { section: string; leaf?: string } {
   if (pathname === "/") return { section: "Dashboard" };
@@ -48,11 +49,12 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
           <b>{section}</b>
         )}
       </div>
-      {/* Search used to sit here. It only ever searched tickets, so on Clients, Products,
-          Team or Contacts it was either useless or actively misleading — it navigated you
-          off the list you were reading. Each section now owns a box that searches itself.
-          The spacer stays so the crumb and the log-out button keep their positions. */}
-      <div className="topbar-center" />
+      {/* Centre slot. The GLOBAL search that used to live here is not coming back — it only
+          ever searched tickets, so on Clients or Products it was useless or actively
+          misleading. What fills this now is the current section's OWN search, portalled in
+          by that page (see TopbarSlot), so the position is shared and the behaviour is not.
+          Empty on pages without one, where it keeps the crumb and log-out button in place. */}
+      <div className="topbar-center" id={TOPBAR_SLOT_ID} />
       <button type="button" className="btn ghost" title="Log out" onClick={onLogout}>
         <Icon name="signout" size={16} />
         Log out

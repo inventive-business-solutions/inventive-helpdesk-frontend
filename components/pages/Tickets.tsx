@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import { type SelectOption } from "@/components/ui/Select";
 import { FacetBar } from "@/components/ui/FacetBar";
 import { SearchInput } from "@/components/ui/SearchInput";
+import { TopbarSlot } from "@/components/layout/TopbarSlot";
 import { SortMenu } from "@/components/ui/SortMenu";
 import { applySort, commonSorts, useStoredSort } from "@/lib/listview";
 import { Pagination } from "@/components/ui/Pagination";
@@ -530,13 +531,15 @@ export function Tickets() {
       {/* This page's own search. It used to live in the Topbar, where it was the only way
           to set `q` — a single box that searched tickets no matter which section you were
           looking at, and navigated you off that section to do it. */}
-      <div className="tickets-search">
+      <TopbarSlot>
         <SearchInput
           value={q ?? ""}
           onChange={setSearch}
           placeholder="Search tickets…"
           ariaLabel="Search tickets by subject, client or contact"
         />
+      </TopbarSlot>
+      <div className="tickets-search">
         <SortMenu options={sortOptions} value={sort} onChange={setSort} />
       </div>
 

@@ -1,12 +1,14 @@
 "use client";
 import type { ReactNode } from "react";
 import { SearchInput } from "./SearchInput";
+import { TopbarSlot } from "@/components/layout/TopbarSlot";
 import { SortMenu } from "./SortMenu";
 import type { SortOption } from "@/lib/listview";
 
 /**
- * The header strip above every master-data list: the search box centred, section-specific
- * filters to its left, and the result count and sort control to its right.
+ * The strip above every master-data list: section-specific filters on the left, the result
+ * count and sort control on the right. The search box is not here — it is portalled into
+ * the topbar's centre, so it holds one position across every section.
  *
  * Generalised from the toolbar the Contacts page already had, so all five lists present
  * the same control in the same place instead of Contacts having filters and the rest
