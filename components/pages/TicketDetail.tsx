@@ -23,6 +23,9 @@ const stamp = (iso?: string) => (iso ? `${fmtShortDate(iso)}, ${fmtTime(iso)}` :
 import { useAutoRefresh, TICKET_POLL_MS } from "@/lib/useAutoRefresh";
 import { onRealtime, subscribeDoc } from "@/lib/realtime";
 import { attachmentHref } from "@/lib/frappe";
+import { Popover, MenuList, type MenuOption } from "@/components/ui/Menu";
+import { AttachmentPreview } from "@/components/ui/AttachmentPreview";
+import { attachmentIcon, attachmentKind, canPreview, hasBlockingIssue, officeApp } from "@/lib/attachments";
 import type {
   Activity,
   Attachment,
@@ -93,24 +96,94 @@ function describeActivity(a: Activity) {
   }
 }
 
-function AttachChips({ list }: { list?: Attachment[] }) {
+/**
+ * One attachment, and what can be done with it.
+ *
+ * This used to be a bare link carrying BOTH `target="_blank"` and `download`. For a
+ * same-origin link `download` wins, so every attachment downloaded — a screenshot, a PDF and
+ * a spreadsheet all behaved identically, and viewing one meant finding it on disk afterwards.
+ * Nothing about the file pipeline required that: Frappe already serves these inline-capable.
+ *
+ * The menu is per-type, with the useful action first. Office files keep downloading, because
+ * a browser cannot render them and the honest fix is to say so — see the Office branch.
+ */
+function AttachChip({ att, onPreview }: { att: Attachment; onPreview: (a: Attachment) => void }) {
+  const href = attachmentHref(att.url);
+  const kind = attachmentKind(att.name);
+  const app = officeApp(att.name);
+
+  const options: MenuOption[] = [];
+  if (canPreview(att.name)) {
+    options.push({
+      value: "preview",
+      label: kind === "video" ? "Play here" : "Preview here",
+    });
+    options.push({ value: "tab", label: "Open in new tab" });
+  } else if (kind === "office") {
+    // Deliberately NOT an "open in Microsoft 365" link. The Office web viewer fetches the
+    // file from Microsoft's servers, and these are private, session-gated files on our own
+    // domain — Microsoft cannot reach them, so such a link would only ever show an error.
+    // Making it work means publishing the file behind a signed public URL, which is a
+    // decision about client data and not one this menu should quietly take.
+    options.push({ value: "download", label: `Download and open in ${app ?? "its app"}` });
+  } else {
+    options.push({ value: "download", label: "Download" });
+  }
+  if (!options.some((o) => o.value === "download")) options.push({ value: "download", label: "Download" });
+
+  const act = (value: string) => {
+    if (value === "preview") return onPreview(att);
+    const a = document.createElement("a");
+    a.href = href;
+    if (value === "download") a.download = att.name;
+    else {
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+    }
+    a.click();
+  };
+
+  return (
+    <Popover
+      ariaLabel={`Actions for ${att.name}`}
+      minWidth={196}
+      trigger={({ ref, onClick, open }) => (
+        <button
+          type="button"
+          ref={ref}
+          onClick={onClick}
+          className={`attach ${open ? "open" : ""}`.trim()}
+          title={att.name}
+        >
+          <Icon name={attachmentIcon(att.name)} size={14} />
+          {att.name}
+          <Icon name="chevronDown" size={11} className="attach-caret" />
+        </button>
+      )}
+    >
+      {({ close }) => (
+        <MenuList
+          options={options}
+          onSelect={(v) => {
+            act(v);
+            close();
+          }}
+        />
+      )}
+    </Popover>
+  );
+}
+
+function AttachChips({ list, onPreview }: { list?: Attachment[]; onPreview: (a: Attachment) => void }) {
   if (!list || !list.length) return null;
   return (
     <div className="d-attach" style={{ marginTop: 8 }}>
       {list.map((a, i) =>
         a.url ? (
-          <a
-            className="attach"
-            key={`${a.name}-${i}`}
-            href={attachmentHref(a.url)}
-            target="_blank"
-            rel="noopener noreferrer"
-            download={a.name}
-          >
-            <Icon name="paperclip" size={14} />
-            {a.name}
-          </a>
+          <AttachChip att={a} onPreview={onPreview} key={`${a.name}-${i}`} />
         ) : (
+          // No URL means the upload never completed. Nothing to open, so no menu — the chip
+          // is a record that something was meant to be here.
           <span className="attach" key={`${a.name}-${i}`}>
             <Icon name="paperclip" size={14} />
             {a.name}
@@ -220,6 +293,9 @@ export function TicketDetail({ id }: { id: string }) {
   const unreachable = senderKind === "No Reply";
   const willEmail = !unreachable && (!canChooseEmail || emailReply || !ticket?.firstResponseEmailedOn);
   const [text, setText] = useState("");
+  /** The attachment being viewed, or null. Held here rather than per-chip so only one
+   *  preview can be open at a time — three chip lists render on this page. */
+  const [preview, setPreview] = useState<Attachment | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -562,7 +638,7 @@ export function TicketDetail({ id }: { id: string }) {
                   "Unregistered sender" is meaningless read by the sender. */}
               {isAdmin ? <SenderBadge ticket={ticket} /> : null}
               <div className="d-desc">{ticket.desc}</div>
-              <AttachChips list={ticket.attachments} />
+              <AttachChips list={ticket.attachments} onPreview={setPreview} />
             </div>
           </div>
 
@@ -616,7 +692,7 @@ export function TicketDetail({ id }: { id: string }) {
                             <span className="tm">{m.tm}</span>
                           </div>
                           <div className="tx">{m.body}</div>
-                          <AttachChips list={m.attachments} />
+                          <AttachChips list={m.attachments} onPreview={setPreview} />
                         </div>
                       </div>
                     ))
@@ -646,7 +722,7 @@ export function TicketDetail({ id }: { id: string }) {
                               <span className="tm">{n.tm}</span>
                             </div>
                             <div className="tx">{n.body}</div>
-                            <AttachChips list={n.attachments} />
+                            <AttachChips list={n.attachments} onPreview={setPreview} />
                           </div>
                         </div>
                       ))
@@ -775,7 +851,10 @@ export function TicketDetail({ id }: { id: string }) {
                           : undefined
                       }
                       onClick={send}
-                      disabled={sending || !detailLoaded}
+                      // Blocked on an over-cap file: the server would refuse the upload
+                      // anyway, and finding that out after writing the reply is the worst
+                      // moment to learn it. The notice under the chips says which file.
+                      disabled={sending || !detailLoaded || hasBlockingIssue(files)}
                     >
                       {sending
                         ? "Sending…"
@@ -1034,6 +1113,8 @@ export function TicketDetail({ id }: { id: string }) {
           )}
         </aside>
       </div>
+
+      {preview && <AttachmentPreview attachment={preview} onClose={() => setPreview(null)} />}
 
       {leaveTo !== null && (
         <AlertDialog

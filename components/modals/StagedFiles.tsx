@@ -1,16 +1,23 @@
 "use client";
 import { useRef } from "react";
 import { Icon } from "../ui/Icon";
+import { attachmentIcon, stagedFileIssues } from "../../lib/attachments";
 
 /** Removable chips of staged (not-yet-uploaded) file names. Shared by the full
- *  StagedFiles control and the ticket-reply composer so the chip UX stays identical. */
+ *  StagedFiles control and the ticket-reply composer so the chip UX stays identical.
+ *
+ *  The size notices live HERE rather than at each call site, so both paths that stage files
+ *  get them without either having to remember. Video is the case that needs it: it is the
+ *  only type that routinely passes 10 MB, and until now the first anyone heard of the cap
+ *  was a failed upload after the wait. */
 export function StagedFileChips({ files, onRemove }: { files: File[]; onRemove: (index: number) => void }) {
   if (files.length === 0) return null;
+  const issues = stagedFileIssues(files);
   return (
     <div className="staged-attachments">
       {files.map((f, i) => (
         <span className="attach staged" key={`${f.name}-${i}`}>
-          <Icon name="paperclip" size={14} />
+          <Icon name={attachmentIcon(f.name)} size={14} />
           {f.name}
           <button
             type="button"
@@ -22,6 +29,18 @@ export function StagedFileChips({ files, onRemove }: { files: File[]; onRemove: 
             <Icon name="x" size={12} strokeWidth={2.4} />
           </button>
         </span>
+      ))}
+      {issues.map((issue, i) => (
+        <div
+          key={`issue-${i}`}
+          className={`staged-note ${issue.reason === "too-large" ? "bad" : ""}`.trim()}
+          // Assertive for a blocker, polite for a heads-up: one stops the send and the other
+          // does not, and a screen reader should not treat them the same.
+          role={issue.reason === "too-large" ? "alert" : "status"}
+        >
+          <Icon name={issue.reason === "too-large" ? "alert" : "info"} size={13} />
+          {issue.message}
+        </div>
       ))}
     </div>
   );

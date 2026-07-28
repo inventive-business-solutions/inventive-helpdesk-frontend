@@ -110,6 +110,43 @@ const PATHS: Record<string, ReactNode> = {
   paperclip: (
     <path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.49-8.49" />
   ),
+  // Attachment types, so a chip says what it is before it is opened. Same 24px box and
+  // stroke conventions as everything above.
+  image: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.6" />
+      <path d="M21 15l-5-5L5 21" />
+    </>
+  ),
+  video: (
+    <>
+      <rect x="2" y="5" width="14" height="14" rx="2" />
+      <path d="M22 8.5l-6 3.5 6 3.5z" />
+    </>
+  ),
+  /* A page with lines — PDFs and Word documents. The folded corner distinguishes it from
+     `sheet`, which is a grid. */
+  doc: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </>
+  ),
+  sheet: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 10h18M9 10v10M3 15h18" />
+    </>
+  ),
+  download: <path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />,
+  /* Arrow leaving a box — "opens somewhere that is not here". */
+  externalLink: (
+    <>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <path d="M15 3h6v6M10 14L21 3" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

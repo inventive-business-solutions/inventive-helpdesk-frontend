@@ -31,6 +31,11 @@ const DYNAMIC = new Set([
   // lib/helpers.ts — typeClass: "type-" + (t === "New Feature" ? "Feature" : t).
   "type-Improvement",
   "type-Query",
+  // ui/AttachmentPreview.tsx — `att-view att-view-${kind}` over AttachmentKind. Only the
+  // kinds that can actually be previewed reach it; the others never open this dialog.
+  "att-view-image",
+  "att-view-pdf",
+  "att-view-video",
 ]);
 
 /** Units and keywords the `.foo` pattern picks up out of values like `0.5rem`. */

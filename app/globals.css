@@ -3509,6 +3509,73 @@ table.tk-contacts .row-actions {
   height: 14px;
   flex: none;
 }
+/* The chip is a menu trigger now, not a link, so it needs the affordances a <button> does
+   not inherit from .attach: a pointer, and a caret saying there is something to open. */
+button.attach {
+  cursor: pointer;
+  max-width: 100%;
+  text-align: left;
+}
+button.attach:hover,
+button.attach.open {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.attach-caret {
+  opacity: 0.55;
+  margin-left: -1px;
+}
+
+/* Size notices under the staged chips. `bad` is the one that blocks the send; the other is
+   a heads-up, and they must not look alike or the blocking one stops registering. */
+.staged-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.staged-note svg {
+  flex: none;
+}
+.staged-note.bad {
+  color: var(--critical);
+  font-weight: 500;
+}
+
+/* ---- attachment viewer ---------------------------------------------------
+   Sized against the viewport, not the content: a 4000px screenshot and a 600px one should
+   both open at a usable size, and the dialog must not grow past the screen for either. */
+.att-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
+  background: var(--surface-2);
+  min-height: 220px;
+}
+.att-view img,
+.att-view video {
+  /* Contained, never upscaled: blowing a small screenshot up to fill the dialog makes it
+     less readable, not more. */
+  max-width: 100%;
+  max-height: min(70vh, 720px);
+  object-fit: contain;
+  border-radius: 8px;
+}
+.att-view-pdf {
+  padding: 0;
+}
+.att-view iframe {
+  width: 100%;
+  height: min(72vh, 780px);
+  border: 0;
+  display: block;
+}
+
 .attach.staged {
   background: var(--accent-sf);
   border-color: color-mix(in srgb, var(--accent) 30%, var(--line));

@@ -10,6 +10,7 @@ import { StagedFiles } from "./StagedFiles";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
 import { availableProductScopes, initials, productsForDivisions } from "../../lib/helpers";
+import { hasBlockingIssue } from "../../lib/attachments";
 import type { Priority, TicketType } from "../../types";
 
 const TYPE_OPTIONS: { type: TicketType; hint: string; icon: IconName; color: string }[] = [
@@ -133,7 +134,10 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
           submitLabel={isClient ? "Submit ticket" : "Create ticket"}
           busyLabel="Saving…"
           busy={saving}
-          submitDisabled={noClients || divisionless}
+          // Also blocked while an over-cap file is staged — the upload would be refused and
+          // the ticket would already exist by then, leaving a ticket without the evidence
+          // that motivated it.
+          submitDisabled={noClients || divisionless || hasBlockingIssue(files)}
           onCancel={onClose}
         />
       }
