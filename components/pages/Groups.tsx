@@ -15,6 +15,7 @@ import { Pagination } from "../ui/Pagination";
 import { Select } from "../ui/Select";
 import { CreateGroupModal } from "../modals/CreateGroupModal";
 import { AddGroupMemberModal } from "../modals/AddGroupMemberModal";
+import { EditGroupModal } from "../modals/EditGroupModal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useSubmit } from "../ui/useSubmit";
 import { initials } from "../../lib/helpers";
@@ -31,14 +32,14 @@ function TeamCard({
   byName,
   perPage,
   onAddMember,
-  onDeleteTeam,
+  onManage,
   onRemoveMember,
 }: {
   group: Group;
   byName: (n: string) => TeamMember | undefined;
   perPage: number;
   onAddMember: () => void;
-  onDeleteTeam: () => void;
+  onManage: () => void;
   onRemoveMember: (member: string) => void;
 }) {
   const [page, setPage] = useState(1);
@@ -73,7 +74,17 @@ function TeamCard({
           <Button variant="ghost" onClick={onAddMember}>
             + Add member
           </Button>
-          <IconButton icon={<Icon name="x" />} label="Delete team" onClick={onDeleteTeam} />
+          {/* Replaces the bare ✕. Deleting a team now happens inside Manage, while looking
+              at what is being deleted — the same move Products and Team already made, and
+              the reason a one-click destructive control does not sit in a card header.
+
+              A Button, not the shared ManageButton: that one is a ROW action, fixed at
+              108px and 12px text so a column of them aligns. Here it stands next to
+              "+ Add member" at 13.5px, and the two rendered at visibly different heights.
+              Products can use ManageButton in its header because nothing sits beside it. */}
+          <Button variant="ghost" icon={<Icon name="pencil" size={16} />} onClick={onManage}>
+            Manage
+          </Button>
         </div>
       </div>
       <div className="table-wrap">
@@ -172,6 +183,7 @@ export function Groups() {
   const { busy, run } = useSubmit();
   const [showCreate, setShowCreate] = useState(false);
   const [addTarget, setAddTarget] = useState<string | null>(null);
+  const [manageTarget, setManageTarget] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   // Global "members shown per team", applied to every team card below.
   const [perTeam, setPerTeam] = useState(MEMBER_PAGE_SIZES[0]);
@@ -268,7 +280,7 @@ export function Groups() {
           byName={byName}
           perPage={perTeam}
           onAddMember={() => setAddTarget(g.name)}
-          onDeleteTeam={() => setConfirm({ kind: "group", group: g.name })}
+          onManage={() => setManageTarget(g.name)}
           onRemoveMember={(member) => setConfirm({ kind: "member", group: g.name, member })}
         />
       ))}
@@ -301,6 +313,20 @@ export function Groups() {
 
       {showCreate && <CreateGroupModal onClose={() => setShowCreate(false)} />}
       {addTarget && <AddGroupMemberModal group={addTarget} onClose={() => setAddTarget(null)} />}
+      {manageTarget && (
+        <EditGroupModal
+          group={manageTarget}
+          onClose={() => setManageTarget(null)}
+          // Closes Manage before raising the confirm rather than stacking one dialog on
+          // another: two modals fight over focus and Escape, and the confirm has to be the
+          // thing Escape cancels.
+          onDelete={() => {
+            const g = manageTarget;
+            setManageTarget(null);
+            setConfirm({ kind: "group", group: g });
+          }}
+        />
+      )}
       {confirm?.kind === "group" && (
         <ConfirmDialog
           title="Delete team"

@@ -556,6 +556,9 @@ interface Store {
   removeMember: (name: string) => Promise<void>;
   sendInvite: (name: string) => Promise<void>;
   addGroup: (name: string, lead?: string) => Promise<void>;
+  /** Rename a team and/or set its lead. `lead: ""` clears it. Renaming cascades to every
+   *  ticket routed to the team, server-side. */
+  updateGroup: (name: string, patch: { group_name?: string; lead?: string }) => Promise<void>;
   removeGroup: (name: string) => Promise<void>;
   addGroupMember: (group: string, member: string) => Promise<void>;
   removeGroupMember: (group: string, member: string) => Promise<void>;
@@ -1040,6 +1043,16 @@ export const useStore = create<Store>()((set, get) => {
         ...(lead ? { lead, members: [{ member: lead }] } : {}),
       });
       await get().reloadTeam();
+    },
+    updateGroup: async (name, patch) => {
+      const renaming = !!patch.group_name && patch.group_name !== name;
+      if (renaming && get().groups.some((g) => g.name.toLowerCase() === patch.group_name!.toLowerCase()))
+        throw new api.UserError("A team with that name already exists.");
+      await api.updateGroup(name, patch);
+      // A rename rewrites Support Ticket.assignment_group server-side, so the tickets in the
+      // store still carry the old team name. reloadTeam alone would leave them stale —
+      // filtering by team would silently return nothing until the next poll.
+      await (renaming ? get().reload() : get().reloadTeam());
     },
     removeGroup: async (name) => {
       await Promise.all(

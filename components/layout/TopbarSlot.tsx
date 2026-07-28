@@ -2,10 +2,6 @@
 import { useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-/** The id of the centre region in Topbar. Exported so the two ends of this portal name the
- *  same string rather than repeating a literal. */
-export const TOPBAR_SLOT_ID = "topbar-slot";
-
 /**
  * Render a section's own control into the topbar's centre.
  *
@@ -19,26 +15,56 @@ export const TOPBAR_SLOT_ID = "topbar-slot";
  * reason, since a centred box in a header otherwise reads as a global search, which is
  * what this app deliberately does not have.
  *
- * Renders nothing on the server and nothing during hydration, then portals once mounted.
- * The target lives in AppShell, an ancestor, so it is in the DOM by then.
+ * ## Why the target is registered rather than looked up
  *
- * `useSyncExternalStore` rather than the usual useState-in-an-effect: that pattern sets
- * state synchronously inside an effect, which costs a second render pass on every mount and
- * is flagged by react-hooks/set-state-in-effect. A store whose snapshot is a constant gives
- * the same client/server split with no state and no extra pass — the subscribe callback is
- * empty because nothing here ever changes after mount.
+ * This used to read `document.getElementById` during render, once, and render nothing if it
+ * came back null — with a comment asserting the topbar "is in the DOM by then". That is true
+ * only if the topbar commits first, and nothing guarantees the order: the shell gates on
+ * session boot, so a page's search can mount in a pass where the topbar has not. When it
+ * lost that race the lookup returned null and NOTHING EVER ASKED AGAIN, because a plain DOM
+ * read gives React nothing to re-render on. The search box simply never appeared, and which
+ * way it fell varied per page load — reported as a search bar that comes and goes on reload.
+ *
+ * Registering inverts it. The topbar hands its node over via a ref callback, which React
+ * runs at commit in both directions, and this subscribes. Mount in either order and the
+ * portal still lands: if the slot arrives second, the subscription re-renders this.
+ *
+ * It also stops reading the DOM during render, which was impure — a render React discarded
+ * (concurrent, StrictMode) would still have queried live document state.
  */
-const neverChanges = () => () => {};
+
+let slot: HTMLElement | null = null;
+const listeners = new Set<() => void>();
+
+/** Ref callback for the topbar's centre region. React calls it with the element on mount and
+ *  with null on unmount, so registration and teardown need no effect of their own. */
+export function registerTopbarSlot(node: HTMLElement | null) {
+  slot = node;
+  // A ref callback must not return a value — React 19 treats a returned function as the
+  // cleanup. `forEach` returns undefined and the braces swallow it, which is what we want.
+  listeners.forEach((l) => l());
+}
+
+export function subscribeTopbarSlot(onChange: () => void) {
+  listeners.add(onChange);
+  return () => {
+    listeners.delete(onChange);
+  };
+}
+
+/** The registered node, or null. Exported alongside `subscribeTopbarSlot` because the two
+ *  are one contract, and because a registry is only testable if its state is readable. */
+export function getTopbarSlot() {
+  return slot;
+}
+
+/** Null on the server and through hydration, so the markup matches; the subscription then
+ *  supplies the real node once the topbar commits. */
+const noSlot = () => null;
 
 export function TopbarSlot({ children }: { children: ReactNode }) {
-  const mounted = useSyncExternalStore(
-    neverChanges,
-    () => true,
-    () => false,
-  );
-  if (!mounted) return null;
-  // Guarded: pages outside AppShell (sign-in, set-password) have no topbar, and
+  const node = useSyncExternalStore(subscribeTopbarSlot, getTopbarSlot, noSlot);
+  // Still guarded: pages outside AppShell (sign-in, set-password) have no topbar at all, and
   // createPortal throws on a null container rather than skipping.
-  const node = document.getElementById(TOPBAR_SLOT_ID);
   return node ? createPortal(children, node) : null;
 }

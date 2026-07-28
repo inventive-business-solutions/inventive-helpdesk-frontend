@@ -3,7 +3,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { Icon } from "@/components/ui/Icon";
 import { IconButton } from "@/components/ui/IconButton";
-import { TOPBAR_SLOT_ID } from "@/components/layout/TopbarSlot";
+import { registerTopbarSlot } from "@/components/layout/TopbarSlot";
 
 function crumbFor(pathname: string): { section: string; leaf?: string } {
   if (pathname === "/") return { section: "Dashboard" };
@@ -58,7 +58,7 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
           misleading. What fills this now is the current section's OWN search, portalled in
           by that page (see TopbarSlot), so the position is shared and the behaviour is not.
           Empty on pages without one, where it keeps the crumb and log-out button in place. */}
-      <div className="topbar-center" id={TOPBAR_SLOT_ID} />
+      <div className="topbar-center" ref={registerTopbarSlot} />
       <button type="button" className="btn ghost" title="Log out" onClick={onLogout}>
         <Icon name="signout" size={16} />
         Log out

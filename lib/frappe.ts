@@ -456,6 +456,12 @@ export function updateClient(
 ) {
   return call<string>("inventive_helpdesk_backend.api.update_client", { name, ...patch });
 }
+/** Rename a team and/or set its lead. `lead: ""` clears it; omitting `lead` leaves it
+ *  alone. Returns the (possibly new) team name — a rename changes the docname, so the
+ *  caller cannot assume the one it sent still addresses the team afterwards. */
+export function updateGroup(name: string, patch: { group_name?: string; lead?: string }) {
+  return call<string>("inventive_helpdesk_backend.api.update_group", { name, ...patch });
+}
 export function updateProduct(name: string, patch: { product_name?: string }) {
   return call<string>("inventive_helpdesk_backend.api.update_product", { name, ...patch });
 }
