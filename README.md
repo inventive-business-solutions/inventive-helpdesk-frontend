@@ -25,8 +25,12 @@ The Next server proxies a fixed allowlist of endpoints under `/api/frappe/*` to 
 (see `next.config.mjs`), so the browser only ever calls **same-origin** and the Frappe session
 cookie (`sid`) is carried automatically — no CORS, no cross-site cookies, no token juggling.
 Whitelisted server methods live under the `inventive_helpdesk_backend.*` Python module path
-(e.g. `inventive_helpdesk_backend.api.me`). See [`docs/BACKEND-NOTES.md`](docs/BACKEND-NOTES.md)
-for the full frontend↔backend contract.
+(e.g. `inventive_helpdesk_backend.api.me`). The backend repo's `docs/ARCHITECTURE.md` holds
+the full endpoint contract.
+
+> Adding an endpoint or a static asset means updating **three** allowlists, not one: the
+> `next.config.mjs` rewrites (frozen into the routes manifest at build time), the `proxy.ts`
+> matcher, and the caller. Miss any one and the route 404s with nothing in the logs.
 
 ---
 
@@ -135,7 +139,6 @@ types.ts                 domain model
 next.config.mjs          same-origin Frappe proxy + security headers
 Dockerfile               production image (Next standalone)
 app/globals.css          design system
-docs/BACKEND-NOTES.md    frontend↔backend API contract
 CICD.md                  build pipeline, Portainer/Swarm deployment, rollback
 ```
 
