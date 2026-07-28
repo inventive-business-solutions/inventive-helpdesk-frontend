@@ -7,6 +7,7 @@ import { Icon } from "../ui/Icon";
 import { CheckList } from "../ui/CheckList";
 import { ModalFooter } from "../ui/ModalFooter";
 import { Button } from "../ui/Button";
+import { AlertDialog } from "../ui/AlertDialog";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
 import { useSubmit } from "../ui/useSubmit";
@@ -49,6 +50,10 @@ export function AddPocModal({
   const toast = useToast();
   const { busy, run } = useSubmit();
   const editing = !!poc?.id;
+  /** Raised when a save would leave an existing contact with no divisions at all. Not a
+   *  toast: this is the step that silently removed someone from every screen and locked
+   *  them out of raising tickets, and it needs an answer rather than an acknowledgement. */
+  const [confirmStrip, setConfirmStrip] = useState(false);
 
   // The caller's values are the starting point, not a cage: opened from the Contacts page
   // with a client filter active, that client is preselected but still changeable.
@@ -97,10 +102,24 @@ export function AddPocModal({
       );
       return;
     }
+    // Removing the LAST division is not the same edit as removing one of several. It takes
+    // away every ticket they can see, and — until this dialog offered a way back — took them
+    // off the Contacts directory too, leaving a working login attached to nobody. Ask, and
+    // offer the answer that is usually meant: they are a client lead now.
+    if (editing && !poc?.isLead && divisions.length === 0 && (poc?.divisions.length ?? 0) > 0) {
+      setConfirmStrip(true);
+      return;
+    }
+    save();
+  };
+
+  /** The actual write, split out so the confirmation above can call it unchanged. */
+  const save = (asClientLead = false) => {
     run(
       editing
         ? () =>
             updatePoc(poc!.id!, {
+              isLead: asClientLead || undefined,
               name: name.trim(),
               email: email.trim(),
               phone: phone.trim() || undefined,
@@ -291,6 +310,48 @@ export function AddPocModal({
           </div>
         )}
       </div>
+
+      {confirmStrip && (
+        <AlertDialog
+          tone="warning"
+          nested
+          title={`Remove ${poc?.name}'s last division?`}
+          message={
+            `${poc?.name} will no longer see any ticket for ${pickedClient}, and their portal ` +
+            `sign-in keeps working. Make them a client lead instead to keep them at client ` +
+            `level, or continue and they will be listed under Unassigned on the Contacts page.`
+          }
+          onDismiss={() => setConfirmStrip(false)}
+          disableDismiss={busy}
+          actions={
+            <>
+              <Button variant="ghost" onClick={() => setConfirmStrip(false)} disabled={busy}>
+                Keep divisions
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setConfirmStrip(false);
+                  save(); // leave them unassigned — now a findable state, not a disappearance
+                }}
+                disabled={busy}
+              >
+                Leave unassigned
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setConfirmStrip(false);
+                  save(true); // promote: client-level, keeps client-wide visibility
+                }}
+                disabled={busy}
+              >
+                Make client lead
+              </Button>
+            </>
+          }
+        />
+      )}
     </Modal>
   );
 }

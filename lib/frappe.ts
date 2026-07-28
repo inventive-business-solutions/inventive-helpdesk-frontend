@@ -496,7 +496,7 @@ export function deleteProduct(name: string) {
 }
 export function updatePoc(
   name: string,
-  patch: { poc_name?: string; email?: string; phone?: string; divisions?: string[] },
+  patch: { poc_name?: string; email?: string; phone?: string; divisions?: string[]; is_lead?: 1 },
 ) {
   return call<string>("inventive_helpdesk_backend.api.update_poc", { name, ...patch });
 }
@@ -1031,6 +1031,12 @@ export function assembleClients(
       // they can be found and re-assigned; they also still appear under each division they
       // oversee, which is what makes the division card tell the truth about who sees it.
       leads: mine.filter((p) => p.isLead),
+      // Everyone else with nothing to attach them to. `mine` is every POC of this client, so
+      // between these three buckets — divisions[].pocs, leads, unassigned — no contact of a
+      // client can fail to appear somewhere. That was the defect: the first two did not
+      // cover a non-lead holding no divisions, so removing someone's last division deleted
+      // them from the UI while leaving them in the database, still able to sign in.
+      unassigned: mine.filter((p) => !p.isLead && !p.divisions.length),
       divisions: divisions
         .filter((d) => d.client === c.name)
         .map<Division>((d) => ({

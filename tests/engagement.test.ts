@@ -16,6 +16,7 @@ const client = (divisions: string[]): Client => ({
   status: "Active",
   products: [],
   leads: [],
+  unassigned: [],
   divisions: divisions.map((d) => ({ name: d, code: d.slice(0, 3).toUpperCase(), pocs: [] })),
 });
 

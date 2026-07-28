@@ -103,6 +103,15 @@ export interface Client extends Stamped {
   products: ClientProduct[];
   /** Leads: client-level contacts, not attached to any one division. */
   leads: Poc[];
+  /** Contacts belonging to this client that hold NO divisions and are NOT leads.
+   *
+   *  Before this existed they were rendered by nothing: the Contacts page listed
+   *  division-holders and division-less LEADS, and a plain contact whose last division was
+   *  toggled off matched neither. The record stayed, the login kept working, and the person
+   *  vanished from every screen — including the one you would go to in order to put them
+   *  back. Kept as its own bucket rather than folded into `leads`, because being unassigned
+   *  is a state to resolve, not a role. */
+  unassigned: Poc[];
   divisions: Division[];
 }
 

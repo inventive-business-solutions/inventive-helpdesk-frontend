@@ -24,6 +24,10 @@ import type { Poc, PortalStatus } from "@/types";
 // display names, matching what AddPocModal / the store's divDocname() expect).
 type Row = { poc: Poc; client: string; div: string };
 
+/** Division-filter sentinel for "holds no division at all". A real division name can never
+ *  collide with it — Frappe would have to accept a division literally called this. */
+const UNASSIGNED = "\u0000unassigned";
+
 const PORTAL_OPTS: SelectOption[] = [
   { value: "", label: "All portal states" },
   { value: "active", label: "Active" },
@@ -57,16 +61,22 @@ export function Contacts() {
   // Every POC across every client/division, sorted for a stable directory order.
   //
   // A contact holding several divisions appears once per division — that is what the
-  // Division column is for. But a Lead holding NONE appeared nowhere at all: they exist,
-  // the Clients page shows them, and this directory silently omitted them, so the one
-  // place you would go to find and fix an unassigned contact was the one place that hid
-  // them. They are listed here with an empty division.
+  // Division column is for. Contacts holding NONE are listed once with an empty division,
+  // and there are two kinds: a Lead, who is client-level by design, and someone whose last
+  // division was removed, who is not.
+  //
+  // The second kind used to appear nowhere at all. Toggling off a contact's last division
+  // deleted them from every screen while leaving the record intact and their login working
+  // — so the one page you would visit to put them back was the one page that hid them.
+  // `unassigned` is that third bucket; between the three, no contact of a client can fail
+  // to show up here.
   const allRows = useMemo<Row[]>(
     () =>
       clients
         .flatMap((c) => [
           ...c.divisions.flatMap((d) => d.pocs.map((poc) => ({ poc, client: c.name, div: d.name }))),
           ...c.leads.filter((l) => !l.divisions.length).map((poc) => ({ poc, client: c.name, div: "" })),
+          ...c.unassigned.map((poc) => ({ poc, client: c.name, div: "" })),
         ])
         .sort(
           (a, b) =>
@@ -85,6 +95,11 @@ export function Contacts() {
   const selectedClient = clients.find((c) => c.name === clientF);
   const divOpts: SelectOption[] = [
     { value: "", label: "All divisions" },
+    // The point of the bucket: "who is not attached to anything" has to be a question the
+    // directory can answer, or an unassigned contact is only findable by knowing their name
+    // already. Offered whatever client is selected, since being unassigned is not a property
+    // of a division.
+    { value: UNASSIGNED, label: "— Unassigned —" },
     ...(selectedClient?.divisions.map((d) => ({ value: d.name, label: d.name })) ?? []),
   ];
 
@@ -114,7 +129,7 @@ export function Contacts() {
   const rows = useMemo(() => {
     const filtered = allRows.filter((r) => {
       if (clientF && r.client !== clientF) return false;
-      if (divF && r.div !== divF) return false;
+      if (divF === UNASSIGNED ? !!r.div : divF && r.div !== divF) return false;
       if (portalF && (r.poc.portal ?? "none") !== portalF) return false;
       if (q) {
         const needle = q.toLowerCase();

@@ -597,3 +597,70 @@ describe("keepHydratedDetail — attachments", () => {
     expect(merged.attachments[0].name).toBe("new.png");
   });
 });
+
+/**
+ * The contact who vanished.
+ *
+ * Reported: an admin toggled a contact's last division off, and the person disappeared from
+ * the entire UI — no Contacts row, no division card, nothing on the client — while their
+ * record survived and their portal login kept working. They could not raise a ticket either
+ * (an empty division set denies), so they were locked out AND unreachable: the page you
+ * would visit to put them back was the page that hid them.
+ *
+ * Cause: a client's contacts were bucketed as division-holders or LEADS, and a non-lead
+ * holding no divisions is neither. `unassigned` is the third bucket, and these assert the
+ * property that matters — every contact of a client lands in exactly one of the three.
+ */
+describe("assembleClients — no contact can fall out of every bucket", () => {
+  const raw = (email: string, isLead = 0): RawPoc => ({
+    name: email,
+    poc_name: email.split("@")[0],
+    email,
+    client: "Thermax",
+    is_lead: isLead as 0 | 1,
+  });
+  const divisions: RawDivision[] = [
+    { name: "Thermax-HTG", division_name: "Heating", division_code: "HTG", client: "Thermax" },
+  ];
+  const clients: RawClient[] = [{ name: "Thermax", client_code: "THX" }];
+
+  it("puts a division-less non-lead in `unassigned` — the reported bug", () => {
+    const [c] = assembleClients(clients, divisions, [raw("viraj@x.com")], new Map(), []);
+    expect(c.divisions[0].pocs).toHaveLength(0);
+    expect(c.leads).toHaveLength(0);
+    expect(c.unassigned.map((p) => p.email)).toEqual(["viraj@x.com"]);
+  });
+
+  it("keeps a division-less LEAD in `leads`, not `unassigned`", () => {
+    // Being a lead is a role; being unassigned is a state to resolve. Folding them together
+    // would put a deliberately client-level contact in a bucket that reads as "broken".
+    const [c] = assembleClients(clients, divisions, [raw("lead@x.com", 1)], new Map(), []);
+    expect(c.leads.map((p) => p.email)).toEqual(["lead@x.com"]);
+    expect(c.unassigned).toHaveLength(0);
+  });
+
+  it("does not treat a division-holder as unassigned", () => {
+    const pocDivs = [{ parent: "poc@x.com", division: "Thermax-HTG" }];
+    const [c] = assembleClients(clients, divisions, [raw("poc@x.com")], new Map(), pocDivs);
+    expect(c.divisions[0].pocs.map((p) => p.email)).toEqual(["poc@x.com"]);
+    expect(c.unassigned).toHaveLength(0);
+  });
+
+  it("accounts for EVERY contact across the three buckets", () => {
+    // The invariant, stated directly: whatever the mix, nobody is dropped.
+    const pocDivs = [{ parent: "poc@x.com", division: "Thermax-HTG" }];
+    const [c] = assembleClients(
+      clients,
+      divisions,
+      [raw("poc@x.com"), raw("lead@x.com", 1), raw("viraj@x.com")],
+      new Map(),
+      pocDivs,
+    );
+    const seen = new Set([
+      ...c.divisions.flatMap((d) => d.pocs.map((p) => p.email)),
+      ...c.leads.map((p) => p.email),
+      ...c.unassigned.map((p) => p.email),
+    ]);
+    expect(seen).toEqual(new Set(["poc@x.com", "lead@x.com", "viraj@x.com"]));
+  });
+});

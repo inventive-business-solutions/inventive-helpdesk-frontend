@@ -628,7 +628,7 @@ interface Store {
   deleteProduct: (name: string) => Promise<void>;
   updatePoc: (
     pocId: string,
-    patch: { name: string; email: string; phone?: string; divisions?: string[] },
+    patch: { name: string; email: string; phone?: string; divisions?: string[]; isLead?: true },
   ) => Promise<void>;
   invitePoc: (pocId: string) => Promise<{ user: string; email_sent: boolean }>;
   removePoc: (pocId: string) => Promise<void>;
@@ -1267,6 +1267,9 @@ export const useStore = create<Store>()((set, get) => {
         email: patch.email,
         phone: patch.phone,
         divisions: patch.divisions,
+        // Only ever sent to PROMOTE. Omitted otherwise so an ordinary edit cannot silently
+        // demote a lead — update_poc treats None as "leave alone".
+        ...(patch.isLead ? { is_lead: 1 as const } : {}),
       });
       await get().reloadMasters();
     },
