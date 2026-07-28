@@ -4174,26 +4174,6 @@ button.stat:not(:disabled):hover {
   color: var(--muted);
   padding: 12px 4px;
 }
-.add-poc {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent);
-  background: none;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-top: 6px;
-  width: 100%;
-  cursor: pointer;
-}
-.add-poc:hover {
-  border-color: var(--accent);
-  background: var(--accent-sf);
-}
 .div-empty {
   font-size: 12.5px;
   color: var(--muted);
@@ -5289,6 +5269,13 @@ button.stat:not(:disabled):hover {
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
+/* On a client card these sections sit inside .cc-body, which supplies the 20px inset. The
+   team card has no padded body — its members table is deliberately full-bleed — so the head
+   carries the card's own inset itself, matching .cc-head's 20px so the eyebrow lines up
+   under the team name rather than floating 20px to its left. */
+.team-section-head {
+  padding: 2px 20px 0;
+}
 
 /* ---- row lists (Products and Divisions) -----------------------------------
    One bordered container per section, rows divided by hairlines rather than each row
@@ -5414,7 +5401,7 @@ button.stat:not(:disabled):hover {
 }
 /* The expanded division details span the whole row rather than sitting in column 1. */
 .row-item > .poc-list,
-.row-item > .add-poc {
+.row-item > .add-inline {
   grid-column: 1 / -1;
 }
 
@@ -5600,8 +5587,17 @@ button.stat:not(:disabled):hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "Add another one of these", sitting under the list it adds to. Dashed rather than solid
+   so it reads as an empty slot waiting to be filled, not as the section's primary action —
+   that one lives in the page header.
+
+   `.add-poc` was declared TWICE, and this block (being later) already won every property
+   the earlier one also set. Only justify-content, margin-top and width survived from it, so
+   the earlier block was almost entirely dead weight that read as if it were in force. Merged
+   here, with those three kept on the full-width variant alone: `.add-lead` never received
+   them and must not start now. Renamed off "poc" because Teams uses it too. */
 .add-lead,
-.add-poc {
+.add-inline {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -5615,8 +5611,13 @@ button.stat:not(:disabled):hover {
   padding: 7px 12px;
   cursor: pointer;
 }
+.add-inline {
+  justify-content: center;
+  margin-top: 6px;
+  width: 100%;
+}
 .add-lead:hover,
-.add-poc:hover {
+.add-inline:hover {
   border-color: var(--accent);
   background: var(--accent-sf);
 }

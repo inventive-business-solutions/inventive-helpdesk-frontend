@@ -443,7 +443,7 @@ export function Clients() {
                           )}
                           {expanded && (
                             <button
-                              className="add-poc"
+                              className="add-inline"
                               onClick={() => setPocTarget({ client: cl.name, div: d.name })}
                             >
                               <Icon name="plus" size={13} />

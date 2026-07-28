@@ -10,6 +10,7 @@ import { MasterTruncationNotice } from "../ui/TruncationNotice";
 import { applySort, commonSorts, countSort, matches, useStoredSort } from "../../lib/listview";
 import { Icon } from "../ui/Icon";
 import { IconButton } from "../ui/IconButton";
+import { ManageButton } from "../ui/ManageButton";
 import { EmptyState } from "../ui/EmptyState";
 import { Pagination } from "../ui/Pagination";
 import { Select } from "../ui/Select";
@@ -70,22 +71,24 @@ function TeamCard({
             Team Lead: <span className="tl-name">{group.lead ?? "None"}</span>
           </div>
         </div>
+        {/* One control, the same 108px ManageButton every other section's header uses —
+            this card was the only place in the app doing something different. Deleting
+            lives inside it rather than as a bare ✕ here, the move Products and Team already
+            made. Adding a member is not a peer of Manage and no longer sits beside it: it
+            belongs to the members list and moved to that list's own section head. */}
         <div className="cc-actions">
-          <Button variant="ghost" onClick={onAddMember}>
-            + Add member
-          </Button>
-          {/* Replaces the bare ✕. Deleting a team now happens inside Manage, while looking
-              at what is being deleted — the same move Products and Team already made, and
-              the reason a one-click destructive control does not sit in a card header.
-
-              A Button, not the shared ManageButton: that one is a ROW action, fixed at
-              108px and 12px text so a column of them aligns. Here it stands next to
-              "+ Add member" at 13.5px, and the two rendered at visibly different heights.
-              Products can use ManageButton in its header because nothing sits beside it. */}
-          <Button variant="ghost" icon={<Icon name="pencil" size={16} />} onClick={onManage}>
-            Manage
-          </Button>
+          <ManageButton subject={group.name} onClick={onManage} />
         </div>
+      </div>
+      {/* The same section head the client card uses for Products and Client leads: eyebrow
+          on the left, its one add control on the right. Adding a member belongs to the
+          members list, not beside Manage in the card header — and it only exists here, on a
+          card, which is to say only once the team has been created. */}
+      <div className="cc-section-head team-section-head">
+        <span className="eyebrow">Members</span>
+        <Button variant="ghost" icon={<Icon name="plus" size={13} />} onClick={onAddMember}>
+          Member
+        </Button>
       </div>
       <div className="table-wrap">
         <table className="tk tk-fixed">
@@ -137,7 +140,7 @@ function TeamCard({
               <tr>
                 <td colSpan={4}>
                   <EmptyState>
-                    No members yet — use <b>Add member</b> to add your first.
+                    No members yet — use <b>+ Member</b> to add your first.
                   </EmptyState>
                 </td>
               </tr>
