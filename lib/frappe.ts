@@ -1013,7 +1013,7 @@ export interface RawGroupMember {
  *  rows are permission-checked through their parent, so Frappe needs telling which parent
  *  doctype to check against. Same technique already used for POC Division above. */
 export function assembleGroups(
-  groups: (RawStamps & { name: string; group_name?: string })[],
+  groups: (RawStamps & { name: string; group_name?: string; lead?: string | null })[],
   memberRows: RawGroupMember[] = [],
 ): Group[] {
   const members = byParent(memberRows, "member");
@@ -1022,6 +1022,9 @@ export function assembleGroups(
     // rather than relying on that, since the docname is what the child rows join on.
     name: g.group_name || g.name,
     members: members.get(g.name) ?? [],
+    // Frappe returns "" for an unset Link, not null. Left as `undefined` so "has no lead"
+    // is one value rather than two that every caller would have to test for separately.
+    ...(g.lead ? { lead: g.lead } : {}),
     ...toStamps(g),
   }));
 }

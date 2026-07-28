@@ -351,6 +351,29 @@ describe("toMember / assembleGroups", () => {
       { name: "Empty", members: [] },
     ]);
   });
+
+  it("carries the team lead through, and leaves it absent when there is none", () => {
+    // Frappe returns "" for an unset Link, never null-or-missing consistently. Normalising
+    // all three to "key absent" means "has no lead" is ONE thing to test for downstream --
+    // `g.lead === name` in removeMember would otherwise have to guard "" as well, and the
+    // one that gets forgotten is the one that blocks a member deletion.
+    expect(
+      assembleGroups(
+        [
+          { name: "CAD", group_name: "CAD", lead: "Kiran Jaware" },
+          { name: "Finance", group_name: "Finance", lead: "" },
+          { name: "Legal", group_name: "Legal", lead: null },
+          { name: "Ops", group_name: "Ops" },
+        ],
+        [],
+      ),
+    ).toEqual([
+      { name: "CAD", members: [], lead: "Kiran Jaware" },
+      { name: "Finance", members: [] },
+      { name: "Legal", members: [] },
+      { name: "Ops", members: [] },
+    ]);
+  });
 });
 
 describe("keepHydratedDetail — the 30s list poll must not blank an open ticket", () => {

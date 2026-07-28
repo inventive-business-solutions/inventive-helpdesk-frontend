@@ -29,17 +29,23 @@ type Confirm = { kind: "group"; group: string } | { kind: "member"; group: strin
 function TeamCard({
   group,
   byName,
+  allMembers,
   perPage,
   onAddMember,
   onDeleteTeam,
   onRemoveMember,
+  onSetLead,
 }: {
   group: Group;
   byName: (n: string) => TeamMember | undefined;
+  /** Every Team Member, not just this team's — picking a lead adds them to the team, so
+   *  the candidates are not limited to who is already in it. */
+  allMembers: TeamMember[];
   perPage: number;
   onAddMember: () => void;
   onDeleteTeam: () => void;
   onRemoveMember: (member: string) => void;
+  onSetLead: (lead: string) => void;
 }) {
   const [page, setPage] = useState(1);
   useEffect(() => setPage(1), [perPage]); // reset when the global page size changes
@@ -62,6 +68,24 @@ function TeamCard({
           <div className="cl" style={{ fontSize: 12.5, color: "var(--muted)" }}>
             {total} {total === 1 ? "member" : "members"}
           </div>
+          {/* Hidden entirely when nobody exists to be a lead: a picker whose only row is
+              "no lead" is a control that cannot do anything. */}
+          {allMembers.length > 0 && (
+            <div className="team-lead">
+              <span>Lead</span>
+              <Select
+                className="plain"
+                label="Team lead"
+                ariaLabel={`Team lead for ${group.name}`}
+                value={group.lead ?? ""}
+                options={[
+                  { value: "", label: "— None —" },
+                  ...allMembers.map((m) => ({ value: m.name, label: m.name })),
+                ]}
+                onChange={onSetLead}
+              />
+            </div>
+          )}
         </div>
         <div className="cc-actions">
           <Button variant="ghost" onClick={onAddMember}>
@@ -163,6 +187,7 @@ export function Groups() {
   const members = useStore((s) => s.members);
   const removeGroup = useStore((s) => s.removeGroup);
   const removeGroupMember = useStore((s) => s.removeGroupMember);
+  const setGroupLead = useStore((s) => s.setGroupLead);
   const { busy, run } = useSubmit();
   const [showCreate, setShowCreate] = useState(false);
   const [addTarget, setAddTarget] = useState<string | null>(null);
@@ -260,10 +285,12 @@ export function Groups() {
           key={g.name}
           group={g}
           byName={byName}
+          allMembers={members}
           perPage={perTeam}
           onAddMember={() => setAddTarget(g.name)}
           onDeleteTeam={() => setConfirm({ kind: "group", group: g.name })}
           onRemoveMember={(member) => setConfirm({ kind: "member", group: g.name, member })}
+          onSetLead={(lead) => void run(() => setGroupLead(g.name, lead))}
         />
       ))}
 

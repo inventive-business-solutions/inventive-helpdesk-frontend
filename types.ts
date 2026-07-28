@@ -63,6 +63,9 @@ export interface TeamMember extends Stamped {
 export interface Group extends Stamped {
   name: string;
   members: string[]; // member names
+  /** Team Member name, or absent. Optional by design — a team can run without one, and a
+   *  lead who leaves has to be clearable without taking the team down with them. */
+  lead?: string;
 }
 
 export interface Division {

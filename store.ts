@@ -72,10 +72,13 @@ async function fetchTeam() {
     // getDoc per group purely to read its members child table.
     (async () => {
       const [gnames, memberRows] = await Promise.all([
-        api.getList<api.RawStamps & { name: string; group_name: string }>("Assignment Group", {
-          fields: ["name", "group_name", "creation", "modified"],
-          limit: MASTER_FETCH_CAP,
-        }),
+        api.getList<api.RawStamps & { name: string; group_name: string; lead?: string | null }>(
+          "Assignment Group",
+          {
+            fields: ["name", "group_name", "lead", "creation", "modified"],
+            limit: MASTER_FETCH_CAP,
+          },
+        ),
         // `idx asc` preserves the order the child table stores them in, which is what
         // the per-group getDoc used to return; grouping by parent keeps that order
         // within each group.
@@ -549,7 +552,10 @@ interface Store {
   updateMember: (name: string, patch: { name?: string; title?: string; email?: string }) => Promise<void>;
   removeMember: (name: string) => Promise<void>;
   sendInvite: (name: string) => Promise<void>;
-  addGroup: (name: string) => Promise<void>;
+  addGroup: (name: string, lead?: string) => Promise<void>;
+  /** Set or clear a team's lead. Pass "" to clear. A named lead is added to the team if
+   *  they are not already in it — a lead who is not on their own team reads as a bug. */
+  setGroupLead: (group: string, lead: string) => Promise<void>;
   removeGroup: (name: string) => Promise<void>;
   addGroupMember: (group: string, member: string) => Promise<void>;
   removeGroupMember: (group: string, member: string) => Promise<void>;
@@ -994,11 +1000,17 @@ export const useStore = create<Store>()((set, get) => {
       await get().reload();
     },
     removeMember: async (name) => {
-      // Clear links first so Frappe allows the delete.
-      for (const g of get().groups.filter((g) => g.members.includes(name))) {
+      // Clear links first so Frappe allows the delete. `lead` is a second link into Team
+      // Member on the same doctype, so it has to be cleared here too — miss it and removing
+      // anyone who leads a team fails with "linked with Assignment Group", pointing at a
+      // doctype the reader was not editing. Filtered on either link, not just membership,
+      // since a lead is normally also a member but nothing guarantees it for teams created
+      // before this field existed.
+      for (const g of get().groups.filter((g) => g.members.includes(name) || g.lead === name)) {
         const gdoc = await api.getDoc<{ members?: { member: string }[] }>("Assignment Group", g.name);
         await api.updateDoc("Assignment Group", g.name, {
           members: (gdoc.members || []).filter((m) => m.member !== name),
+          ...(g.lead === name ? { lead: "" } : {}),
         });
       }
       await Promise.all(
@@ -1017,10 +1029,29 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     // ---- groups ----
-    addGroup: async (name) => {
+    addGroup: async (name, lead) => {
       if (get().groups.some((g) => g.name.toLowerCase() === name.toLowerCase()))
         throw new api.UserError("A team with that name already exists.");
-      await api.createDoc("Assignment Group", { group_name: name });
+      // The lead joins the team they lead. Written in the same insert rather than as a
+      // follow-up update, so there is no window where a team exists with a lead who is not
+      // in it — and nothing to unwind if the second call were to fail.
+      await api.createDoc("Assignment Group", {
+        group_name: name,
+        ...(lead ? { lead, members: [{ member: lead }] } : {}),
+      });
+      await get().reloadTeam();
+    },
+    setGroupLead: async (group, lead) => {
+      const gdoc = await api.getDoc<{ members?: { member: string }[] }>("Assignment Group", group);
+      const members = gdoc.members || [];
+      await api.updateDoc("Assignment Group", group, {
+        // "" rather than null: this is how Frappe clears a Link, and it round-trips through
+        // assembleGroups back to `undefined`.
+        lead: lead || "",
+        ...(lead && !members.some((m) => m.member === lead)
+          ? { members: [...members, { member: lead }] }
+          : {}),
+      });
       await get().reloadTeam();
     },
     removeGroup: async (name) => {
@@ -1043,6 +1074,10 @@ export const useStore = create<Store>()((set, get) => {
       const gdoc = await api.getDoc<{ members?: { member: string }[] }>("Assignment Group", group);
       await api.updateDoc("Assignment Group", group, {
         members: (gdoc.members || []).filter((m) => m.member !== member),
+        // Taking the lead out of the team clears the lead. Leaving it set would produce
+        // exactly the state adding them was meant to prevent: a team led by someone who is
+        // not on it.
+        ...(get().groups.find((g) => g.name === group)?.lead === member ? { lead: "" } : {}),
       });
       await get().reloadTeam();
     },
