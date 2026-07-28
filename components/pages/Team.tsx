@@ -1,11 +1,12 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useStore } from "../../store";
 import { Button } from "../ui/Button";
 import { BackButton } from "../ui/BackButton";
 import { ListToolbar } from "../ui/ListToolbar";
 import { MasterTruncationNotice } from "../ui/TruncationNotice";
 import { applySort, commonSorts, countSort, matches, useStoredSort } from "../../lib/listview";
+import { usePagedState } from "../../lib/usePagedState";
 import { Icon } from "../ui/Icon";
 import { ManageButton } from "../ui/ManageButton";
 import { Badge } from "../ui/Chips";
@@ -27,7 +28,6 @@ export function Team() {
   const [showAdd, setShowAdd] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<TeamMember | null>(null);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [q, setQ] = useState("");
 
@@ -64,6 +64,7 @@ export function Team() {
   );
   const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
   const [sort, setSort] = useStoredSort("members", sortKeys);
+  const [page, setPage] = usePagedState([q, sort]);
 
   // Search covers the columns actually on screen — name, title, email — plus the teams
   // they belong to, since "who is on the Boiler team" is a question this table answers.
@@ -99,7 +100,6 @@ export function Team() {
 
   // Back to page 1 whenever the result set changes, so narrowing the list never leaves
   // you stranded on a page that no longer exists.
-  useEffect(() => setPage(1), [q, sort]);
 
   return (
     <>

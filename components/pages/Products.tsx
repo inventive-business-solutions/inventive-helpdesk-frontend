@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "../../store";
 import { Button } from "../ui/Button";
@@ -7,6 +7,7 @@ import { BackButton, withOrigin } from "../ui/BackButton";
 import { ListToolbar } from "../ui/ListToolbar";
 import { MasterTruncationNotice } from "../ui/TruncationNotice";
 import { applySort, commonSorts, countSort, matches, useStoredSort } from "../../lib/listview";
+import { usePagedState } from "../../lib/usePagedState";
 import { emptyReason } from "../../lib/emptyState";
 import { Icon } from "../ui/Icon";
 import { ManageButton } from "../ui/ManageButton";
@@ -50,7 +51,6 @@ export function Products() {
   } | null>(null);
   const [engTarget, setEngTarget] = useState<{ client: string; eng: ClientProduct } | null>(null);
   const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   // Group clients by the products they run. Driven by `client.products` — the Client
@@ -88,6 +88,7 @@ export function Products() {
   );
   const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
   const [sort, setSort] = useStoredSort("products", sortKeys);
+  const [page, setPage] = usePagedState([q, sort, tab]);
 
   // Search matches the product name or any client running it, so "who runs Helpdesk" and
   // "what does Thermax run" are both answerable from this one box.
@@ -122,7 +123,6 @@ export function Products() {
   const totalPages = Math.max(1, Math.ceil(inTab.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
   const pageItems = inTab.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
-  useEffect(() => setPage(1), [q, sort, tab]);
 
   /** The engagements one client holds for this product, and the divisions they cover.
    *  An engagement with no divisions covers the client as a whole, so it contributes

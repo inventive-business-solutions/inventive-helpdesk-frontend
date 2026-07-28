@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
 import { BackButton } from "@/components/ui/BackButton";
 import { ListToolbar } from "@/components/ui/ListToolbar";
 import { MasterTruncationNotice } from "@/components/ui/TruncationNotice";
 import { applySort, byName, commonSorts, useStoredSort } from "@/lib/listview";
+import { usePagedState } from "@/lib/usePagedState";
 import { Icon } from "@/components/ui/Icon";
 import { ManageButton } from "@/components/ui/ManageButton";
 import { Badge } from "@/components/ui/Chips";
@@ -48,7 +49,6 @@ export function Contacts() {
   const [clientF, setClientF] = useState("");
   const [divF, setDivF] = useState("");
   const [portalF, setPortalF] = useState("");
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const [pocTarget, setPocTarget] = useState<{ client: string; div: string; poc?: Poc } | null>(null);
@@ -136,7 +136,7 @@ export function Contacts() {
 
   // Reset to page 1 whenever the result set changes, so you never land on an empty page.
   const filterKey = `${q}|${clientF}|${divF}|${portalF}|${sort}`;
-  useEffect(() => setPage(1), [filterKey]);
+  const [page, setPage] = usePagedState([filterKey]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageSafe = Math.min(page, totalPages);

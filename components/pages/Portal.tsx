@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +14,7 @@ import { WelcomeHeader } from "@/components/ui/WelcomeHeader";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { TruncationNotice } from "@/components/ui/TruncationNotice";
 import { buildFacets, type FacetOpts } from "@/lib/facets";
+import { usePagedState } from "@/lib/usePagedState";
 import { MONTHS, RESOLVED, isActive, parseISO, productsForDivisions } from "@/lib/helpers";
 import type { Status, TicketType } from "@/types";
 
@@ -46,14 +47,13 @@ export function Portal() {
   const [productF, setProductF] = useState("");
   const [monthF, setMonthF] = useState("");
   const [yearF, setYearF] = useState("");
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const openTicket = (tid: string) => router.push(`/portal/tickets/${tid}`);
 
   // Reset to page 1 whenever any filter changes (so you never land on an empty page).
   const filterKey = `${filter}|${statusF}|${typeF}|${sourceF}|${productF}|${monthF}|${yearF}`;
-  useEffect(() => setPage(1), [filterKey]);
+  const [page, setPage] = usePagedState([filterKey]);
 
   if (!session) return null;
 

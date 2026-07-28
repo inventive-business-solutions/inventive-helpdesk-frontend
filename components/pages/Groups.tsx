@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "../../store";
 import { Button } from "../ui/Button";
 import { BackButton } from "../ui/BackButton";
@@ -8,6 +8,7 @@ import { MasterTruncationNotice } from "../ui/TruncationNotice";
 // Not `byName` — this file already has a local one that looks a member up by name, and
 // importing the comparator under the same identifier would shadow it.
 import { applySort, commonSorts, countSort, matches, useStoredSort } from "../../lib/listview";
+import { usePagedState } from "../../lib/usePagedState";
 import { Icon } from "../ui/Icon";
 import { IconButton } from "../ui/IconButton";
 import { ManageButton } from "../ui/ManageButton";
@@ -43,8 +44,9 @@ function TeamCard({
   onManage: () => void;
   onRemoveMember: (member: string) => void;
 }) {
-  const [page, setPage] = useState(1);
-  useEffect(() => setPage(1), [perPage]); // reset when the global page size changes
+  // Resets when the global "members per team" size changes — a page 3 sized for 5 rows
+  // is not page 3 sized for 15.
+  const [page, setPage] = usePagedState([perPage]);
 
   const total = group.members.length;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
@@ -197,7 +199,6 @@ export function Groups() {
   // Global "members shown per team", applied to every team card below.
   const [perTeam, setPerTeam] = useState(MEMBER_PAGE_SIZES[0]);
   const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const byName = (n: string) => members.find((m) => m.name === n);
@@ -219,6 +220,7 @@ export function Groups() {
   );
   const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
   const [sort, setSort] = useStoredSort("teams", sortKeys);
+  const [page, setPage] = usePagedState([q, sort]);
 
   // Searching a team by one of its members is the point: "which team is Priya on" is
   // easier to ask than to remember.
@@ -236,7 +238,6 @@ export function Groups() {
   const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
   const pageItems = shown.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
-  useEffect(() => setPage(1), [q, sort]);
 
   return (
     <>

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
@@ -11,6 +11,7 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { TopbarSlot } from "@/components/layout/TopbarSlot";
 import { SortMenu } from "@/components/ui/SortMenu";
 import { applySort, commonSorts, useStoredSort } from "@/lib/listview";
+import { usePagedState } from "@/lib/usePagedState";
 import { Pagination } from "@/components/ui/Pagination";
 import { TicketTable } from "@/components/ui/TicketTable";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -59,10 +60,9 @@ export function Tickets() {
   // own teams (their "my work" views live in the sidebar). See buildFacets.
   const session = useStore((s) => s.session);
   const [showNew, setShowNew] = useState(false);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const filterKey = sp.toString();
-  useEffect(() => setPage(1), [filterKey]); // any filter/search change → back to page 1
+  const [page, setPage] = usePagedState([filterKey]);
 
   // Changes one query param while preserving every other active filter.
   const setParam = (key: string, value: string) => {

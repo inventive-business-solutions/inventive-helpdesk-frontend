@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
@@ -7,6 +7,7 @@ import { BackButton, withOrigin } from "@/components/ui/BackButton";
 import { ListToolbar } from "@/components/ui/ListToolbar";
 import { MasterTruncationNotice } from "@/components/ui/TruncationNotice";
 import { applySort, commonSorts, countSort, matches, useStoredSort } from "@/lib/listview";
+import { usePagedState } from "@/lib/usePagedState";
 import { Icon } from "@/components/ui/Icon";
 import { ManageButton } from "@/components/ui/ManageButton";
 import { StatTile } from "@/components/ui/StatTile";
@@ -69,7 +70,6 @@ export function Clients() {
   const [leadTarget, setLeadTarget] = useState<{ client: string; poc: Poc } | null>(null);
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
@@ -134,6 +134,7 @@ export function Clients() {
   );
   const sortKeys = useMemo(() => sortOptions.map((o) => o.key), [sortOptions]);
   const [sort, setSort] = useStoredSort("clients", sortKeys);
+  const [page, setPage] = usePagedState([q, sort]);
 
   // Searching by division or contact matters as much as by company name — "which client
   // is the Boiler division" and "who is Priya with" are both asked from this page.
@@ -163,7 +164,6 @@ export function Clients() {
   const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
   const pageItems = shown.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
-  useEffect(() => setPage(1), [q, sort]);
 
   return (
     <>
