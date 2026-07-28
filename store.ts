@@ -740,22 +740,32 @@ export const useStore = create<Store>()((set, get) => {
       // Activate an invited account: set the password (server logs them in, the cookie
       // comes back through the proxy) then boot the session so the caller can route by
       // role — same tail as signIn, minus the login() call.
+      // Only this call can fail because the LINK was bad. Everything after it runs with the
+      // password already changed on the server, so its failures are wrapped — exactly as
+      // signIn does after api.login, and for the same reason. Unwrapped, a permission gap
+      // or a backend hiccup surfaced its own message on the activation screen, next to a
+      // form that still looked unsubmitted: the password had in fact been set, and the
+      // reader was told something that read like the attempt had failed.
       await api.setPassword(key, newPassword);
-      const ctx = await api.me();
-      if (!ctx || ctx.user === "Guest" || !ctx.role) {
-        throw new api.UserError(
-          "This account isn't set up for the support app — contact your administrator.",
-        );
+      try {
+        const ctx = await api.me();
+        if (!ctx || ctx.user === "Guest" || !ctx.role) {
+          throw new api.UserError(
+            "This account isn't set up for the support app — contact your administrator.",
+          );
+        }
+        api.setCsrfToken(ctx.csrf_token);
+        const session = sessionFromCtx(ctx);
+        const masters = await fetchMasters(session.role);
+        const { tickets, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
+        markTabSession(true);
+        set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
+        void refreshUnread();
+        void refreshAdminCount();
+        return session;
+      } catch (err) {
+        throw api.asPostAuthError(err);
       }
-      api.setCsrfToken(ctx.csrf_token);
-      const session = sessionFromCtx(ctx);
-      const masters = await fetchMasters(session.role);
-      const { tickets, truncated } = await fetchTickets(masters.divIndex, scopeFor(session));
-      markTabSession(true);
-      set({ session, ...masters, tickets, ticketsTruncated: truncated, booted: true });
-      void refreshUnread();
-      void refreshAdminCount();
-      return session;
     },
     restore: async () => {
       // Only resume a prior sign-in within the same tab. On a fresh open (new tab

@@ -149,7 +149,7 @@ async function maybeHandleAuthLoss() {
  *  JSON string of an array of JSON strings, each like `{"message":"…"}` (and the
  *  messages may contain HTML) — so unwrap and strip tags rather than surfacing the
  *  raw escaped JSON to the user. Falls back to the plainer error fields. */
-function serverErrorMessage(json: Record<string, unknown>): string | null {
+export function displayableMessage(json: Record<string, unknown>): string | null {
   const raw = json._server_messages;
   if (typeof raw === "string") {
     try {
@@ -162,7 +162,11 @@ function serverErrorMessage(json: Record<string, unknown>): string | null {
           }
         })
         .find(Boolean);
-      if (first) return first.replace(/<[^>]*>/g, "").trim();
+      // Same human check as the `message` fallback below: this path is the more trusted of
+      // the two, but "more trusted" is not "always prose", and the consequence of being
+      // wrong is identical.
+      const clean = first ? first.replace(/<[^>]*>/g, "").trim() : "";
+      if (isHumanMessage(clean)) return clean;
     } catch {
       /* not the shape we expected — fall through to the plain fields */
     }
@@ -172,8 +176,25 @@ function serverErrorMessage(json: Record<string, unknown>): string | null {
   // (this runs on the unauthenticated set-password page too). The caller uses the plain
   // HTTP status text when there's no safe message here.
   const message = json.message;
-  if (typeof message === "string" && message) return message;
+  if (typeof message === "string" && isHumanMessage(message)) return message;
   return null;
+}
+
+/** Does this read as something written for a person, rather than an identifier that leaked?
+ *
+ *  `message` on an error body is whatever the backend put there, and it is not always prose:
+ *  a method name, a field name, a doctype. Surfacing one is worse than surfacing nothing,
+ *  because `displayable` then marks it safe to show and it lands verbatim in front of a
+ *  user — an invitee once completed the set-password form and was shown the single word
+ *  "me", the tail of `inventive_helpdesk_backend.api.me`. It told them nothing, and implied
+ *  their password had not been set when it had.
+ *
+ *  A sentence has a space in it. Identifiers do not. That is a crude rule and deliberately
+ *  so: the cost of rejecting a real one-word message is a generic fallback, and the cost of
+ *  accepting an identifier is what the screenshot showed. */
+function isHumanMessage(message: string): boolean {
+  const text = message.trim();
+  return text.length > 0 && /\s/.test(text);
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -211,7 +232,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) void maybeHandleAuthLoss();
       // A message the backend wrote is worth showing; bare status text is not.
-      const serverMessage = serverErrorMessage(json);
+      const serverMessage = displayableMessage(json);
       throw new FrappeError(serverMessage || res.statusText, res.status, Boolean(serverMessage));
     }
     return json as T;
