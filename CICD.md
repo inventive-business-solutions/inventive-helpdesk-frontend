@@ -81,9 +81,10 @@ long-polling. Updates still arrive in about a second.
 ## Architecture
 
 **Branch flow:** day-to-day work is committed to `development`. Releases are made by
-merging `development` → `master`, which is the branch the hosted environment tracks.
+pushing to `development`, which is the branch the hosted environment tracks. `master` is
+promoted afterwards to record which build proved itself live — it deploys nothing.
 
-**Both branches run the pipeline; only `master` publishes.** A push to `development`
+**Both branches run the pipeline; only `development` publishes.** A push to `master`
 does everything up to the registry and stops — including the docker build, which is the
 only step that runs `next build`. That matters more than it sounds: the prerender pass is
 where a missing Suspense boundary around `useSearchParams`, a bad route export or a
@@ -92,16 +93,16 @@ through those. Publishing and deploying are branch-gated, so `development` can n
 reach the server.
 
 ```
-push to development                    merge development -> master  (release)
+push to master (promote)               push to development  (release)
        │                                      │
        ▼                                      ▼
 GitHub Actions (self-hosted, inventive-microscan)
        ├── lint, format check, typecheck, unit tests      ← both branches
        ├── docker build (linux/amd64), FRAPPE_URL + SOCKETIO_URL + BUILD_SHA baked in
        │                                                  ← both branches
-       ├── push to GHCR (:<sha> and :latest)              ← master only
-       ├── POST the Portainer webhook                     ← master only
-       └── poll /api/health until it reports this commit's SHA  ← master only
+       ├── push to GHCR (:<sha> and :latest)              ← development only
+       ├── POST the Portainer webhook                     ← development only
+       └── poll /api/health until it reports this commit's SHA  ← development only
        ▼
 Docker Swarm redeploys the stack
 ```
@@ -202,7 +203,7 @@ deploy — which is what you want before the stack exists.
 ## Portainer stack
 
 Create a stack named `inventive-helpdesk-frontend` from this repository, using
-`deploy/docker-compose.yml`, on branch `master`. Set the environment variables from
+`deploy/docker-compose.yml`, on branch `development`. Set the environment variables from
 [`deploy/.env.example`](deploy/.env.example), enable the webhook, and save.
 
 Note `FRONTEND_DOMAIN` takes a **plain hostname with no backticks** — the compose file
@@ -215,7 +216,7 @@ other.
 ## First deployment
 
 1. Confirm DNS: `helpdesk.inventivebizsol.co.in` → `43.242.225.160`.
-2. Push to `master` (or run the workflow manually) to build and push the first image.
+2. Push to `development` (or run the workflow manually) to build and push the first image.
    With no webhook secret yet, the run stops after the push.
 3. Create the stack in Portainer as above and deploy it.
 4. Copy the saved webhook URL into the `PORTAINER_WEBHOOK_URL` secret.

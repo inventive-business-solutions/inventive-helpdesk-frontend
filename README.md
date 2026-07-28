@@ -147,7 +147,7 @@ CICD.md                  build pipeline, Portainer/Swarm deployment, rollback
 ## Deployment
 
 Hosted at **https://helpdesk.inventivebizsol.co.in**, talking to the Frappe backend at
-`helpdeskfrappe.inventivebizsol.co.in`. Merging `development` → `master` builds an image,
+`helpdeskfrappe.inventivebizsol.co.in`. Pushing to `development` builds an image,
 pushes it to GHCR, triggers the Portainer webhook, and verifies the running container
 reports the expected commit SHA. See [CICD.md](CICD.md).
 
@@ -155,8 +155,11 @@ reports the expected commit SHA. See [CICD.md](CICD.md).
 
 ## Branching
 
-- **`master`** — production, release-ready (default branch); this is the deployed branch
-- **`development`** — integration branch; features merge here first, then into `master`
+- **`development`** — **this is the deployed branch.** A push here builds, publishes and
+  releases to production.
+- **`master`** — the stable marker. `development` is merged here once a build has proven
+  itself live, so master always names a version known to have worked. It deploys nothing;
+  its value is that rolling back means redeploying master's SHA.
 
 ---
 
