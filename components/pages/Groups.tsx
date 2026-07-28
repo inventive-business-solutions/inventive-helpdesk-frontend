@@ -61,12 +61,16 @@ function TeamCard({
           <div className="nm" style={{ fontSize: 16, fontWeight: 700 }}>
             {group.name}
           </div>
-          <div className="cl" style={{ fontSize: 12.5, color: "var(--muted)" }}>
-            {total} {total === 1 ? "member" : "members"}
-          </div>
-          {/* Always shown, including when there is no lead. "Team Lead: None" is a fact
-              about the team; omitting the line instead would leave the reader unable to
-              tell "nobody leads this" from "this card does not report leads". */}
+          {/* No member count on this line. It used to sit here while the section below was
+              labelled "MEMBERS", so the card said the same word twice, six pixels apart.
+              The count moved into that eyebrow: one statement instead of two, and it gives
+              the section head something on its left so the button is not floating alone
+              against an empty row.
+
+              The lead line, by contrast, is always shown — including when there is none.
+              "Team Lead: None" is a fact about the team; dropping the line when unset would
+              leave the reader unable to tell "nobody leads this" from "this card does not
+              report leads". */}
           <div className="team-lead">
             Team Lead: <span className="tl-name">{group.lead ?? "None"}</span>
           </div>
@@ -85,7 +89,9 @@ function TeamCard({
           members list, not beside Manage in the card header — and it only exists here, on a
           card, which is to say only once the team has been created. */}
       <div className="cc-section-head team-section-head">
-        <span className="eyebrow">Members</span>
+        <span className="eyebrow">
+          {total} {total === 1 ? "member" : "members"}
+        </span>
         <Button variant="ghost" icon={<Icon name="plus" size={13} />} onClick={onAddMember}>
           Member
         </Button>
