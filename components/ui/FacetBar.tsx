@@ -4,6 +4,32 @@ import { Segmented } from "./Segmented";
 import { Popover, MenuList } from "./Menu";
 import { Icon } from "./Icon";
 import type { Facet, ContextChip } from "@/lib/facets";
+import type { IconName } from "./Icon";
+
+/**
+ * One option row, for EVERY level of these menus.
+ *
+ * The first level of "Add filter" built its rows as an icon box plus a label; the level you
+ * drill into, and each pill's own menu, passed their options straight through as bare
+ * strings. So the same menu changed typography and lost its left alignment the moment you
+ * went one level deeper — it read as a different component rather than the same one drilled
+ * into.
+ *
+ * A facet's VALUES have no icons of their own (`Facet.options` is `SelectOption[]`), and
+ * repeating the facet's icon down every row would just be noise — the header already carries
+ * it. So a row without an icon reserves the column instead of collapsing it, and text stays
+ * on one vertical line however deep the menu goes.
+ */
+function facetOption(label: ReactNode, icon?: IconName): ReactNode {
+  return (
+    <span className="facet-opt">
+      <span className={`facet-opt-ic ${icon ? "" : "blank"}`.trim()} aria-hidden="true">
+        {icon && <Icon name={icon} size={14} />}
+      </span>
+      <span className="facet-opt-tx">{label}</span>
+    </span>
+  );
+}
 
 interface BucketConfig {
   options: { key: string; label: string }[];
@@ -141,7 +167,11 @@ export function FacetBar({
                 {facet.label}
               </div>
               <MenuList
-                options={facet.options.map((o) => ({ ...o, selected: o.value === value }))}
+                options={facet.options.map((o) => ({
+                  ...o,
+                  label: facetOption(o.label),
+                  selected: o.value === value,
+                }))}
                 onSelect={(v) => {
                   apply(facet, v);
                   close();
@@ -177,7 +207,7 @@ export function FacetBar({
                   {stage.label}
                 </button>
                 <MenuList
-                  options={stage.options}
+                  options={stage.options.map((o) => ({ ...o, label: facetOption(o.label) }))}
                   onSelect={(v) => {
                     apply(stage, v);
                     setStage(null);
@@ -194,16 +224,7 @@ export function FacetBar({
                 <MenuList
                   options={addable.map((f) => ({
                     value: f.key,
-                    label: (
-                      <span className="facet-opt">
-                        {f.icon && (
-                          <span className="facet-opt-ic">
-                            <Icon name={f.icon} size={14} />
-                          </span>
-                        )}
-                        <span className="facet-opt-tx">{f.label}</span>
-                      </span>
-                    ),
+                    label: facetOption(f.label, f.icon),
                   }))}
                   onSelect={(k) => setStage(addable.find((f) => f.key === k) ?? null)}
                 />

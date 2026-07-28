@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import { Select } from "@/components/ui/Select";
 
 const PAGE_SIZES = [10, 25, 50];
@@ -18,6 +19,7 @@ export function Pagination({
   label = "Rows per page",
   pageSizes = PAGE_SIZES,
   divider = true,
+  trailing,
 }: {
   total: number;
   page: number;
@@ -29,6 +31,11 @@ export function Pagination({
   /** Selectable page sizes (default 10/25/50). */
   pageSizes?: number[];
   divider?: boolean;
+  /** A second list control, shown beside "per page" in the same row. Teams uses it for
+   *  "Show members per team". It lived in a card of its own directly below this one, which
+   *  put two settings of the same kind in two stacked bars — twice the chrome for one idea.
+   *  Wrap it in `.page-ctl` to pick up the label/select metrics used here. */
+  trailing?: ReactNode;
 }) {
   if (total === 0) return null;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -49,6 +56,7 @@ export function Pagination({
           }}
         />
       </div>
+      {trailing}
       {totalPages > 1 && (
         <div className="pager">
           <button

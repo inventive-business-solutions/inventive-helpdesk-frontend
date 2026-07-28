@@ -20,7 +20,7 @@ import { useSubmit } from "../ui/useSubmit";
 import { initials } from "../../lib/helpers";
 import type { Group, TeamMember } from "../../types";
 
-const MEMBER_PAGE_SIZES = [5, 10, 15]; // "Show Members per Team": default 5, grows in 5s
+const MEMBER_PAGE_SIZES = [5, 10, 15]; // "Members per team": default 5, grows in 5s
 
 type Confirm = { kind: "group"; group: string } | { kind: "member"; group: string; member: string };
 
@@ -276,20 +276,19 @@ export function Groups() {
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
             unit="teams"
-          />
-        </div>
-      )}
-
-      {shown.length > 0 && (
-        <div className="card per-team-bar">
-          <span>Show Members per Team</span>
-          <Select
-            className="plain"
-            label="Members"
-            ariaLabel="Members per team"
-            value={String(perTeam)}
-            options={MEMBER_PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))}
-            onChange={(v) => setPerTeam(Number(v))}
+            trailing={
+              <div className="page-ctl">
+                <span>Members per team</span>
+                <Select
+                  className="plain"
+                  label="Members"
+                  ariaLabel="Members per team"
+                  value={String(perTeam)}
+                  options={MEMBER_PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))}
+                  onChange={(v) => setPerTeam(Number(v))}
+                />
+              </div>
+            }
           />
         </div>
       )}

@@ -1319,13 +1319,22 @@ a {
 .pagination.no-divider {
   border-top: none;
 }
-.pagination .rows-per-page {
+/* Both list-size controls share this. `.page-ctl` is the generic one, used for anything a
+   page adds beside "per page" — they are the same kind of setting and belong on the same
+   row, not in a second card stacked under the first. */
+.pagination .rows-per-page,
+.pagination .page-ctl {
   display: flex;
   align-items: center;
   gap: 9px;
   font-size: 12.5px;
   color: var(--muted);
   font-weight: 500;
+}
+/* Separates the two controls without a divider line, and keeps them together on the left
+   when the pager wraps to its own line on a narrow screen. */
+.pagination .page-ctl {
+  margin-left: 6px;
 }
 .pagination .pager {
   display: flex;
@@ -2053,6 +2062,17 @@ button.ui-select-opt {
 .facet-opt-ic svg {
   flex: none;
 }
+/* A row with no icon of its own still holds the column open, so labels stay on one vertical
+   line as you drill from "Source" into its values. Collapsing it instead made a submenu look
+   like a different component from the menu it opened out of. Invisible, not empty-looking:
+   no background, border or hover response, since there is nothing there to react to. */
+.facet-opt-ic.blank,
+.ui-select-opt:hover .facet-opt-ic.blank,
+.ui-select-opt.active .facet-opt-ic.blank {
+  background: none;
+  border-color: transparent;
+}
+
 .facet-opt-tx {
   /* 500, matching .ui-select-opt's own weight. 600 was making the label the loudest text
      on screen while the menu is open. */
@@ -3323,17 +3343,6 @@ table.tk-contacts .row-actions {
 .sort-caret {
   opacity: 0.5;
   flex: none;
-}
-
-/* global "Show Members per Team" control at the bottom of the Teams page */
-.per-team-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  font-size: 12.5px;
-  color: var(--muted);
-  font-weight: 500;
 }
 
 .filters {
