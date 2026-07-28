@@ -33,6 +33,7 @@ export function Select({
   disabled = false,
   autoFocus = false,
   id,
+  emptyText = "Nothing to choose from.",
 }: {
   label: string;
   value: string;
@@ -45,6 +46,10 @@ export function Select({
   disabled?: boolean;
   autoFocus?: boolean;
   id?: string;
+  /** Shown when `options` is empty, instead of a menu that opens onto nothing. Callers
+   *  that can be empty for a knowable reason should say which — the default is honest but
+   *  says nothing about what to do next. */
+  emptyText?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1); // keyboard-highlighted option index
@@ -164,6 +169,15 @@ export function Select({
       aria-label={ariaLabel ?? label}
       style={menuStyle}
     >
+      {/* A listbox with no children opens onto blank space and gives the reader nothing to
+          act on or dismiss. Every caller today guards this upstream; this is so the next
+          one added does not have to know that it must. Not `role="option"` — it is not
+          selectable, and announcing it as one would be a lie to a screen reader. */}
+      {options.length === 0 && (
+        <li className="ui-select-empty" role="presentation">
+          {emptyText}
+        </li>
+      )}
       {options.map((o, i) => {
         const isSel = o.value === value;
         return (

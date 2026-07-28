@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { TruncationNotice } from "@/components/ui/TruncationNotice";
 import { NewTicketModal } from "@/components/modals/NewTicketModal";
 import { ASTATE_LABELS, buildFacets, type FacetOpts } from "@/lib/facets";
+import { emptyReason } from "@/lib/emptyState";
 import {
   MONTHS,
   RESOLVED,
@@ -563,7 +564,30 @@ export function Tickets() {
             tickets={pageRows}
             unread={unread}
             onOpen={openTicket}
-            empty={<EmptyState>No tickets match these filters.</EmptyState>}
+            empty={
+              /* Three different situations produce an empty table, and only one of them is
+                 the reader's filters. Blaming a filter that is not set sends someone
+                 hunting for a control to clear — `tickets` is the unfiltered list, so it
+                 tells "nothing here yet" apart from "nothing matched" without having to
+                 enumerate every filter param. */
+              <EmptyState>
+                {
+                  {
+                    empty: (
+                      <>
+                        No tickets yet — they arrive by email, or use <b>New ticket</b> to log one.
+                      </>
+                    ),
+                    search: (
+                      <>
+                        No tickets match <b>{q}</b>.
+                      </>
+                    ),
+                    filtered: <>No tickets match these filters.</>,
+                  }[emptyReason({ total: tickets.length, query: q ?? undefined })]
+                }
+              </EmptyState>
+            }
           />
         </div>
         <Pagination

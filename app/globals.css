@@ -2328,6 +2328,16 @@ button.ui-select-opt {
     transform: none;
   }
 }
+/* Shown in place of options when a Select is handed an empty list. Shares the option's
+   metrics so the menu keeps its shape, but reads as prose rather than a choice: muted,
+   not bold, and with no hover or cursor affordance, because there is nothing to click. */
+.ui-select-empty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: default;
+}
+
 .ui-select-opt {
   display: flex;
   align-items: center;

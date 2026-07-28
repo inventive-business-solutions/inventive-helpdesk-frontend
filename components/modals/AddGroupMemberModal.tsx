@@ -7,6 +7,7 @@ import { ModalFooter } from "../ui/ModalFooter";
 import { useStore } from "../../store";
 import { useSubmit } from "../ui/useSubmit";
 import { EmptyState } from "../ui/EmptyState";
+import { emptyReason } from "../../lib/emptyState";
 
 export function AddGroupMemberModal({ group, onClose }: { group: string; onClose: () => void }) {
   const members = useStore((s) => s.members);
@@ -58,7 +59,19 @@ export function AddGroupMemberModal({ group, onClose }: { group: string; onClose
             )}
           </Field>
         ) : (
-          <EmptyState compact>Everyone is already in this team.</EmptyState>
+          /* An empty candidate list means two different things, and saying the wrong one is
+             worse than saying nothing: on a site with no members at all, "everyone is
+             already in this team" contradicts the "0 members" heading directly above it and
+             sends the reader looking for people who do not exist. */
+          <EmptyState compact>
+            {emptyReason({ total: members.length }) === "empty" ? (
+              <>
+                No members yet — add one on the <b>Members</b> page first.
+              </>
+            ) : (
+              "Everyone is already in this team."
+            )}
+          </EmptyState>
         )}
       </div>
     </Modal>

@@ -7,6 +7,7 @@ import { BackButton, withOrigin } from "../ui/BackButton";
 import { ListToolbar } from "../ui/ListToolbar";
 import { MasterTruncationNotice } from "../ui/TruncationNotice";
 import { applySort, commonSorts, countSort, matches, useStoredSort } from "../../lib/listview";
+import { emptyReason } from "../../lib/emptyState";
 import { Icon } from "../ui/Icon";
 import { ManageButton } from "../ui/ManageButton";
 import { Segmented } from "../ui/Segmented";
@@ -215,9 +216,32 @@ export function Products() {
       {tab === "assigned" &&
         (assigned.length === 0 ? (
           <div className="card">
+            {/* `assigned` is derived from `visible`, which already has the search applied —
+                so an empty tab means one of three things and only one of them is the tab.
+                Pointing someone at the Unassigned tab when the catalogue is empty, or
+                telling them nothing is assigned when their own search hid it, both send
+                them to a place that cannot help. */}
             <EmptyState>
-              No products assigned to a client yet — add one with <b>Add product</b>, or assign an existing
-              product from the Unassigned tab.
+              {
+                {
+                  empty: (
+                    <>
+                      No products yet — use <b>Add product</b> to create your first.
+                    </>
+                  ),
+                  search: (
+                    <>
+                      No products match <b>{q}</b>.
+                    </>
+                  ),
+                  filtered: (
+                    <>
+                      No products assigned to a client yet — add one with <b>Add product</b>, or assign an
+                      existing product from the Unassigned tab.
+                    </>
+                  ),
+                }[emptyReason({ total: products.length, afterSearch: visible.length })]
+              }
             </EmptyState>
           </div>
         ) : (
@@ -364,7 +388,27 @@ export function Products() {
       {tab === "unassigned" &&
         (unassigned.length === 0 ? (
           <div className="card">
-            <EmptyState>No unassigned products — every product is being run by a client.</EmptyState>
+            {/* "Every product is being run by a client" is a claim about the whole
+                catalogue, and it was made without checking whether the catalogue has
+                anything in it. With no products at all it asserts the opposite of the
+                truth. */}
+            <EmptyState>
+              {
+                {
+                  empty: (
+                    <>
+                      No products yet — use <b>Add product</b> to create your first.
+                    </>
+                  ),
+                  search: (
+                    <>
+                      No products match <b>{q}</b>.
+                    </>
+                  ),
+                  filtered: <>No unassigned products — every product is being run by a client.</>,
+                }[emptyReason({ total: products.length, afterSearch: visible.length })]
+              }
+            </EmptyState>
           </div>
         ) : (
           pageItems.map((prod, i) => {
