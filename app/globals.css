@@ -1319,17 +1319,18 @@ a {
 .pagination.no-divider {
   border-top: none;
 }
-/* The team lead picker, under the member count in a team card's head. Reads as part of the
-   card's identity block rather than as an action, so the label is muted and the select is
-   the borderless `.plain` variant used for the page-size controls. */
+/* "Team Lead: <name>" under the member count in a team card's head. Plain text on purpose —
+   it states a fact about the team, and a control here read as an action the card was asking
+   you to take. The label stays muted so the name is the part that carries. */
 .team-lead {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 3px;
+  margin-top: 2px;
   font-size: 12.5px;
   color: var(--muted);
   font-weight: 500;
+}
+.team-lead .tl-name {
+  color: var(--ink-2);
+  font-weight: 600;
 }
 
 /* Both list-size controls share this. `.page-ctl` is the generic one, used for anything a

@@ -556,9 +556,6 @@ interface Store {
   removeMember: (name: string) => Promise<void>;
   sendInvite: (name: string) => Promise<void>;
   addGroup: (name: string, lead?: string) => Promise<void>;
-  /** Set or clear a team's lead. Pass "" to clear. A named lead is added to the team if
-   *  they are not already in it — a lead who is not on their own team reads as a bug. */
-  setGroupLead: (group: string, lead: string) => Promise<void>;
   removeGroup: (name: string) => Promise<void>;
   addGroupMember: (group: string, member: string) => Promise<void>;
   removeGroupMember: (group: string, member: string) => Promise<void>;
@@ -1041,19 +1038,6 @@ export const useStore = create<Store>()((set, get) => {
       await api.createDoc("Assignment Group", {
         group_name: name,
         ...(lead ? { lead, members: [{ member: lead }] } : {}),
-      });
-      await get().reloadTeam();
-    },
-    setGroupLead: async (group, lead) => {
-      const gdoc = await api.getDoc<{ members?: { member: string }[] }>("Assignment Group", group);
-      const members = gdoc.members || [];
-      await api.updateDoc("Assignment Group", group, {
-        // "" rather than null: this is how Frappe clears a Link, and it round-trips through
-        // assembleGroups back to `undefined`.
-        lead: lead || "",
-        ...(lead && !members.some((m) => m.member === lead)
-          ? { members: [...members, { member: lead }] }
-          : {}),
       });
       await get().reloadTeam();
     },

@@ -64,13 +64,13 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <>
-            <Field label="Team lead" optional>
+            <Field label="Team Lead" optional>
               {(id) => (
                 <Select
                   id={id}
                   block
-                  label="Team lead"
-                  ariaLabel="Team lead"
+                  label="Team Lead"
+                  ariaLabel="Team Lead"
                   value={lead}
                   options={[
                     { value: "", label: "— No lead —" },
