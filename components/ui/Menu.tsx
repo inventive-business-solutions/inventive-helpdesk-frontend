@@ -154,15 +154,16 @@ export interface MenuOption {
  * each other. Every fix for it was per-caller, so the next menu written reintroduced it —
  * which is exactly what happened when the attachment menu was added.
  *
- * The structure now lives here and callers cannot opt out. `icon` is the only knob:
+ * The structure now lives here and callers cannot opt out. `icon` is the only knob, and it
+ * only decides whether the column is FILLED — never whether it exists.
  *
- * - No row in the list has an icon → no icon column. A menu of plain choices should not
- *   carry a 30px indent for glyphs that do not exist.
- * - ANY row has one → every row reserves the column, so the labels stay on one vertical
- *   line instead of the iconless ones hanging left.
+ * Making the column conditional was tried and was wrong twice over. It gave menus two row
+ * densities, and in a drill-down it made the second level misalign with the first: "Add
+ * filter" lists dimensions WITH icons, and the values behind one have none, so the labels
+ * jumped left on the way in — the exact complaint the whole exercise started from. Always
+ * reserving it costs a plain menu a small indent and buys every menu in the app one shape.
  *
- * One type scale throughout, taken from `.ui-select-opt` itself, so a menu row is the same
- * size everywhere in the app including the plain <Select> dropdowns that share the class.
+ * One type scale too, taken from `.ui-select-opt`, which the plain <Select> dropdowns share.
  */
 export function MenuList({
   options,
@@ -171,7 +172,6 @@ export function MenuList({
   options: MenuOption[];
   onSelect: (value: string) => void;
 }) {
-  const anyIcon = options.some((o) => o.icon);
   return (
     <>
       {options.map((o, i) => (
@@ -183,11 +183,9 @@ export function MenuList({
           onClick={() => onSelect(o.value)}
         >
           <span className="menu-opt">
-            {anyIcon && (
-              <span className={`menu-opt-ic ${o.icon ? "" : "blank"}`.trim()} aria-hidden="true">
-                {o.icon && <Icon name={o.icon} size={14} />}
-              </span>
-            )}
+            <span className={`menu-opt-ic ${o.icon ? "" : "blank"}`.trim()} aria-hidden="true">
+              {o.icon && <Icon name={o.icon} size={14} />}
+            </span>
             <span className="ui-select-opt-label">{o.label}</span>
           </span>
           {o.selected && <Icon name="check" size={15} className="ui-select-tick" />}

@@ -2094,11 +2094,6 @@ button.ui-select-opt {
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   color: var(--accent);
 }
-/* Row height follows from the icon tile, so it is trimmed only for rows that HAVE one —
-   .ui-select-opt is shared with every dropdown in the app and must keep its own padding. */
-.ui-select-opt:has(.menu-opt-ic) {
-  padding: 5px 9px;
-}
 /* Back row in the two-step Add menu. */
 .facet-menu-back {
   display: flex;
@@ -2361,12 +2356,19 @@ button.ui-select-opt {
   cursor: default;
 }
 
+/* ONE row, for every dropdown in the app — Select's own menus and everything MenuList
+   builds. There is deliberately no variant: the padding was previously conditional on a row
+   having an icon, which gave menus two heights and made a drill-down change size on the way
+   in. `min-height` is what keeps a row with a 21px icon tile and a row with only text at the
+   same height, since the tile is taller than a line of 13px text and padding alone cannot
+   reconcile them. */
 .ui-select-opt {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 10px;
+  padding: 5px 10px;
+  min-height: 34px;
   border-radius: 7px;
   font-size: 13px;
   font-weight: 500;
