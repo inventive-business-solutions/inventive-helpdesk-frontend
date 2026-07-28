@@ -11,6 +11,25 @@ export const TICKET_POLL_MS = 30_000;
 export const LIST_PING_THROTTLE_MS = 1_500;
 
 /**
+ * Poll interval to use while realtime is NOT connected.
+ *
+ * The socket normally carries updates in about a second, and 30s is a cheap safety net
+ * behind it. But every way realtime can fail degrades silently to that 30s — which is how
+ * a ticket raised by a client sat unseen on an agent's dashboard until they refreshed by
+ * hand, with nothing on screen to say the live channel was down.
+ *
+ * So the fallback is no longer a fixed 30s: when the socket is down, this is the interval,
+ * and it bounds staleness at five seconds however realtime is failing. It costs more
+ * requests, which is the correct trade when the alternative is data that is quietly half a
+ * minute old.
+ */
+export const DEGRADED_POLL_MS = 5_000;
+
+/** The interval a list should poll at, given whether realtime is currently delivering. */
+export const listPollInterval = (realtimeConnected: boolean) =>
+  realtimeConnected ? TICKET_POLL_MS : DEGRADED_POLL_MS;
+
+/**
  * Poll `fn` on an interval, but ONLY while the tab is visible — hidden/background tabs
  * make zero requests. Refetches immediately on tab focus / becoming visible (so returning
  * shows fresh data at once), and skips a tick while the previous run is still in flight

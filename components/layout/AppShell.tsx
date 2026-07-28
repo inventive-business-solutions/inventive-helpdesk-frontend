@@ -1,9 +1,16 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useStore } from "@/store";
-import { useAutoRefresh, TICKET_POLL_MS, LIST_PING_THROTTLE_MS } from "@/lib/useAutoRefresh";
-import { onRealtime, subscribeDoctype, stopRealtime } from "@/lib/realtime";
+import { useAutoRefresh, listPollInterval, LIST_PING_THROTTLE_MS } from "@/lib/useAutoRefresh";
+import {
+  onRealtime,
+  subscribeDoctype,
+  stopRealtime,
+  subscribeRealtimeStatus,
+  isRealtimeConnected,
+  realtimeDisconnected,
+} from "@/lib/realtime";
 import { throttleTrailing } from "@/lib/throttle";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -22,7 +29,17 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // Keep the ticket list fresh on its own while signed in — polls only when the tab is
   // visible, and covers both the staff app and the client portal (this is their shell).
-  useAutoRefresh(refreshTickets, TICKET_POLL_MS, booted && !!session);
+  //
+  // The interval follows the socket. Connected, realtime lands updates in about a second
+  // and this is a cheap safety net at 30s. Disconnected, it tightens to 5s — because every
+  // way realtime fails used to degrade silently to that 30s, which is how a client's ticket
+  // sat unseen on an agent's dashboard with nothing on screen to explain it.
+  const liveConnected = useSyncExternalStore(
+    subscribeRealtimeStatus,
+    isRealtimeConnected,
+    realtimeDisconnected,
+  );
+  useAutoRefresh(refreshTickets, listPollInterval(liveConnected), booted && !!session);
 
   // Live updates: once signed in, join the Support Ticket doctype room and refetch the
   // (permission-scoped) list on any "list changed" ping — collapsing the ~30s poll gap to

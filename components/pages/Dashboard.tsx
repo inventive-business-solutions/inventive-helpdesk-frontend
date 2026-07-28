@@ -1,9 +1,14 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
-import { useAutoRefresh, LIST_PING_THROTTLE_MS } from "@/lib/useAutoRefresh";
-import { onRealtime } from "@/lib/realtime";
+import { useAutoRefresh, listPollInterval, LIST_PING_THROTTLE_MS } from "@/lib/useAutoRefresh";
+import {
+  onRealtime,
+  subscribeRealtimeStatus,
+  isRealtimeConnected,
+  realtimeDisconnected,
+} from "@/lib/realtime";
 import { throttleTrailing } from "@/lib/throttle";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -110,7 +115,16 @@ function ManagerDashboard() {
   }, [refreshStats, weeks]);
   // Re-count on the same cadence as the ticket poll, so a figure and the list beneath it
   // do not drift apart on screen.
-  useAutoRefresh(() => refreshStats(weeks));
+  // Same rule as the ticket list: 30s behind a healthy socket, 5s when there isn't one.
+  // These figures are a server-side aggregate, so they cannot be derived from the list the
+  // shell already refreshes — without their own tightened interval the KPI tiles would be
+  // the stalest thing on the page precisely when realtime is down.
+  const liveConnected = useSyncExternalStore(
+    subscribeRealtimeStatus,
+    isRealtimeConnected,
+    realtimeDisconnected,
+  );
+  useAutoRefresh(() => refreshStats(weeks), listPollInterval(liveConnected));
   // ...and re-count on the same realtime ping that refreshes the list, for the same reason.
   //
   // Without this the Dashboard was the one screen realtime did not reach. AppShell joins

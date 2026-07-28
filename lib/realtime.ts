@@ -20,6 +20,43 @@ import { io, type Socket } from "socket.io-client";
 
 let socket: Socket | null = null;
 
+/**
+ * Is the socket up right now?
+ *
+ * This used to be unobservable, and that was the actual defect behind "the ticket did not
+ * appear until I refreshed". Every way realtime can fail — the handshake being refused, the
+ * socketio service restarting, redis pub/sub not reaching it from the web container — ends
+ * in the same silent state: connected-looking app, no events, and a 30-second poll nobody
+ * knew they were relying on. Nothing anywhere said so.
+ *
+ * Exposed so the pollers can tighten their interval when realtime is NOT carrying updates,
+ * which turns an invisible degradation into a bounded one.
+ */
+let connected = false;
+const connectionListeners = new Set<() => void>();
+
+function setConnected(next: boolean) {
+  if (connected === next) return;
+  connected = next;
+  connectionListeners.forEach((l) => l());
+}
+
+export function subscribeRealtimeStatus(onChange: () => void) {
+  connectionListeners.add(onChange);
+  return () => {
+    connectionListeners.delete(onChange);
+  };
+}
+
+/** Current state. Paired with `subscribeRealtimeStatus` for useSyncExternalStore. */
+export function isRealtimeConnected() {
+  return connected;
+}
+
+/** Server-side there is no socket, and never a connection — keeps SSR and hydration
+ *  agreeing rather than rendering one interval on the server and another on the client. */
+export const realtimeDisconnected = () => false;
+
 /** Connect once (idempotent). No-op during SSR. */
 function ensureSocket(): Socket | null {
   if (typeof window === "undefined") return null;
@@ -33,6 +70,12 @@ function ensureSocket(): Socket | null {
     reconnectionDelayMax: 15000,
     autoConnect: true,
   });
+  socket.on("connect", () => setConnected(true));
+  socket.on("disconnect", () => setConnected(false));
+  // A failed handshake is the common case in a misconfigured deployment and does NOT emit
+  // `disconnect` — without this the app would sit at "connected: false" only because it
+  // started there, and would never learn it had been wrong to hope otherwise.
+  socket.on("connect_error", () => setConnected(false));
   return socket;
 }
 
@@ -42,6 +85,7 @@ export function stopRealtime() {
   socket.removeAllListeners();
   socket.disconnect();
   socket = null;
+  setConnected(false);
 }
 
 /** Join the doctype room for contentless "the list changed" pings. Re-joins on every
