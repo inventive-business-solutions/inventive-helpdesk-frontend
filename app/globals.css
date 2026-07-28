@@ -2047,18 +2047,21 @@ button.ui-select-opt {
 .facet-menu-head svg {
   color: var(--accent);
 }
-/* Add-filter dimension row (tiled icon + label) — a picker of dimensions, so each gets a
-   small tile that lights up on hover, Linear/Notion-style. */
-/* Filter menus are a chooser, not a page heading. The rows were 13px at weight 600 beside
-   a 25px icon tile — about 41px of height each — which made a seven-item list read louder
-   than the table it filters. Scoped to .facet-opt so the change lands on the filter menus
-   and not on every Select in the app. */
-.facet-opt {
-  display: inline-flex;
+/* ---- menu option rows ----------------------------------------------------
+   Built by MenuList for EVERY menu in the app, so a row is the same object wherever it
+   appears. It was not: FacetBar wrapped its labels in a span that reset the type to 12.5px
+   while SortMenu and the attachment menu used the row's own 13px, so the same control had
+   two sizes depending on who opened it. There is no `-tx` span any more — the label keeps
+   .ui-select-opt-label and inherits the one scale from .ui-select-opt, which the plain
+   <Select> dropdowns share too. */
+.menu-opt {
+  display: flex;
   align-items: center;
   gap: 9px;
+  /* So a long label can still ellipsis inside the row rather than pushing it wider. */
+  min-width: 0;
 }
-.facet-opt-ic {
+.menu-opt-ic {
   display: grid;
   place-items: center;
   width: 21px;
@@ -2073,41 +2076,27 @@ button.ui-select-opt {
     color 0.12s,
     border-color 0.12s;
 }
-.facet-opt-ic svg {
+.menu-opt-ic svg {
   flex: none;
 }
 /* A row with no icon of its own still holds the column open, so labels stay on one vertical
-   line as you drill from "Source" into its values. Collapsing it instead made a submenu look
-   like a different component from the menu it opened out of. Invisible, not empty-looking:
-   no background, border or hover response, since there is nothing there to react to. */
-.facet-opt-ic.blank,
-.ui-select-opt:hover .facet-opt-ic.blank,
-.ui-select-opt.active .facet-opt-ic.blank {
+   line — including as you drill from "Source" into its values. Invisible rather than
+   empty-looking: no background, border or hover response, since there is nothing to react. */
+.menu-opt-ic.blank,
+.ui-select-opt:hover .menu-opt-ic.blank,
+.ui-select-opt.active .menu-opt-ic.blank {
   background: none;
   border-color: transparent;
 }
-
-.facet-opt-tx {
-  /* 500, matching .ui-select-opt's own weight. 600 was making the label the loudest text
-     on screen while the menu is open. */
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--ink-2);
-  transition: color 0.12s;
-}
-.ui-select-opt:hover .facet-opt-ic,
-.ui-select-opt.active .facet-opt-ic {
+.ui-select-opt:hover .menu-opt-ic,
+.ui-select-opt.active .menu-opt-ic {
   background: var(--accent-sf);
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   color: var(--accent);
 }
-.ui-select-opt:hover .facet-opt-tx,
-.ui-select-opt.active .facet-opt-tx {
-  color: var(--ink);
-}
-/* Row height follows from the icon tile, so it is trimmed here rather than by touching
-   .ui-select-opt, which every dropdown in the app shares. */
-.ui-select-opt:has(.facet-opt) {
+/* Row height follows from the icon tile, so it is trimmed only for rows that HAVE one —
+   .ui-select-opt is shared with every dropdown in the app and must keep its own padding. */
+.ui-select-opt:has(.menu-opt-ic) {
   padding: 5px 9px;
 }
 /* Back row in the two-step Add menu. */
@@ -2448,6 +2437,11 @@ button.ui-select-opt {
   margin-top: 8px;
 }
 
+/* `.active` is the keyboard-highlighted row and always had this; `:hover` did not, so a
+   POINTER moving down a menu lit the 21px icon tile and nothing else — and in a menu with no
+   icons at all, gave no feedback whatsoever. The two are the same state reached two ways and
+   must look the same, or arrowing through a menu and mousing through it disagree. */
+.ui-select-opt:hover,
 .ui-select-opt.active {
   background: var(--surface-2);
   color: var(--ink);
@@ -2456,6 +2450,7 @@ button.ui-select-opt {
   color: var(--accent);
   font-weight: 600;
 }
+.ui-select-opt.sel:hover,
 .ui-select-opt.sel.active {
   background: var(--accent-sf);
 }

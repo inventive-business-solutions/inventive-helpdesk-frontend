@@ -117,19 +117,25 @@ function AttachChip({ att, onPreview }: { att: Attachment; onPreview: (a: Attach
     options.push({
       value: "preview",
       label: kind === "video" ? "Play here" : "Preview here",
+      icon: "eye",
     });
-    options.push({ value: "tab", label: "Open in new tab" });
+    options.push({ value: "tab", label: "Open in new tab", icon: "externalLink" });
   } else if (kind === "office") {
     // Deliberately NOT an "open in Microsoft 365" link. The Office web viewer fetches the
     // file from Microsoft's servers, and these are private, session-gated files on our own
     // domain — Microsoft cannot reach them, so such a link would only ever show an error.
     // Making it work means publishing the file behind a signed public URL, which is a
     // decision about client data and not one this menu should quietly take.
-    options.push({ value: "download", label: `Download and open in ${app ?? "its app"}` });
+    options.push({
+      value: "download",
+      label: `Download and open in ${app ?? "its app"}`,
+      icon: "download",
+    });
   } else {
-    options.push({ value: "download", label: "Download" });
+    options.push({ value: "download", label: "Download", icon: "download" });
   }
-  if (!options.some((o) => o.value === "download")) options.push({ value: "download", label: "Download" });
+  if (!options.some((o) => o.value === "download"))
+    options.push({ value: "download", label: "Download", icon: "download" });
 
   const act = (value: string) => {
     if (value === "preview") return onPreview(att);
@@ -146,7 +152,8 @@ function AttachChip({ att, onPreview }: { att: Attachment; onPreview: (a: Attach
   return (
     <Popover
       ariaLabel={`Actions for ${att.name}`}
-      minWidth={196}
+      minWidth={208}
+      fitTrigger={false}
       trigger={({ ref, onClick, open }) => (
         <button
           type="button"
