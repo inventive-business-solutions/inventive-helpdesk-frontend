@@ -76,6 +76,9 @@ async function fetchTeam() {
           "Assignment Group",
           {
             fields: ["name", "group_name", "lead", "creation", "modified"],
+            // This query runs during boot, so a field the backend has not migrated yet
+            // would block sign-in entirely rather than just hiding a team's lead.
+            optional: ["lead"],
             limit: MASTER_FETCH_CAP,
           },
         ),

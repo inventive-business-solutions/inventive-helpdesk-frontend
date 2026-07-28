@@ -581,20 +581,55 @@ type ListOpts = {
    *  parent, so the server has to be told which parent to check against. Lets us read every
    *  POC's divisions in one call instead of a getDoc per contact. */
   parent?: string;
+  /** Fields the backend may not have yet, listed in `fields` as normal.
+   *
+   *  Frappe validates every requested field against the doctype and rejects the WHOLE query
+   *  if one is unknown — "Field not permitted in query: lead". So a field added to this repo
+   *  before its migration has run takes down every caller of that query, not just the part
+   *  that wanted the new field. When the query is part of boot, that means nobody can sign
+   *  in: a total outage caused by an optional, cosmetic column.
+   *
+   *  Listing a field here makes it best-effort. The full query is still attempted first, so
+   *  there is no cost once the backend has caught up; only on failure is it retried without
+   *  these, and only that retry's success suppresses the error. If the retry fails too, the
+   *  ORIGINAL error is thrown — a real outage still looks like one. */
+  optional?: string[];
 };
 
 export async function getList<T = Record<string, unknown>>(
   doctype: string,
   opts: ListOpts = {},
 ): Promise<T[]> {
-  const p = new URLSearchParams();
-  p.set("fields", JSON.stringify(opts.fields ?? ["*"]));
-  if (opts.filters) p.set("filters", JSON.stringify(opts.filters));
-  p.set("limit_page_length", String(opts.limit ?? 0));
-  if (opts.orderBy) p.set("order_by", opts.orderBy);
-  if (opts.parent) p.set("parent", opts.parent);
-  const r = await request<{ data: T[] }>(`/resource/${encodeURIComponent(doctype)}?${p}`);
-  return r.data;
+  const query = (fields: string[] | undefined) => {
+    const p = new URLSearchParams();
+    p.set("fields", JSON.stringify(fields ?? ["*"]));
+    if (opts.filters) p.set("filters", JSON.stringify(opts.filters));
+    p.set("limit_page_length", String(opts.limit ?? 0));
+    if (opts.orderBy) p.set("order_by", opts.orderBy);
+    if (opts.parent) p.set("parent", opts.parent);
+    return request<{ data: T[] }>(`/resource/${encodeURIComponent(doctype)}?${p}`).then((r) => r.data);
+  };
+
+  if (!opts.optional?.length) return query(opts.fields);
+
+  try {
+    return await query(opts.fields);
+  } catch (err) {
+    const without = (opts.fields ?? []).filter((f) => !opts.optional!.includes(f));
+    // Nothing left to ask for means the optional fields WERE the query, so there is no
+    // degraded version to fall back to — the caller wanted data we cannot get.
+    if (!without.length) throw err;
+    // Auth loss is already handled inside `request` before it throws (401/403 →
+    // maybeHandleAuthLoss), so retrying here cannot swallow a sign-out.
+    const rows = await query(without).catch(() => {
+      throw err; // retry failed too — surface the real problem, not the fallback's
+    });
+    console.warn(
+      `[frappe] ${doctype}: dropped optional field(s) ${opts.optional!.join(", ")} — ` +
+        `backend rejected them (${(err as Error).message}). Has its migration run?`,
+    );
+    return rows;
+  }
 }
 export async function getDoc<T = Record<string, unknown>>(doctype: string, name: string): Promise<T> {
   const r = await request<{ data: T }>(
