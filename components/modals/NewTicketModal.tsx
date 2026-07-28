@@ -9,7 +9,7 @@ import { ModalFooter } from "../ui/ModalFooter";
 import { StagedFiles } from "./StagedFiles";
 import { useStore } from "../../store";
 import { useToast } from "../ui/Toast";
-import { availableProductScopes, initials, productsForDivisions } from "../../lib/helpers";
+import { availableProductScopes, divDisplayName, initials, productsForDivisions } from "../../lib/helpers";
 import { hasBlockingIssue } from "../../lib/attachments";
 import type { Priority, TicketType } from "../../types";
 
@@ -39,6 +39,13 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
   const [divName, setDivName] = useState(
     isClient ? (session?.div ?? "") : (clients[0]?.divisions[0]?.name ?? ""),
   );
+  /** Client only, and only when they hold more than one division: which one this ticket is
+   *  being raised against. A DOCNAME, because that is what `session.divisions` carries and
+   *  what the server checks against (`ticket_has_permission`: doc.division in p.divisions).
+   *  Display names are resolved from it at the point of use — the two are not
+   *  interchangeable and `divDisplayName` exists precisely because mixing them matches
+   *  nothing, silently. */
+  const [divDoc, setDivDoc] = useState(session?.divisions?.[0] ?? "");
   const [product, setProduct] = useState("");
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -54,14 +61,32 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
   // Admin picked a client that has no divisions — a division-scoped ticket can't be
   // logged until one exists, so block submit rather than send an empty division.
   const divisionless = !isClient && !!activeClient && activeClient.divisions.length === 0;
-  // The products this contact reports against: the ones live at the divisions they hold,
-  // plus any attached client-wide. Shown in the context card.
-  const ctxProducts = productsForDivisions(activeClient, session?.divisions ?? []);
+  // A contact holds a SET of divisions — one for a division POC, several for a client Lead.
+  // A Lead must be able to raise against any of them, and the server already allows exactly
+  // that: ticket_has_permission ends in `doc.division in p.divisions`. Only this dialog was
+  // narrower, pinning every client ticket to session.div — which types.ts documents as
+  // "FIRST division's display name … never use it to decide what a contact may see".
+  const heldDivisions = session?.divisions ?? [];
+  const multiDivision = isClient && heldDivisions.length > 1;
+  // Fall back to session.div for the single-division case, where `divDoc` may be unset and
+  // the display name is all that is needed.
+  const clientDiv = multiDivision
+    ? divDisplayName(activeClient ?? { name: "" }, divDoc)
+    : (session?.div ?? "");
+
+  // The products this contact reports against, scoped to the division actually selected —
+  // not to every division they hold. Showing the union would advertise products that the
+  // picker below then refuses and the backend would reject: see-but-cannot-pick, which is
+  // the confusion this whole change exists to remove.
+  const ctxProducts = productsForDivisions(
+    activeClient,
+    multiDivision ? [divDoc].filter(Boolean) : heldDivisions,
+  );
 
   // The last step of the cascade: client -> division -> product. Only the products
   // actually running at the chosen division (plus any attached client-wide), because those
   // are exactly what the backend's validate will accept.
-  const effectiveDiv = isClient ? (session?.div ?? "") : divName;
+  const effectiveDiv = isClient ? clientDiv : divName;
   const productScopes = availableProductScopes(clients, { client: clientName, div: effectiveDiv });
   // Required when there is something to choose. A division running nothing hides the field
   // entirely rather than blocking submit — the dead end the old `divisionless` flag created.
@@ -79,6 +104,16 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
 
   const onDivisionChange = (name: string) => {
     setDivName(name);
+    setProduct("");
+    setProductErr(false);
+  };
+
+  /** Same reset, for the client's own division picker. Clearing the product is not tidiness:
+   *  a product live at Heating need not be live at Enviro, and carrying the old choice
+   *  across would submit something `_validate_product` rejects server-side — an error at
+   *  send time for a field the reader last touched two steps ago. */
+  const onClientDivisionChange = (docname: string) => {
+    setDivDoc(docname);
     setProduct("");
     setProductErr(false);
   };
@@ -110,7 +145,10 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
         title: title.trim(),
         desc: desc.trim(),
         client: isClient ? (session.client ?? "") : clientName,
-        div: isClient ? (session.div ?? "") : divName,
+        // `clientDiv` is the DISPLAY name, which is what RaiseTicketInput carries; the store
+        // resolves it back to a docname via divDocname before writing. For a single-division
+        // contact this is still session.div, so nothing changes for them.
+        div: isClient ? clientDiv : divName,
         product: product || undefined,
         raisedBy: isClient ? session.name : "Admin",
         files,
@@ -191,7 +229,27 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
               <span className="nt-ctx-av">{initials(session.client ?? "")}</span>
               <div style={{ minWidth: 0 }}>
                 <div className="nt-ctx-c">{session.client}</div>
-                <div className="nt-ctx-d">{session.div} division</div>
+                {/* A Lead holds several divisions and the ticket goes against ONE of them,
+                    so it has to be a choice. A division POC holds exactly one — nothing to
+                    choose, so they keep the plain label rather than a select with a single
+                    row in it. */}
+                {multiDivision ? (
+                  <Select
+                    className="plain"
+                    label="Division"
+                    ariaLabel="Division this ticket is about"
+                    value={divDoc}
+                    options={heldDivisions.map((docname) => ({
+                      // Value is the docname (what the server checks); label is the display
+                      // name (what the reader knows it as).
+                      value: docname,
+                      label: divDisplayName(activeClient ?? { name: "" }, docname),
+                    }))}
+                    onChange={onClientDivisionChange}
+                  />
+                ) : (
+                  <div className="nt-ctx-d">{session.div} division</div>
+                )}
               </div>
               {/* A division can run several products, so this is a list. Capped, with the
                   full set in the tooltip, so a client running many doesn't stretch the row. */}

@@ -3,6 +3,7 @@ import {
   clientContacts,
   availableProducts,
   availableProductScopes,
+  divDisplayName,
   productsForDivisions,
   relativeAge,
   isUnmatched,
@@ -372,5 +373,69 @@ describe("availableProductScopes", () => {
 
   it("availableProducts still returns bare names, for callers that only need those", () => {
     expect(availableProducts(clients, { client: "Thermax", div: "Chemical" })).toEqual(["Analytics Hub"]);
+  });
+});
+
+/**
+ * A client Lead raising a ticket, which is where the two namespaces actually meet.
+ *
+ * `session.divisions` holds DOCNAMES; `availableProductScopes` matches on DISPLAY names.
+ * NewTicketModal now bridges them — the division select carries docnames, and the product
+ * scope is resolved through `divDisplayName` before being applied. Get that round trip wrong
+ * and the picker silently offers only client-wide products, for every division, forever: no
+ * error, just a Lead who can never report against the product they actually run.
+ *
+ * Before this, every client ticket was pinned to `session.div` — the FIRST division — so a
+ * Lead over two divisions could see the second one's products in the context badges and
+ * never select them.
+ */
+describe("a client Lead choosing which of their divisions to raise against", () => {
+  const amazon = {
+    name: "Amazon",
+    divisions: [
+      { name: "Retail", docname: "AMZ-RET" },
+      { name: "Logistics", docname: "AMZ-LOG" },
+    ],
+    products: [
+      { product: "FlowGuard", divisions: ["AMZ-RET"] },
+      { product: "RouteMap", divisions: ["AMZ-LOG"] },
+      { product: "Analytics Hub", divisions: [] }, // client-wide: every division
+    ],
+  };
+  const held = ["AMZ-RET", "AMZ-LOG"]; // what session.divisions carries for a Lead
+
+  /** Exactly what the modal does: docname -> display name -> product scope. */
+  const scopesFor = (docname: string) =>
+    availableProductScopes([amazon], { client: "Amazon", div: divDisplayName(amazon, docname) })
+      .map((p) => p.product)
+      .sort();
+
+  it("offers each division its OWN products, plus the client-wide one", () => {
+    expect(scopesFor("AMZ-RET")).toEqual(["Analytics Hub", "FlowGuard"]);
+    expect(scopesFor("AMZ-LOG")).toEqual(["Analytics Hub", "RouteMap"]);
+  });
+
+  it("never offers one division's product under another", () => {
+    // The whole point of scoping: _validate_product would reject it server-side anyway, so
+    // offering it would only produce an error at send time.
+    expect(scopesFor("AMZ-RET")).not.toContain("RouteMap");
+    expect(scopesFor("AMZ-LOG")).not.toContain("FlowGuard");
+  });
+
+  it("badges scoped to the selected division show that division only", () => {
+    // The context badges used to be built from ALL held divisions while the picker was
+    // pinned to the first — so a Lead saw RouteMap advertised and could not choose it.
+    expect(productsForDivisions(amazon, ["AMZ-LOG"]).sort()).toEqual(["Analytics Hub", "RouteMap"]);
+    // Union across every held division — what was shown before, kept here to show the gap.
+    expect(productsForDivisions(amazon, held).sort()).toEqual(["Analytics Hub", "FlowGuard", "RouteMap"]);
+  });
+
+  it("skipping the display-name resolution yields only client-wide products", () => {
+    // The failure this guards: passing the docname straight through matches no engagement,
+    // so every division looks like it runs nothing but the client-wide product.
+    const wrong = availableProductScopes([amazon], { client: "Amazon", div: "AMZ-RET" }).map(
+      (p) => p.product,
+    );
+    expect(wrong).toEqual(["Analytics Hub"]);
   });
 });
