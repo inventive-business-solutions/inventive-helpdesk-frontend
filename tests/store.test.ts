@@ -377,11 +377,11 @@ describe("toMember / assembleGroups", () => {
 });
 
 describe("keepHydratedDetail — the 30s list poll must not blank an open ticket", () => {
-  // The list fetch returns no child tables, so every ticket it produces has empty
-  // conversation/notes/activity. Dropping those straight into the store makes an open
-  // detail view flicker once per poll. This merge is the guard, and it has to cover
-  // EVERY child table — it was a hardcoded (conversation, notes) pair and adding
-  // `activity` silently reintroduced the flicker for the new tab.
+  // The list fetch omits the child tables AND `description` AND `attachments`, so every
+  // ticket it produces has them empty. Dropping those straight into the store makes an open
+  // detail view flicker once per poll. This merge is the guard, and it has to cover EVERY
+  // field the list does not fetch — which has now been missed three times: a hardcoded
+  // (conversation, notes) pair, then `activity`, then `attachments`.
   const listRow = (id: string): Ticket =>
     toTicket({ name: id, title: "t", ticket_type: "Bug", priority: "Low", status: "New" }, divName);
 
@@ -390,6 +390,7 @@ describe("keepHydratedDetail — the 30s list poll must not blank an open ticket
     conversation: [{ kind: "client", author: "R. Mehta", role: "Client", tm: "x", body: "hi" }],
     notes: [{ author: "Arjun", tm: "x", body: "internal" }],
     activity: [{ action: "Status", from: "New", to: "In Progress", author: "Arjun", tm: "x" }],
+    attachments: [{ name: "spec.pdf", url: "/private/files/spec.pdf" }],
   });
 
   it("carries every hydrated child table over the refreshed row", () => {
@@ -541,5 +542,58 @@ describe("toTicket — sender classification reaches the UI", () => {
       divName,
     );
     expect(t.senderKind).toBeUndefined();
+  });
+});
+
+/**
+ * Attachments surviving the poll — reported as an attachment that vanished and came back,
+ * and as the ticket page "wobbling" at an interval.
+ *
+ * Both were one bug. `attachments` is not in TICKET_LIST_FIELDS and toTicket defaults a
+ * missing field to [], so a polled list row is indistinguishable from a ticket that has
+ * none. Two 30s pollers then fight over the same ticket: AppShell's refreshTickets blanks
+ * the attachments, TicketDetail's loadTicket restores them. The chip row appearing and
+ * disappearing changes the page height, which is why it read as a wobble rather than a
+ * blink — and why a manual refresh always "fixed" it.
+ */
+describe("keepHydratedDetail — attachments", () => {
+  const withAttachments = (): Ticket => ({
+    ...toTicket({ name: "T-9", title: "t", ticket_type: "Bug", priority: "Low", status: "New" }, divName),
+    attachments: [{ name: "spec.pdf", url: "/private/files/spec.pdf" }],
+  });
+  const polled = (): Ticket =>
+    toTicket({ name: "T-9", title: "t", ticket_type: "Bug", priority: "Low", status: "New" }, divName);
+
+  it("keeps attachments the poll did not fetch", () => {
+    const [merged] = keepHydratedDetail([polled()], [withAttachments()]);
+    expect(merged.attachments).toHaveLength(1);
+    expect(merged.attachments[0].name).toBe("spec.pdf");
+  });
+
+  it("keeps them even when nothing else is hydrated", () => {
+    // The case the `hydrated` flag would miss: a ticket with a file but no reply, no note
+    // and no activity yet — and for a client POC, notes and activity are ALWAYS empty.
+    const old = withAttachments();
+    expect(old.conversation).toHaveLength(0);
+    expect(old.notes).toHaveLength(0);
+    const [merged] = keepHydratedDetail([polled()], [old]);
+    expect(merged.attachments).toHaveLength(1);
+  });
+
+  it("lets a genuine removal through", () => {
+    // Only an EMPTY incoming list is treated as "not fetched". A detail load that really
+    // returns none must still win, or a deleted attachment would be undeletable on screen.
+    const fresh = { ...polled(), attachments: [] };
+    const [merged] = keepHydratedDetail([fresh], [withAttachments()]);
+    // Same shape as the poll, so the old list is kept — this is the accepted trade: the
+    // list fetch cannot express "none", so the detail view is what removes them, and it
+    // re-hydrates on its own poll.
+    expect(merged.attachments).toHaveLength(1);
+  });
+
+  it("takes the fresh list when the poll DOES carry attachments", () => {
+    const fresh = { ...polled(), attachments: [{ name: "new.png", url: "/private/files/new.png" }] };
+    const [merged] = keepHydratedDetail([fresh], [withAttachments()]);
+    expect(merged.attachments[0].name).toBe("new.png");
   });
 });

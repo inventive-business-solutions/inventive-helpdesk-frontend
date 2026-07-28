@@ -380,9 +380,15 @@ async function fetchTickets(divIndex: DivRef[], scope?: { client?: string; divis
  *  for a beat on every 30s poll — a visible flicker. This keeps whatever the previous
  *  copy had; detail navigation re-hydrates fully via loadTicket.
  *
- *  ADDING A CHILD TABLE TO `Ticket` MEANS ADDING IT HERE. This was a hardcoded pair
- *  (conversation, notes) in two separate places, and adding `activity` silently
- *  reintroduced exactly the flicker the merge exists to prevent — hence one helper. */
+ *  ANY FIELD NOT IN `TICKET_LIST_FIELDS` MUST BE PRESERVED HERE — not just child tables.
+ *  This has now been missed three times: it began as a hardcoded (conversation, notes) pair
+ *  in two places, `activity` was added to the type and not here, and then `attachments`.
+ *  The last one was the worst to read, because two 30s pollers fight over it and the page
+ *  visibly grew and shrank rather than blinking once.
+ *
+ *  The tell is always the same: the list fetch omits the field, the mapper defaults it to
+ *  empty, and "not fetched" becomes indistinguishable from "genuinely empty". If you add a
+ *  field to `Ticket` and do not add it to TICKET_LIST_FIELDS, it belongs in this function. */
 export function keepHydratedDetail(fresh: Ticket[], prev: Ticket[]): Ticket[] {
   const byId = new Map(prev.map((t) => [t.id, t]));
   return fresh.map((t) => {
@@ -399,10 +405,29 @@ export function keepHydratedDetail(fresh: Ticket[], prev: Ticket[]): Ticket[] {
     // `hydrated` would therefore restore it for staff and not for the portal, which is
     // the harder bug to notice of the two.
     const desc = t.desc === NO_VALUE && old.desc !== NO_VALUE ? old.desc : t.desc;
+    // `attachments` is not in the list fetch either, and toTicket maps a missing field to
+    // [] — so "not fetched" and "genuinely none" arrive identical, exactly like `desc`.
+    // Gated on emptiness rather than on `hydrated` below for the same reason `desc` is: a
+    // ticket can carry attachments with no reply, no note and no activity yet, and a client
+    // POC never receives notes or activity at all.
+    //
+    // Unfixed, this was the flicker the helper exists to prevent, arriving by a third
+    // route — and it was visible as a WOBBLE rather than a blink, because two 30s pollers
+    // fight over it: AppShell's refreshTickets blanks the attachments, TicketDetail's
+    // loadTicket puts them back, and the chip row appearing and disappearing changes the
+    // page height each time.
+    const attachments = !t.attachments.length && old.attachments.length ? old.attachments : t.attachments;
     const hydrated = old.conversation.length || old.notes.length || old.activity.length;
     return hydrated
-      ? { ...t, desc, conversation: old.conversation, notes: old.notes, activity: old.activity }
-      : { ...t, desc };
+      ? {
+          ...t,
+          desc,
+          attachments,
+          conversation: old.conversation,
+          notes: old.notes,
+          activity: old.activity,
+        }
+      : { ...t, desc, attachments };
   });
 }
 
