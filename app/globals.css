@@ -5269,12 +5269,23 @@ button.stat:not(:disabled):hover {
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
-/* On a client card these sections sit inside .cc-body, which supplies the 20px inset. The
-   team card has no padded body — its members table is deliberately full-bleed — so the head
-   carries the card's own inset itself, matching .cc-head's 20px so the eyebrow lines up
-   under the team name rather than floating 20px to its left. */
+/* On a client card these sections sit inside .cc-body, which supplies their inset. The team
+   card has no padded body — its members table is deliberately full-bleed — so this head
+   carries its own.
+
+   14px, NOT the card head's 20px: this row labels the TABLE, and table.tk cells carry 14px
+   gutters. At 20px the eyebrow sat 6px inboard of "NAME" and the button 6px inboard of
+   "ACTIONS" — every element in the row missing the column it belonged to by the same small
+   amount, which reads as wedged in rather than placed.
+
+   The border and the 12/10 padding are the rest of it: at 2px top and 8px bottom the row had
+   no space of its own, so it looked stuck between the identity block and the table instead
+   of separating them. A client card gets this division from `.cc-section + .cc-section`;
+   this card has a single section, so the rule lives here. */
 .team-section-head {
-  padding: 2px 20px 0;
+  padding: 12px 14px 10px;
+  margin-bottom: 0;
+  border-top: 1px solid var(--line-2);
 }
 
 /* ---- row lists (Products and Divisions) -----------------------------------
