@@ -160,4 +160,57 @@ reports the expected commit SHA. See [CICD.md](CICD.md).
 
 ---
 
+## Operating hazards
+
+Things that have actually cost time here, and are not deducible from the code.
+
+### Never `npm run build` while the dev server is running
+
+`next dev` and `next build` write to the same `.next` directory. Running a build while the
+dev server is up corrupts it, and the symptom is not a build error — it is **every page
+404ing** in a server that is otherwise running normally. Check for the dev server on port
+**5175** first; if it is up, stop it before building.
+
+Recovery is `rm -rf .next` and restart.
+
+### The TypeScript and ESLint versions are pinned deliberately
+
+```json
+"typescript": "~6.0.3",
+"eslint": "^9.39.5"
+```
+
+These are not stale. Moving TypeScript to 7 or ESLint to 10 breaks linting here. Leave them
+alone unless you are prepared to fix the fallout — a routine "update dependencies" pass will
+take the pipeline down.
+
+### Three allowlists, not one
+
+Adding an endpoint or a static asset means updating **all three**:
+
+1. the `next.config.mjs` rewrites — frozen into the routes manifest **at build time**
+2. the `proxy.ts` matcher
+3. the caller
+
+Miss any one and the route 404s with nothing in the logs. The build-time freeze is the
+part that surprises people: editing `next.config.mjs` without rebuilding changes nothing.
+
+### Deploy the backend first
+
+When a change here calls a new backend endpoint, the backend must be released and verified
+in production **before** this repo goes out. The reverse order ships a UI whose requests 404. Verify with the backend's `check` endpoint, which reports its `build_sha`.
+
+### CSS specificity is the usual reason a component "looks broken"
+
+`app/globals.css` is a single cascade, and a component class can lose to a more specific
+ancestor rule without anything erroring. A toggle once rendered as a stray circle over text
+because `.field label` (0,1,1) beat `.check-row` (0,1,0), so its `display: flex` never
+applied at all.
+
+`npm run audit:css` reports declarations that lose this way; `npm run audit:deadcss` finds
+unreferenced selectors. The latter has a documented exception list — some class names are
+built at runtime (`t-${tone}`, `"type-" + type`) and are not greppable.
+
+---
+
 © 2026 Inventive Business Solutions Pvt Ltd.
