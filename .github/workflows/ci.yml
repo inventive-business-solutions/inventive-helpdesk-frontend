@@ -166,7 +166,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build AMD64 image (published only from development)
+      - name: Build AMD64 image (published only from master)
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -294,12 +294,8 @@ jobs:
       # Only now does the image become something the world can pull. Mirrors the backend
       # pipeline: build local -> exercise it -> publish. Nothing untested reaches the
       # registry, so a failed smoke cannot be deployed by a later stack redeploy either.
-      #
-      # Published from development, which is what production runs. master publishes nothing:
-      # it records what has already proven itself live, and pushing from both would race two
-      # pipelines onto the same :latest for the same commit.
       - name: Push image to registry
-        if: success() && github.ref == 'refs/heads/development'
+        if: success() && github.ref == 'refs/heads/master'
         run: |
           set -euo pipefail
           docker push "${{ vars.IMAGE_NAME }}:${{ github.sha }}"
@@ -329,10 +325,10 @@ jobs:
       # whole-stack redeploy, which moves them together. This service is one stateless
       # container, which is what makes the atomic swap below safe.
       #
-      # Branch-gated, not just success-gated: master must not redeploy what is already live.
+      # Branch-gated, not just success-gated: development must never reach the server.
       - name: Deploy by digest
         id: deploy
-        if: success() && github.ref == 'refs/heads/development'
+        if: success() && github.ref == 'refs/heads/master'
         env:
           SERVICE: inventive-helpdesk-frontend_frontend
           IMAGE_REF: ${{ vars.IMAGE_NAME }}:${{ github.sha }}
@@ -477,10 +473,8 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ github.ref }}" = "refs/heads/development" ]; then
+          if [ "${{ github.ref }}" = "refs/heads/master" ]; then
             echo "| **Environment** | Production (release) |" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "${{ github.ref }}" = "refs/heads/master" ]; then
-            echo "| **Environment** | Promotion — marks this build stable, deploys nothing |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| **Environment** | Validation only — not published, not deployed |" >> "$GITHUB_STEP_SUMMARY"
           fi
