@@ -305,6 +305,39 @@ describe("pocPortalStatus", () => {
       ),
     ).toBe("active");
   });
+
+  it("is 'active' from activated_on alone, with no login on record", () => {
+    // The point of the change: the chip answers "have they chosen a password?", and
+    // someone who activated and has not signed in since is not an outstanding invite.
+    expect(
+      pocPortalStatus(
+        poc({ user: "p@x.com", invited_on: "2026-07-16 12:00:00.000000", activated_on: "2026-07-16 12:05:00.000000" }),
+        users({ name: "p@x.com", enabled: 1 }),
+      ),
+    ).toBe("active");
+  });
+
+  it("returns to 'invited' when a resend clears activated_on", () => {
+    // invite_poc restamps invited_on and nulls activated_on, so the new link has to be
+    // redeemed. An old login must not be enough to read Active again.
+    expect(
+      pocPortalStatus(
+        poc({ user: "p@x.com", invited_on: "2026-07-16 12:00:00.000000", activated_on: null }),
+        users({ name: "p@x.com", enabled: 1, last_login: "2026-07-16 11:00:00.000000" }),
+      ),
+    ).toBe("invited");
+  });
+
+  it("still reports 'none' for a disabled account even once activated", () => {
+    // Disabled outranks activation — otherwise a revoked contact would read Active and
+    // the admin would have no prompt to re-invite.
+    expect(
+      pocPortalStatus(
+        poc({ user: "p@x.com", activated_on: "2026-07-16 12:05:00.000000" }),
+        users({ name: "p@x.com", enabled: 0 }),
+      ),
+    ).toBe("none");
+  });
 });
 
 describe("toMember / assembleGroups", () => {

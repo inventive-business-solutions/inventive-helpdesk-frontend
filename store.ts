@@ -141,9 +141,15 @@ async function fetchMasters(role: Role) {
             "client",
             "user",
             "invited_on",
+            "activated_on",
             "creation",
             "modified",
           ],
+          // activated_on ships with a backend migration. Optional so this repo can go out
+          // against a backend that has not run it yet: the retry drops the column and every
+          // contact falls back to the last_login rule, rather than the Clients page failing
+          // to load at all over a status chip.
+          optional: ["activated_on"],
           limit: MASTER_FETCH_CAP,
         });
         let map = new Map<string, api.RawUser>();

@@ -937,6 +937,9 @@ export interface RawPoc extends RawStamps {
   division?: string;
   user?: string;
   invited_on?: string | null;
+  /** When they chose a password. Absent on a backend that predates the column — see the
+   *  `optional` retry at the call site — which is why the last_login rule is still here. */
+  activated_on?: string | null;
 }
 export interface RawUser {
   name: string;
@@ -945,17 +948,27 @@ export interface RawUser {
 }
 
 /** Derive a POC's portal state from its linked User. A missing or disabled user
- *  reads as "none" so the admin can (re-)invite. "Active" means they actually signed
- *  in *after* we last invited them: we compare the User's last_login against the POC's
- *  invited_on. That guard matters because an invite re-uses a pre-existing User whose
- *  last_login may predate this invite — plain "has ever logged in" would wrongly read
- *  as active. Both timestamps come from the same server in fixed "YYYY-MM-DD HH:MM:SS"
- *  form, so a lexical compare orders them correctly. Legacy POCs with no invited_on
- *  fall back to "logged in at all → active". */
+ *  reads as "none" so the admin can (re-)invite.
+ *
+ *  "Active" means they have CHOSEN A PASSWORD, not that they have signed in. Those are
+ *  different questions and the chip is meant to answer the first: an admin looking at this
+ *  column wants to know whether the invite is still outstanding, and someone who activated
+ *  and has not been back since is not an outstanding invite. The backend stamps
+ *  `activated_on` in set_password_with_key and clears it on every resend, so the value is
+ *  scoped to the current invite without needing a comparison here.
+ *
+ *  The last_login rule below is the LEGACY path, kept for two cases that both still occur:
+ *  a backend that has not run the migration (the field is dropped from the query, see
+ *  `optional` at the call site) and rows the backfill could not date. It reads Active when
+ *  they signed in *after* we last invited them — the guard matters because an invite can
+ *  re-use a pre-existing User whose last_login predates it, and plain "has ever logged in"
+ *  would wrongly read as active. Both timestamps come from the same server in fixed
+ *  "YYYY-MM-DD HH:MM:SS" form, so a lexical compare orders them correctly. */
 export function pocPortalStatus(poc: RawPoc, users: Map<string, RawUser>): PortalStatus {
   if (!poc.user) return "none";
   const u = users.get(poc.user);
   if (!u || u.enabled === 0) return "none";
+  if (poc.activated_on) return "active";
   if (!u.last_login) return "invited";
   if (poc.invited_on && u.last_login <= poc.invited_on) return "invited";
   return "active";
