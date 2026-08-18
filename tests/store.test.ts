@@ -311,7 +311,11 @@ describe("pocPortalStatus", () => {
     // someone who activated and has not signed in since is not an outstanding invite.
     expect(
       pocPortalStatus(
-        poc({ user: "p@x.com", invited_on: "2026-07-16 12:00:00.000000", activated_on: "2026-07-16 12:05:00.000000" }),
+        poc({
+          user: "p@x.com",
+          invited_on: "2026-07-16 12:00:00.000000",
+          activated_on: "2026-07-16 12:05:00.000000",
+        }),
         users({ name: "p@x.com", enabled: 1 }),
       ),
     ).toBe("active");
